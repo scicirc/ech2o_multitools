@@ -1,40 +1,36 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# *************************************************
-#
-# Python routines for ECH2O
-#
-# -------
-# Routine: Subroutines for variable sampling
-# -------
-# Author: S. Kuppel
-# Created on 01/2020
-# -------------------------------------------------
+'''
+Python routines for ECH2O
+
+Routine: Subroutines for variable sampling
+-------
+:author: Sylvain Kuppel
+
+Adapted from spot_setup_hymod.exe.py
+created by Tobias Houska
+'''
 
 import time
 import os
-import glob
 import sys
-import copy
-from pyDOE import *
-import random
-
 import spotpy
-import Multitool_outputs
-import Multitool_params
+import numpy as np
+
+import Multitool_outputs as outputs
+import Multitool_params as params
 
 
 class spot_setup(object):
 
-    def __init__(self, Config):
+    def __init__(self, Config, Opti, parallel='seq'):
 
         # Parameters
         self.params = []
-        for i in range(Config.npar):
-            self.params += [spotpy.parameter.Uniform(Config.names[i],
-                                                     low=Config.min[i],
-                                                     high=Opti.max[i],
-                                                     optguess=Opti.guess[i])]
+        for i in range(Opti.nvar):
+            self.params += \
+                [spotpy.parameter.Base(np.random.normal, 'Normal',
+                                       name=Opti.names[i],
+                                       low=Opti.min[i], high=Opti.max[i],
+                                       optguess=Opti.guess[i])]
 
         # Evaluation data
         self.evals = Opti.obs
@@ -48,7 +44,7 @@ class spot_setup(object):
 
     # We use the simulation function to write one random parameter set into a
     # parameter file, like it is needed for the HYMOD model, start the model
-    # and read the model discharge output data:
+    # and read the model discharge output data:
     def simulation(self, Opti, Config):
         os.chdir(self.owd+os.sep+'hymod')
         if sys.version_info.major == 2:

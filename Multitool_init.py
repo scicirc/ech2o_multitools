@@ -118,11 +118,11 @@ def config(Config, options):
 
     # -- MS init: many things don't happen if it is the case
     if Config.mode == 'sensi_morris':
-        if options.MSinit is None:
-            Config.MSinit = 1
-            sys.exit("Please state if you're initializating the MS sampling")
-        else:
-            Config.MSinit = int(options.MSinit)
+        # if options.MSinit is None:
+        #     Config.MSinit = 1
+        #     sys.exit("Please state if you're initializating the MS sampling")
+        # else:
+        #     Config.MSinit = int(options.MSinit)
 
         if options.MSspace is None:
             Config.MSspace = 'trajectory'
@@ -131,8 +131,8 @@ def config(Config, options):
 
     # -- Run ECH2O?
     Config.runECH2O = 1
-    if Config.mode == 'calib_sampling' or (Config.mode == 'sensi_morris' and
-                                           Config.MSinit == 1):
+    if Config.mode == 'calib_sampling':  # or
+        # (Config.mode == 'sensi_morris' and Config.MSinit == 1):
         Config.runECH2O = 0
 
     # print(options.outdir)
@@ -185,11 +185,11 @@ def config(Config, options):
             os.system('mkdir ' + Config.PATH_TRAJ)
 
         # -- Output of elementary effects
-        if(Config.MSinit == 0):
-            Config.PATH_EE = os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                                          'ElementaryEffects'))
-            print("Elementary effects directory:          ", Config.PATH_EE)
-            Config.FILE_EE = Config.PATH_EE+'/'+options.outdir.split('.')[0]
+        # if(Config.MSinit == 0):
+        Config.PATH_EE = os.path.abspath(os.path.join(Config.PATH_MAIN,
+                                                      'ElementaryEffects'))
+        print("Elementary effects directory:          ", Config.PATH_EE)
+        Config.FILE_EE = Config.PATH_EE+'/'+options.outdir.split('.')[0]
 
     print('')
 
@@ -273,9 +273,7 @@ def config(Config, options):
                                                             'tmp'))
         # -- Forward runs: parameter sets to use
         if Config.mode == 'forward_runs':
-
             if options.inEns is not None:
-                Config.nEns = int(options.nEns)
                 Config.FILE_PAR = Config.PATH_MAIN+'Input_Params/' +\
                     options.inEns+'.txt'
                 # Config.FILE_PAR = Config.PATH_MAIN+'Input_Params/'+\
@@ -288,8 +286,15 @@ def config(Config, options):
                 print('')
                 print('The ensemble param file is : '+Config.FILE_PAR)
             else:
-                sys.exit('The size of ensemble simulations needs to be ' +
-                         'specified (--nEns)')
+                sys.exit('The param file (ensemble set) needs to be ' +
+                         'specified (--inEns)')
+
+            nv = np.genfromtxt(Config.FILE_PAR, delimiter=',',
+                               unpack=True)[1::].shape[0]
+            if options.nEns is not None:
+                Config.nEns = min(int(options.nEns), nv)
+            else:
+                Config.nEns = nv
 
     # -- Runs directories
     if Config.runECH2O == 1:
@@ -503,22 +508,22 @@ def parameters(Config, Opti, Paras, Site, options):
         # tmp = list(np.genfromtxt(Config.FILE_PAR,delimiter=',',dtype= '|S30',
         # unpack=True)[0])
         tmp = list(pd.read_csv(Config.FILE_PAR, header=None).loc[:, 0])
-        # print(Opti.names)
-        # print(tmp)
 
-    if tmp != Opti.names:
-        sys.exit("The definition file and input parameter file ain't " +
-                 "matching!")
+        if tmp != Opti.names:
+            print(Opti.names)
+            print(tmp)
+            sys.exit("The definition file and input parameter file ain't " +
+                     "matching!")
 
-    # pnames = ','.join([str(tmp[id.x]) for idx in range(Opti.nvar)])
-    # print(tmp#pnames
-    # print(Opti.names
-    if(options.OMP_it is None):
-        Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',
-                                  unpack=True)[1::]
-    else:
-        Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',
-                                  unpack=True)[1::][None, Config.OMP_it-1, :]
+        # pnames = ','.join([str(tmp[id.x]) for idx in range(Opti.nvar)])
+        # print(tmp#pnames
+        # print(Opti.names
+        if(options.OMP_it is None):
+            Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',
+                                      unpack=True)[1::]
+        else:
+            Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',
+                                      unpack=True)[1::][None, Config.OMP_it-1, :]
 
     # -- Sensitivity analysis: generate morris trajectories
     if Config.mode == 'sensi_morris':
@@ -527,34 +532,45 @@ def parameters(Config, Opti, Paras, Site, options):
         # each parameter
         Opti.stepN = np.zeros((Opti.nvar), np.float64) + 0.5
 
-        if Config.MSinit == 1:
-            morris.trajs(Config, Opti)
-            print('Parameters trajectory generation done.')
+        # if Config.MSinit == 1:
+        morris.trajs(Config, Opti)
+        print('Parameters trajectory generation done.')
 
-        else:
-            # Get the trajectory
-            f_in = Config.PATH_TRAJ+'/'+options.outdir.split('.')[0] + \
-                '.Bstar_traj' + Config.numsim+'.txt'
-            # print(f_in
-            Opti.xpar = np.genfromtxt(f_in, delimiter=',', skip_header=1)
-            # print(Opti.xpar.shape
-            # Reconstruct step (+- 0.5)
-            if(Config.MSspace == 'trajectory'):
-                Opti.dx = np.diff(Opti.xpar, axis=0)
-            elif(Config.MSspace == 'radial'):
-                Opti.dx = Opti.xpar[1::, :] - Opti.xpar[0, :]
-            Opti.dx[Opti.dx != 0] = Opti.dx[Opti.dx != 0] / \
-                np.abs(Opti.dx[Opti.dx != 0]) * 0.5
-            if(np.ptp(Opti.dx) != 1.0 or np.min(Opti.dx) != -0.5 or
-               np.max(Opti.dx) != 0.5):
-                sys.exit('Error: The fetched Bnorm has a problem...')
+        # else:
+        #     # Get the trajectory
+        #     f_in = Config.PATH_TRAJ+'/'+options.outdir.split('.')[0] + \
+        #         '.Bstar_traj' + Config.numsim+'.txt'
+        #     # print(f_in
+        #     Opti.xpar = np.genfromtxt(f_in, delimiter=',', skip_header=1)
+        #     # print(Opti.xpar.shape
+        #     # Reconstruct step (+- 0.5)
+        #     if(Config.MSspace == 'trajectory'):
+        #         Opti.dx = np.diff(Opti.xpar, axis=0)
+        #     elif(Config.MSspace == 'radial'):
+        #         Opti.dx = Opti.xpar[1::, :] - Opti.xpar[0, :]
+        #     Opti.dx[Opti.dx != 0] = Opti.dx[Opti.dx != 0] / \
+        #         np.abs(Opti.dx[Opti.dx != 0]) * 0.5
+        #     if(np.ptp(Opti.dx) != 1.0 or np.min(Opti.dx) != -0.5 or
+        #        np.max(Opti.dx) != 0.5):
+        #         sys.exit('Error: The fetched Bnorm has a problem...')
+        Opti.xpar = Opti.Bstar
+        # Reconstruct step (+- 0.5)
+        if(Config.MSspace == 'trajectory'):
+            Opti.dx = np.diff(Opti.xpar, axis=0)
+        elif(Config.MSspace == 'radial'):
+            Opti.dx = Opti.xpar[1::, :, :] - Opti.xpar[0, :, :]
+        Opti.dx[Opti.dx != 0] = Opti.dx[Opti.dx != 0] / \
+            np.abs(Opti.dx[Opti.dx != 0]) * 0.5
+        if(np.ptp(Opti.dx) != 1.0 or np.min(Opti.dx) != -0.5 or
+           np.max(Opti.dx) != 0.5):
+            sys.exit('Error: Bnorm has a problem...')
 
         # Total number of runs
         Opti.nruns = (Opti.nvar+1) * Opti.nr
 
     # Calibration or SA runs: Check that the same parameters are used
-    if Config.mode == 'calib_runs' or \
-       (Config.mode == 'sensi_morris' and Config.MSinit == 0):
+    if Config.mode == 'calib_runs' or Config.mode == 'sensi_morris':
+        # (Config.mode == 'sensi_morris' and Config.MSinit == 0):
         if(len(Opti.xpar[0]) != len(Opti.names)):
             sys.exit("The definition file and input parameter file ain't " +
                      "matching!")

@@ -120,7 +120,9 @@ def forward_runs(Config, Opti, Data, Paras, Site, options):
     print('')
 
     if options.OMP_it is None:
-        nruns = int(options.nEns)
+        # Mininum between params file size and prescribed runs
+        nruns = Config.nEns
+        # print(nruns)
     else:
         nruns = 1
 

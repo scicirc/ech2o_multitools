@@ -162,16 +162,20 @@ def sim_inputs(Opti, Paras, Site, Config, it):
         porosL3 = kporos*poros*(pcr.exp(-(dL1+dL2)/kporos) -
                                 pcr.exp(-dTot/kporos))/(dTot-dL1-dL2)
 
-    else:
+    elif 'PorosL2' in Paras.names and 'PorosL3' in Paras.names:
+        porosL1 = poros
+        porosL2 = pcr.readmap(Config.PATH_SPA+'/poros.L2.map')
+        porosL3 = pcr.readmap(Config.PATH_SPA+'/poros.L3.map')
 
+    else:
         porosL1 = poros
         porosL2 = poros
         porosL3 = poros
 
     # -- Use a fraction of these porosities as initial soil moisture
-    pcr.report(porosL1*0.4, Config.PATH_SPA+'/Init_SWC.L1.map')
-    pcr.report(porosL2*0.4, Config.PATH_SPA+'/Init_SWC.L2.map')
-    pcr.report(porosL3*0.4, Config.PATH_SPA+'/Init_SWC.L3.map')
+    pcr.report(porosL1*0.8, Config.PATH_SPA+'/Init_SWC.L1.map')
+    pcr.report(porosL2*0.8, Config.PATH_SPA+'/Init_SWC.L2.map')
+    pcr.report(porosL3*0.85, Config.PATH_SPA+'/Init_SWC.L3.map')
 
     # - Finalizing soil parameterization
     # Check that initial soil moisture is not smaller residual soil
