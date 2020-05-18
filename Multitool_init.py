@@ -19,6 +19,8 @@ import sys
 import glob
 import copy
 from datetime import timedelta
+from datetime import datetime
+
 
 import Multitool_sampling as sampling
 import Multitool_params as params
@@ -49,7 +51,7 @@ def config(Config, options):
 
     # -- Main mode
     if options.mode is None:
-        sys.exit("Please choose which a script mode!")
+        sys.exit("Please choose a script mode!")
     else:
         Config.mode = copy.copy(options.mode)
 
@@ -131,7 +133,7 @@ def config(Config, options):
 
     # -- Run ECH2O?
     Config.runECH2O = 1
-    if Config.mode == 'calib_sampling':  # or
+    if Config.mode == 'calib_MCsampling':  # or
         # (Config.mode == 'sensi_morris' and Config.MSinit == 1):
         Config.runECH2O = 0
 
@@ -152,10 +154,10 @@ def config(Config, options):
         print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
         print('')
 
-    # -- Calibration: all parameter path
+    # -- Calibration: all parameter path (and datasets, if needed)
     if Config.mode.split('_')[0] == 'calib':
         Config.PATH_PAR = os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                                       'Parameters_samples'))
+                                                       'Calibration_Samples'))
         Config.FILE_PAR = Config.PATH_PAR+'/'+options.outdir.split('.')[0] + \
             '_parameters.'
         # -- Creation of output directory
@@ -165,6 +167,10 @@ def config(Config, options):
         print('')
         print("Parameter samples' directory:          ", Config.PATH_PAR)
         print('')
+
+        # Observations (effectively only needed in DREAM mode)
+        Config.PATH_OBS = os.path.abspath(os.path.join(Config.PATH_MAIN,
+                                                       'Calibration_Datasets'))
 
     # -- Sensitivity: all parameter path
     if Config.mode == 'sensi_morris':
@@ -441,13 +447,14 @@ def parameters(Config, Opti, Paras, Site, options):
 
         # Build vectors used in the optimisation
         if Config.mode != 'forward_runs':
+
             if type(Paras.ref[par]['min']) == float or \
                type(Paras.ref[par]['min']) == int:
-                Opti.min = Opti.min + [Paras.ref[par]['min']]
-                Opti.max = Opti.max + [Paras.ref[par]['max']]
+                Opti.min += [Paras.ref[par]['min']]
+                Opti.max += [Paras.ref[par]['max']]
             else:
-                Opti.min = Opti.min + Paras.ref[par]['min']
-                Opti.max = Opti.max + Paras.ref[par]['max']
+                Opti.min += Paras.ref[par]['min']
+                Opti.max += Paras.ref[par]['max']
 
             Opti.log = Opti.log + list(np.repeat(Paras.ref[par]['log'], nr))
 
@@ -475,7 +482,7 @@ def parameters(Config, Opti, Paras, Site, options):
     Opti.nvar = len(Opti.names)
 
     # -- Calibration sampling: generate calibration parameters samples
-    if Config.mode == 'calib_sampling':
+    if Config.mode == 'calib_MCsampling':
 
         if options.sampling is None:
             Config.sampling = 'uniform'
@@ -494,7 +501,7 @@ def parameters(Config, Opti, Paras, Site, options):
         print('Parameters sample generation done.')
 
     # -- Calibration runs: retrieve previously generated samples
-    if Config.mode == 'calib_runs':
+    if Config.mode == 'calib_MCruns':
 
         print('Get parameters samples for this job...')
         # Read parameters sample for this parallel run
@@ -523,7 +530,8 @@ def parameters(Config, Opti, Paras, Site, options):
                                       unpack=True)[1::]
         else:
             Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',
-                                      unpack=True)[1::][None, Config.OMP_it-1, :]
+                                      unpack=True)[1::][None,
+                                                        Config.OMP_it-1, :]
 
     # -- Sensitivity analysis: generate morris trajectories
     if Config.mode == 'sensi_morris':
@@ -569,18 +577,67 @@ def parameters(Config, Opti, Paras, Site, options):
         Opti.nruns = (Opti.nvar+1) * Opti.nr
 
     # Calibration or SA runs: Check that the same parameters are used
-    if Config.mode == 'calib_runs' or Config.mode == 'sensi_morris':
+    if Config.mode == 'calib_MCruns' or Config.mode == 'sensi_morris':
         # (Config.mode == 'sensi_morris' and Config.MSinit == 0):
         if(len(Opti.xpar[0]) != len(Opti.names)):
             sys.exit("The definition file and input parameter file ain't " +
                      "matching!")
 # ==================================================================================
+# -- Read measurements for calibration
 
 
-def runs(Config, Opti, Data, Paras, Site):
+def observations(Config, Opti, Data):
 
-    # Get the observations used for optimisation
+    # Set the observations types collected from runs (sim outputs)
+    # (and compared to measurements if there is calibration)
     Data.names = sorted(Data.obs.keys())
+
+    # Date of the simulations (used for calibration periods, mostly)
+    Data.simt = [Data.simbeg + timedelta(days=x)
+                 for x in range(Data.lsim - Data.lspin)]
+
+    if Config.mode == 'calib_DREAM':
+        print('Reading measured datasets for calibration...')
+        print
+
+        Opti.obs = {}  # np.full((Data.nobs, Config.trimL), np.nan)
+
+        for oname in Data.names:
+
+            print(oname)
+            # -- Get the obs
+            f_obs = Config.PATH_OBS + '/' + Data.obs[oname]['obs_file']
+
+            # Read the file, keeping only the data and relevant TS columns
+            tmp = pd.read_csv(f_obs, sep=';').iloc[
+                :, [0, Data.obs[oname]['obs_col']-1]]
+            tmp.columns.values[:] = ['Date', 'value']
+            # Convert date column to datetime
+            tmp['Date'] = pd.to_datetime(tmp['Date'], format='%Y-%m-%d')
+            # Convert date column to datetime
+            tmp['value'] = tmp['value'] * Data.obs[oname]['obs_conv']
+
+            # Calibration period:
+            # Check if specified, otherwise use the whole simulation
+            if 'fit_beg' not in Data.obs[oname].keys() or \
+               type(Data.obs[oname]['fit_beg']) is not datetime.date:
+                fitbeg = Data.simt[0]
+            else:
+                fitbeg = Data.obs[oname]['fit_beg']
+            if 'fit_end' not in Data.obs[oname].keys() or \
+               type(Data.obs[oname]['fit_end']) is not datetime.date:
+                fitend = Data.simt[Data.lsim - Data.lspin - 1]
+            else:
+                fitend = Data.obs[oname]['fit_end']
+
+            # Crop obs between desired time frame
+            tmp = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
+
+            Opti.obs[oname] = tmp.dropna(how='any')
+# ==================================================================================
+
+
+def runs(Config, Opti, Paras, Site):
 
     # Remove the default map files of calibrated param in the inputs directory
     # --> helps checking early on if there is an improper map update

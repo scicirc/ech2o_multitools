@@ -115,19 +115,6 @@ Vars['T_ForestB'] = {'sim':['T_ForestB_all.tab'],
                       'obs':'/ET/T_ForestB_daily.csv','obscol':[1],
                       'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
 
-# Vars['T_HeatherA'] = {'sim':['T_HeatherA_all.tab'],
-#                       'obs':'/ET/ET_T_HeatherA_31072015-04082016.csv','obscol':[1],
-#                       'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-# Vars['T_HeatherB'] = {'sim':['T_HeatherB_all.tab'],
-#                       'obs':'/ET/ET_T_HeatherB_31072015-22092016.csv','obscol':[1],
-#                       'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-# Vars['ET_HeatherA'] = {'sim':['ET_HeatherA_all.tab'],
-#                       'obs':'/ET/ET_T_HeatherA_31072015-04082016.csv','obscol':[2],
-#                       'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-# Vars['ET_HeatherB'] = {'sim':['ET_HeatherB_all.tab'],
-#                       'obs':'/ET/ET_T_HeatherB_31072015-22092016.csv','obscol':[2],
-#                       'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-
 Vars['NetRad_WS1'] = {'sim':['NetRad_WS1_all.tab'],
                       'obs':'/NetRad/station1_chickencage_daily_17072014-08082016.csv','obscol':[1],
                       'beg':datetime(2014,10,9),'end':datetime(2016,8,8)}
@@ -138,60 +125,10 @@ Vars['NetRad_WS3'] = {'sim':['NetRad_WS3_all.tab'],
                       'obs':'/NetRad/station3_hilltop_daily_17042015-12072016.csv','obscol':[1],
                       'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
 
-# Vars['GWD_DW1'] = {'sim':['GWD_DW1_all.tab'],
-#                    'obs':'/Groundwater/GWDmetre_DW_daily_09072015-19092016.csv','obscol':[1],
-#                    'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-# Vars['GWD_DW2'] = {'sim':['GWD_DW1_all.tab'], # same pixel as DW1 at 100m-resol
-#                    'obs':'/Groundwater/GWDmetre_DW_daily_09072015-19092016.csv','obscol':[2],
-#                    'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-# Vars['GWD_DW3'] = {'sim':['GWD_DW3_all.tab'],
-#                    'obs':'/Groundwater/GWDmetre_DW_daily_09072015-19092016.csv','obscol':[3],
-#                    'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-# Vars['GWD_DW4'] = {'sim':['GWD_DW4_all.tab'],
-#                    'obs':'/Groundwater/GWDmetre_DW_daily_09072015-19092016.csv','obscol':[4],
-#                    'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
 
 Vars['d2H_Stream'] = {'sim':['d2H_Stream_all.tab'],
                       'obs':'/Isotopes/d2H_Stream.csv','obscol':[1],
                       'beg':datetime(2013,2,21),'end':datetime(2015,2,20)}
-# Vars['d2H_Peat'] = {'sim':['d2H_Peat.L1_all.tab','d2H_Peat.L2_all.tab'],
-#                   'obs':'/Isotopes/d2H_Peat.csv','obscol':[1,2],'obsdph':[0.1,0.2],'loc':'P',
-#                   'beg':datetime(2013,2,21),'end':datetime(2015,2,20)}
-# Vars['d2H_Gley'] = {'sim':['d2H_Gley.L1_all.tab','d2H_Gley.L2_all.tab'],
-#                   'obs':'/Isotopes/d2H_Gley.csv','obscol':[1,2,3],'obsdph':[0.1,0.2,0.4],'loc':'PG',
-#                   'beg':datetime(2013,2,21),'end':datetime(2015,2,20)}
-# Vars['d2H_Podzol'] = {'sim':['d2H_Podzol.L1_all.tab','d2H_Podzol.L2_all.tab'],
-#                      'obs':'/Isotopes/d2H_Podzol.csv','obscol':[1,2,3],'obsdph':[0.1,0.2,0.4],'loc':'PP',
-#                     'beg':datetime(2013,2,21),'end':datetime(2015,2,20)}
-# Vars['d2H_ForestA'] = {'sim':['d2H_ForestA.L1_all.tab','d2H_ForestA.L2_all.tab'],
-#                      'obs':'/Isotopes/d2H_ForestA.csv','obscol':[1,2,3,4,5,6,7,8],'loc':'PP',
-#                      'obsdph':[0.025,0.075,0.1,0.125,0.175,0.2,0.25,0.4],
-#                      'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-# Vars['d2H_ForestB'] = {'sim':['d2H_ForestB.L1_all.tab','d2H_ForestB.L2_all.tab'],
-#                      'obs':'/Isotopes/d2H_ForestB.csv','obscol':[1,2,3,4],'loc':'PP',
-#                      'obsdph':[0.025,0.075,0.125,0.175],
-#                      'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
-# Vars['d2H_HeatherA'] = {'sim':['d2H_ForestA.L1_all.tab','d2H_ForestA.L2_all.tab'],
-#                       'obs':'/Isotopes/d2H_HeatherA.csv','obscol':[1,2,3,4],'loc':'PP',
-#                       'obsdph':[0.025,0.075,0.125,0.175], # pixel = that of Forest A
-#                       'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
-# Vars['d2H_HeatherB'] = {'sim':['d2H_HeatherB.L1_all.tab','d2H_HeatherB.L2_all.tab'],
-#                       'obs':'/Isotopes/d2H_HeatherB.csv','obscol':[1,2,3,4],
-#                       'obsdph':[0.025,0.075,0.125,0.175],'loc':'PP',
-#                       'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
-
-# Vars['d2H_ForestA.T'] = {'sim':['d2H_ForestA.T_all.tab'],
-#                        'obs':'/Isotopes/d2H_Xylem.csv','obscol':[1],
-#                        'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-# Vars['d2H_ForestB.T'] = {'sim':['d2H_ForestB.T_all.tab'],
-#                        'obs':'/Isotopes/d2H_Xylem.csv','obscol':[2],
-#                        'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
-# Vars['d2H_HeatherA.T'] = {'sim':['d2H_ForestA.T_all.tab'], # pixel = that of Forest A
-#                         'obs':'/Isotopes/d2H_Xylem.csv','obscol':[3],
-#                         'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
-# Vars['d2H_HeatherB.T'] = {'sim':['d2H_HeatherB.T_all.tab'],
-#                         'obs':'/Isotopes/d2H_Xylem.csv','obscol':[4],
-#                         'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
 
 Vars['d2H_DW1'] = {'sim':['d2H_DW1_all.tab'],
                    'obs':'/Isotopes/d2H_deeperwells.csv','obscol':[1],
@@ -211,44 +148,6 @@ Vars['d2H_DW4'] = {'sim':['d2H_DW4_all.tab'],
 Vars['d18O_Stream'] = {'sim':['d18O_Stream_all.tab'],
                        'obs':'/Isotopes/d18O_Stream.csv','obscol':[1],
                        'beg':datetime(2013,2,21),'end':datetime(2015,2,20)}
-# Vars['d18O_Peat'] = {'sim':['d18O_Peat.L1_all.tab','d18O_Peat.L2_all.tab'],
-#                     'obs':'/Isotopes/d18O_Peat.csv','obscol':[1,2],'obsdph':[0.1,0.2],'loc':'P',
-#                     'beg':datetime(2013,2,21),'end':datetime(2015,2,20)}
-# Vars['d18O_Gley'] = {'sim':['d18O_Gley.L1_all.tab','d18O_Gley.L2_all.tab'],
-#                     'obs':'/Isotopes/d18O_Gley.csv','obscol':[1,2,3],'obsdph':[0.1,0.2,0.4],'loc':'PG',
-#                     'beg':datetime(2013,2,21),'end':datetime(2015,2,20)}
-# Vars['d18O_Podzol'] = {'sim':['d18O_Podzol.L1_all.tab','d18O_Podzol.L2_all.tab'],
-#                       'obs':'/Isotopes/d18O_Podzol.csv','obscol':[1,2,3],'obsdph':[0.1,0.2,0.4],'loc':'PP',
-#                       'beg':datetime(2013,2,21),'end':datetime(2015,2,20)}
-# Vars['d18O_ForestA'] = {'sim':['d18O_ForestA.L1_all.tab','d18O_ForestA.L2_all.tab'],
-#                        'obs':'/Isotopes/d18O_ForestA.csv','obscol':[1,2,3,4,5,6,7,8],
-#                        'obsdph':[0.025,0.075,0.1,0.125,0.175,0.2,0.25,0.4],'loc':'PP',
-#                        'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-# Vars['d18O_ForestB'] = {'sim':['d18O_ForestB.L1_all.tab','d18O_ForestB.L2_all.tab'],
-#                        'obs':'/Isotopes/d18O_ForestB.csv','obscol':[1,2,3,4],
-#                        'obsdph':[0.025,0.075,0.125,0.175],'loc':'PP',
-#                        'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
-# Vars['d18O_HeatherA'] = {'sim':['d18O_ForestA.L1_all.tab','d18O_ForestA.L2_all.tab'], 
-#                         'obs':'/Isotopes/d18O_HeatherA.csv','obscol':[1,2,3,4],'loc':'PP',
-#                         'obsdph':[0.025,0.075,0.125,0.175], # pixel = that of Forest A
-#                         'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
-# Vars['d18O_HeatherB'] = {'sim':['d18O_HeatherB.L1_all.tab','d18O_HeatherB.L2_all.tab'],
-#                         'obs':'/Isotopes/d18O_HeatherB.csv','obscol':[1,2,3,4],
-#                         'obsdph':[0.025,0.075,0.125,0.175],'loc':'PP',
-#                         'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
-
-# Vars['d18O_ForestA.T'] = {'sim':['d18O_ForestA.T_all.tab'],
-#                        'obs':'/Isotopes/d18O_Xylem.csv','obscol':[1],
-#                        'beg':datetime(2013,2,21),'end':datetime(2016,8,8)}
-# Vars['d18O_ForestB.T'] = {'sim':['d18O_ForestB.T_all.tab'],
-#                        'obs':'/Isotopes/d18O_Xylem.csv','obscol':[2],
-#                        'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
-# Vars['d18O_HeatherA.T'] = {'sim':['d18O_ForestA.T_all.tab'], # pixel = that of Forest A
-#                           'obs':'/Isotopes/d18O_Xylem.csv','obscol':[3],
-#                         'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
-# Vars['d18O_HeatherB.T'] = {'sim':['d18O_HeatherB.T_all.tab'],
-#                         'obs':'/Isotopes/d18O_Xylem.csv','obscol':[4],
-#                         'beg':datetime(2015,2,25),'end':datetime(2016,8,8)}
 
 Vars['d18O_DW1'] = {'sim':['d18O_DW1_all.tab'],
                     'obs':'/Isotopes/d18O_deeperwells.csv','obscol':[1],
@@ -293,33 +192,7 @@ if byjob == 1 and options.jobs != None:
     jobs = [int(x) for x in options.jobs.split(',')]
 else:
     jobs = [13,14,15]
-print jobs
-#sys.exit()
-#jobs = [24,25,27]
-#jobs = [31,32,33]
-#jobs = [35,36,37]
-#jobs = [38,39,40,43]
-#jobs = [45,46,48]
-#jobs = [52,57,14]
-#jobs = [50]
-#jobs = [5]
-#jobs = [47]
-#jobs = [54,79,81]
-#jobs = [7,9,51,59]
-#jobs = [63,66,78]
-#jobs = [82,83,84,80]
-#jobs = [49,53,55]
-#jobs = [56, 58, 60]
-#jobs = [61, 62, 64, 8]
-#jobs = [65, 67, 68]
-#jobs = [69, 70, 71]
-#jobs = [72, 73, 74]
-#jobs = [75, 76, 77]
-#jobs = [8,2,1]
-#jobs = [10,3]
-#jobs = [2]
-#jobs = [10]
-#jobs=[14]
+print(jobs)
 
 print '========================================'
 print '------ Calculating model-data fits -----'
@@ -335,7 +208,7 @@ print 'MC jobs included here:'
 print ' '.join([str(i) for i in jobs]) 
 print
 
-#############################################################################################
+#######################################################################
 # Simulations outputs : saving the metrics
 # if switch == 0:
 
@@ -361,10 +234,11 @@ if switch == 0:
         tmp = np.genfromtxt(f_obs,delimiter=',',skip_header=1,unpack=True, dtype= '|S10')[0]
         tmpt = np.array([datetime.strptime(a, '%d/%m/%Y') for a in tmp])
         lobs = len(tmpt)
-        #tmp = np.genfromtxt(f_obs,delimiter=',',skip_header=1,unpack=True)[Vars[oname]['obscol']]
-        #tmp = pd.read_csv(f_obs).iloc[:,Vars[oname]['obscol']]
+        # tmp = np.genfromtxt(f_obs,delimiter=',',skip_header=1,unpack=True)[Vars[oname]['obscol']]
+        # tmp = pd.read_csv(f_obs).iloc[:,Vars[oname]['obscol']]
         parser = lambda date: pd.datetime.strptime(date,'%d/%m/%Y')
-        tmp = pd.read_csv(f_obs,parse_dates=[0],date_parser=parser).iloc[:,[0]+Vars[oname]['obscol']]
+        tmp = pd.read_csv(f_obs, parse_dates=[0],
+                          date_parser=parser).iloc[:,[0]+Vars[oname]['obscol']]
         # Just to be sure the first column is named DATE
         tmp.columns.values[0]='DATE'
         #tmp = tmp.set_index('DATE')
@@ -410,17 +284,6 @@ if switch == 0:
     outnames = sorted(Out.keys(),key=str.lower)
     #print outnames
 
-    # -- Headers of summary files (all jobs together)
-    # if byjob == 0:
-    #     # Metrics
-    #     with open(tmpdir+'/'+MCname+'_KGE2012.txt','w') as f_out:
-    #         f_out.write('Job,Iteration,Sample,'+','.join([x for x in outnames])+'\n')
-    #     with open(tmpdir+'/'+MCname+'_MAE.txt','w') as f_out:
-    #         f_out.write('Job,Iteration,Sample,'+','.join([x for x in outnames])+'\n')
-    #     with open(tmpdir+'/'+MCname+'_RMSE.txt','w') as f_out:
-    #         f_out.write('Job,Iteration,Sample,'+','.join([x for x in outnames])+'\n')
-    #     with open(tmpdir+'/'+MCname+'_corr.txt','w') as f_out:
-    #         f_out.write('Job,Iteration,Sample,'+','.join([x for x in outnames])+'\n')
     # Parameters
     f_in = tmppar+'/'+MCname+'_sampling_parameters.char.txt'
     pnames2 = list(np.genfromtxt(f_in,delimiter=',',dtype= '|S20',unpack=True,skip_header=1)[0])
@@ -443,54 +306,6 @@ if switch == 0:
         
         print 'job',i,'...'
 
-        # ## First, ID the runs that worked make sure it's consistent between observables
-        # obs1 = 'Streamflow'
-        # obs2 = 'd2H_DW1'
-
-        # # First obs
-        # f_sim = tmpdir2+'/'+Vars[obs1]['sim'][0]
-        # js1 = pd.read_csv(f_sim)['Sample']
-        # nj1 = len(js1)
-        # js1 = [np.int(js1[idx]) for idx in range(nj1) if js1[idx]<=nit]
-        # tmp = [js1[idx+1]-js1[idx] for idx in range(nj1-1)]
-        # # Index of non-doublons in js (if doublons, take the second one)
-        # jid1 = [idx for idx in range(nj1-1) if tmp[idx]>0] + [nj1-1]
-        # # Corrected list of runs numbers
-        # js = [js1[ix] for ix in jid1]
-        # nj = len(js)
-
-        # # Second obs, checking
-        # f_sim = tmpdir2+'/'+Vars[obs2]['sim'][0]
-        # js2 = pd.read_csv(f_sim)['Sample']
-        # nj2 = len(js2)
-        # js2 = [np.int(js2[idx]) for idx in range(nj2) if js2[idx]<=nit]
-        # tmp = [js2[idx+1]-js2[idx] for idx in range(nj2-1)]
-        # # Index of non-doublons in js (if doublons, take the second one)
-        # jid2 = [idx for idx in range(nj2-1) if tmp[idx]>0] + [nj2-1]
-        # # Corrected list of runs numbers
-        # js = [js2[ix] for ix in jid2]
-        # nj = len(js)
-
-    
-        # # ID the runs that worked
-        # f_sim = tmpdir2+'/'+Vars[obsnames[0]]['sim'][0]
-        # #js1 = np.genfromtxt(f_sim,delimiter=',',skip_header=1,unpack=True,dtype=np.int)[0]
-        # js1 = pd.read_csv(f_sim)['Sample']
-        # #print js1
-        # nj1 = len(js1)
-        # #print nj1
-        # js1 = [np.int(js1[idx]) for idx in range(nj1) if js1[idx]<=nit]
-        # #print js1
-        # tmp = [js1[idx+1]-js1[idx] for idx in range(nj1-1)]
-        # # Index of non-doublons in js (if doublons, take the second one)
-        # jid = [idx for idx in range(nj1-1) if tmp[idx]>0] + [nj1-1]
-        # # Corrected list of runs numbers
-        # js = [js1[ix] for ix in jid]
-        # nj = len(js)
-        # print 'nj =',nj,'(failed :',nit-nj,')'
-
-        #sys.exit()
-
         f_par = tmppar+'/'+MCname+'_sampling_parameters.'+str(i)+'.txt'
         #tmp_par = np.genfromtxt(f_par,delimiter=',')[::,1::]
         df_par = pd.read_csv(f_par,header=None).set_index(0)
@@ -502,20 +317,6 @@ if switch == 0:
             if len(glob.glob(tmpdir2))==0:
                 os.system('mkdir '+tmpdir2)
             os.system('cp -p '+simdir+str(i)+'/*.tab '+tmpdir2+'/')
-
-        # One summary file per job (might help adjusting memory space)
-        # if byjob == 1:
-        #     with open(tmpdir+'/'+MCname+'_job'+str(i)+'_KGE2012.txt','w') as f_out:
-        #         f_out.write('Iteration,'+','.join([x for x in outnames])+'\n')
-        #     with open(tmpdir+'/'+MCname+'_job'+str(i)+'_MAE.txt','w') as f_out:
-        #         f_out.write('Iteration,'+','.join([x for x in outnames])+'\n')
-        #     with open(tmpdir+'/'+MCname+'_job'+str(i)+'_RMSE.txt','w') as f_out:
-        #         f_out.write('Iteration,'+','.join([x for x in outnames])+'\n')
-        #     with open(tmpdir+'/'+MCname+'_job'+str(i)+'_corr.txt','w') as f_out:
-        #         f_out.write('Iteration,'+','.join([x for x in outnames])+'\n')
-        #     # Parameters
-        #     with open(tmpdir+'/'+MCname+'_job'+str(i)+'_parameters.txt','w') as f_out:
-        #         f_out.write('Iteration,'+pnames+'\n')
 
         # Initialize metrics
         KGE = pd.DataFrame(range(1,nit+1), columns=['Iteration'], index=range(1,nit+1))
@@ -653,10 +454,6 @@ if switch == 0:
                 df_par.to_csv(tmpdir+'/'+MCname+sufMC+'_parameters.txt',
                               mode='a',header=False)
 
-            # with open(tmpdir+'/'+MCname+'_parameters.txt','a') as f_out:
-            #     for j in range(nj):
-            #         f_out.write(str(i)+','+str(js[j])+','+str(itot)+','+','.join([str(x) for x in tmp_par[::,js2[j]-1]])+'\n')
-
             # Metrics
             if(i==jobs[0]):
                 KGE.to_csv(tmpdir+'/'+MCname+sufMC+'_KGE2012.txt',index=False)
@@ -664,28 +461,14 @@ if switch == 0:
                 RMSE.to_csv(tmpdir+'/'+MCname+sufMC+'_RMSE.txt',index=False)
                 corr.to_csv(tmpdir+'/'+MCname+sufMC+'_corr.txt',index=False)
             else:
-                KGE.to_csv(tmpdir+'/'+MCname+sufMC+'_KGE2012.txt',index=False,mode='a',header=False)
-                MAE.to_csv(tmpdir+'/'+MCname+sufMC+'_MAE.txt',index=False,mode='a',header=False)
-                RMSE.to_csv(tmpdir+'/'+MCname+sufMC+'_RMSE.txt',index=False,mode='a',header=False)
-                corr.to_csv(tmpdir+'/'+MCname+sufMC+'_corr.txt',index=False,mode='a',header=False)
-
-            # # KGE
-            # with open(tmpdir+'/'+MCname+'_KGE2012.txt','a') as f_out:
-            #     for j in range(nj):
-            #         f_out.write(','.join([str(i),str(js[j]),str(itot2),','.join([str(KGE[x][j]) for x in obsnames])])+'\n')
-            #         itot2+=1
-            # # MAE
-            # with open(tmpdir+'/'+MCname+'_MAE.txt','a') as f_out:
-            #     for j in range(nj):
-            #         f_out.write(','.join([str(i),str(js[j]),str(itot2),','.join([str(MAE[x][j]) for x in obsnames])])+'\n')
-            # # RMSE
-            # with open(tmpdir+'/'+MCname+'_RMSE.txt','a') as f_out:
-            #     for j in range(nj):
-            #         f_out.write(','.join([str(i),str(js[j]),str(itot2),','.join([str(RMSE[x][j]) for x in obsnames])])+'\n')
-            # # Correlation
-            # with open(tmpdir+'/'+MCname+'_corr.txt','a') as f_out:
-            #     for j in range(nj):
-            #         f_out.write(','.join([str(i),str(js[j]),str(itot2),','.join([str(corr[x][j]) for x in obsnames])])+'\n')
+                KGE.to_csv(tmpdir+'/'+MCname+sufMC+'_KGE2012.txt',index=False,
+                           mode='a',header=False)
+                MAE.to_csv(tmpdir+'/'+MCname+sufMC+'_MAE.txt',index=False,
+                           mode='a',header=False)
+                RMSE.to_csv(tmpdir+'/'+MCname+sufMC+'_RMSE.txt',index=False,
+                            mode='a',header=False)
+                corr.to_csv(tmpdir+'/'+MCname+sufMC+'_corr.txt',index=False,
+                            mode='a',header=False)
 
 
         
@@ -706,27 +489,6 @@ if switch == 0:
             MAE.to_csv(tmpdir+'/'+MCname+sufMC+'_job'+str(i)+'_MAE.txt',index=False)
             RMSE.to_csv(tmpdir+'/'+MCname+sufMC+'_job'+str(i)+'_RMSE.txt',index=False)
             corr.to_csv(tmpdir+'/'+MCname+sufMC+'_job'+str(i)+'_corr.txt',index=False)
-
-            # # KGE
-            # with open(tmpdir+'/'+MCname+'_job'+str(i)+'_KGE2012.txt','a') as f_out:
-            # #with open(tmpdir+'/'+MCname+'job_'+str(i)+'_KGE2012.txt','a') as f_out:
-            #     for j in range(nj):
-            #         f_out.write(str(js[j])+','+','.join([str(KGE[x][j]) for x in obsnames])+'\n')
-            # # MAE
-            # with open(tmpdir+'/'+MCname+'_job'+str(i)+'_MAE.txt','a') as f_out:
-            # #with open(tmpdir+'/'+MCname+'job_'+str(i)+'_MAE.txt','a') as f_out:
-            #     for j in range(nj):
-            #         f_out.write(str(js[j])+','+','.join([str(MAE[x][j]) for x in obsnames])+'\n')
-            # # RMSE
-            # with open(tmpdir+'/'+MCname+'_job'+str(i)+'_RMSE.txt','a') as f_out:
-            # #with open(tmpdir+'/'+MCname+'job_'+str(i)+'_RMSE.txt','a') as f_out:
-            #     for j in range(nj):
-            #         f_out.write(str(js[j])+','+','.join([str(RMSE[x][j]) for x in obsnames])+'\n')
-            # # Correlation
-            # with open(tmpdir+'/'+MCname+'_job'+str(i)+'_corr.txt','a') as f_out:
-            # #with open(tmpdir+'/'+MCname+'job_'+str(i)+'_corr.txt','a') as f_out:
-            #     for j in range(nj):
-            #         f_out.write(str(js[j])+','+','.join([str(corr[x][j]) for x in obsnames])+'\n')
 
             # -- Copy to /users
             print 'Copy back to home base...'

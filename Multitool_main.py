@@ -1,25 +1,27 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# *************************************************
-#
-# Multi-purpose routines ECH2O-iso:
-# sensitivity analysis, calibration, and ensemble runs in general
-#
-# -------
-# Routine: Main program
-# -------
-# Author: S. Kuppel
-# Created on 10/2016
-# -------------------------------------------------
+'''
+Multi-purpose routines ECH2O-iso:
+sensitivity analysis, calibration, and ensemble runs in general
+
+-------
+Routine: Main program
+-------
+Author: S. Kuppel
+Created on 10/2016
+-------------------------------------------------
+'''
 
 import os
+import sys
 from optparse import OptionParser
 # from itertools import chain
 
 # --- Subroutines
 import Multitool_init as init
 import Multitool_runs as runs
-
+import Multitool_spotpy as MT_spotpy
+import spotpy
 # ---------
 #  OPTIONS
 # ---------
@@ -28,16 +30,22 @@ parser = OptionParser()
 # =============================================================================
 # --- Definition ---
 
-# What do you want to do ?
-# 'calib_sampling': generate ensemble of parameters sets for calibration
-# 'calib_runs': runs the model for all sampled parameters
-# 'forward_runs': runs the model for an ensemble of runs, usually the best
-#     configurations from the calibration. Allows to look at observations not
-#     used in calibration, e.g. maps
-# 'sensi_morris': performs a Morris sensitivity analysis
+'''
+What do you want to do ?
+ 'calib_MCsampling': generate brute force Monte Carlo ensemble
+                   of parameters sets for calibration
+ 'calib_MCruns': runs the model for all MC-sampled parameters
+ 'calib_DREAM': calibration using the Differential Evolution Adaptative
+                Metropolis (DREAM) algorithm, using the Spotpy package
+ 'forward_runs': runs the model for an ensemble of runs,
+                 (usually the best configurations from the calibration. 
+                 Allows to look at observations not used in calibration)
+ 'sensi_morris': performs a Morris sensitivity analysis
+'''
+
 parser.add_option("--mode", dest="mode", metavar="mode",
-                  help="Switch ('calib_sampling','calib_runs'," +
-                  "'forwards_runs','sensi_morris')")
+                  help="Switch ('calib_MCsampling','calib_MCruns'," +
+                  "'calib_DREAM','forwards_runs','sensi_morris')")
 
 # Other options: see subroutine in Multitool_init.py
 # Configuration file
@@ -64,14 +72,14 @@ parser.add_option("--BSum", dest="BSum", metavar="BSum",
 
 # == Options for specific routines modes ==
 
-# -- If mode == 'calib_sampling'
+# -- If mode == 'calib_MCsampling'
 # Sampling method
 parser.add_option("--sampling", dest="sampling", metavar="sampling",
                   help="Sampling method: LHS (uniform), LHS_r (min corr), " +
                   "LHS_m (max distance)")
 
-# -- If mode != 'calib_sampling' (i.e., EcH2O is actually run)
-# Name of the ECH2O config tracking file (if mode!='calib_sampling', and
+# -- If mode != 'calib_MCsampling' (i.e., EcH2O is actually run)
+# Name of the ECH2O config tracking file (if mode!='calib_MCsampling', and
 # tracking activated in simulation)
 parser.add_option("--cfgTrck", dest="cfgTrck", metavar="cfgTrck",
                   help="Name of the ECH2O configTrck file")
@@ -100,7 +108,7 @@ parser.add_option("--trimL", dest="trimL", metavar="trimL",
                   "default, integer otherwise (has to be larger than " +
                   "total length - trimB)")
 
-# -- If mode == 'calib_runs'
+# -- If mode == 'calib_MCruns'
 # Spinup ? (if post optim, mode = 2 ) ?
 parser.add_option("--spinup", dest="spinup", metavar="spinup",
                   help="Spinup switch (0) or length (days)")
@@ -155,21 +163,34 @@ class Config:
 # Parameters: from definition to all values ------
 init.parameters(Config, Opti, Paras, Site, options)
 
+# Initialize observation names
+# (and read datasets if in DREAM calibration mode)
+init.observations(Config, Opti, Data)
+
 # Whenever there are EcH2O runs: a few others initializations
 if Config.runECH2O == 1:
-    init.runs(Config, Opti, Data, Paras, Site)
+    init.runs(Config, Opti, Paras, Site)
 
 # -- How many variables ?
 print('Total number of variables :', Opti.nvar)
 
 # === Runs ========================================
 # -------------------
-if Config.mode == 'calib_runs':
+if Config.mode == 'calib_MCruns':
     # Calibration loop
-    runs.calib_runs(Config, Opti, Data, Paras, Site)
+    runs.calibMC_runs(Config, Opti, Data, Paras, Site)
+
+elif Config.mode == 'calib_DREAM':
+    # Initialize
+    spot_setup = MT_spotpy.spot_setup(Config, Opti, _used_algorithm='dream')
+    sampler = spotpy.algorithms.dream(spot_setup, dbname='DREAM_ech2o',
+                                      dbformat='csv')
+    r_hat = sampler.sample(Opti.rep, nChains=Opti.nChains,
+                           convergence_limit=Opti.conv_lim,
+                           runs_after_convergence=Opti.run_after_conv)
 
 elif Config.mode == 'forward_runs':
-    # Calibration loop
+    # Ensemble "forward" runs
     runs.forward_runs(Config, Opti, Data, Paras, Site, options)
 
 elif Config.mode == 'sensi_morris' and Config.MSinit == 0:

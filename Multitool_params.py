@@ -173,8 +173,8 @@ def sim_inputs(Opti, Paras, Site, Config, it):
         porosL3 = poros
 
     # -- Use a fraction of these porosities as initial soil moisture
-    pcr.report(porosL1*0.8, Config.PATH_SPA+'/Init_SWC.L1.map')
-    pcr.report(porosL2*0.8, Config.PATH_SPA+'/Init_SWC.L2.map')
+    pcr.report(porosL1*0.8, Config.PATH_SPA + '/Init_SWC.L1.map')
+    pcr.report(porosL2*0.8, Config.PATH_SPA + '/Init_SWC.L2.map')
     pcr.report(porosL3*0.85, Config.PATH_SPA+'/Init_SWC.L3.map')
 
     # - Finalizing soil parameterization

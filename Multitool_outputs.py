@@ -18,12 +18,53 @@ import glob
 import sys
 import numpy as np
 from datetime import datetime
+import pandas as pd
 
 # ----------------------------------------------------------------------------
-# -- Manage outputs
+# -- Read a given simulation output (time series only)
 
 
-def store(Data, Opti, Config, it):
+def read_sim(Config, Data, oname):
+
+    # Point-scale time series -------------------------------------
+    if Data.obs[oname]['type'] == 'Ts':
+        # HEader in EcH2O files
+        hskip = Data.nts+3
+        idx = np.argsort(np.array(Data.sim_order))[Data.obs[oname]
+                                                   ['sim_pts']-1]+1
+        # Read
+        # tmp = np.genfromtxt(Data.obs[oname]['sim_file'],
+        #                     delimiter='\t', skip_header=hskip,
+        #                     unpack=True)[idx] * \
+        #     Data.obs[oname]['conv']
+        tmp = pd.read_table(Data.obs[oname]['sim_file'],
+                            skip_header=hskip).iloc[idx] * \
+            Data.obs[oname]['sim_conv']
+        # Shave off the transient part
+        # if Config.trimB > 1:
+        #    sim = tmp[Config.trimB-1:Config.trimB-1+Config.trimL]
+        if Data.lspin > 1:
+            sim = tmp[Data.lspin-1:Data.lsim-1]
+
+    # Integrated variables (in BasinSummary.txt) -----------------
+    if Data.obs[oname]['type'] == 'Total':
+        idx = Data.obs[oname]['sim_pts']-1
+        tmp = np.genfromtxt(Data.obs[oname]['sim_file'],
+                            delimiter='\t', skip_header=1,
+                            unpack=True)[idx] * \
+            Data.obs[oname]['sim_conv']
+        # Shave off the transient part
+        # if Config.trimB > 1:
+        #     sim = tmp[Config.trimB-1:Config.trimB-1+Config.trimL]
+        if Data.lspin > 1:
+            sim = tmp[Data.lspin-1:Data.lsim-1]
+
+    return sim
+# ----------------------------------------------------------------------------
+# -- Store in files for later use
+
+
+def store_sim(Data, Opti, Config, it):
 
     # -- Report the full BasinSummary.txt files?
     # if Config.repBS == 1:
