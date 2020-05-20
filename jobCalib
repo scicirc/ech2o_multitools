@@ -1,0 +1,5 @@
+#!/bin/bash
+
+## Note that python3 is used, but python can be used
+
+python3 -i Multitool_main.py --file=def_calib_90m_nospin.py --cfg=config_90m_nospin_Ts_calib --cfgTrck=configTrck_Ts --outdir=Calib_90m_nospin --inEns=TestSet2
