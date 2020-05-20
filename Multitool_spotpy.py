@@ -19,9 +19,11 @@ import numpy as np
 
 import Multitool_outputs as outputs
 import Multitool_params as params
-import Multitool_likelihoods as likelihoods
+# import Multitool_likelihoods as likelihoods
+import Multitool_objfunctions as objfunc
 
-# # ==============================================================================
+
+# ==============================================================================
 
 
 # def spotpy_dream(Config, Opti):
@@ -39,17 +41,24 @@ import Multitool_likelihoods as likelihoods
 
 class spot_setup(object):
 
-    def __init__(self, Config, Opti, parallel='seq',
+    def __init__(self, Config, Opti, Paras, Data, Site, parallel='seq',
                  _used_algorithm='default'):
 
         # Parameters
         sdmult = 0.1
 
+        # Pass on classes
+        self.config = Config
+        self.opti = Opti
+        self.par = Paras
+        self.site = Site
+        self.data = Data
+
         self.params = []
         for i in range(Opti.nvar):
             minp = Opti.min[i]
             maxp = Opti.max[i]
-            print(Opti.names[i], minp, maxp)
+            # print(Opti.names[i], minp, maxp)
             # Logarithmic sampling, will be de-logged during Ech2O's
             # inputs writing
             if Opti.log[i] == 1:
@@ -68,7 +77,7 @@ class spot_setup(object):
                 #                          low=minp, high=maxp,
                 #                          stddev=sdmult*(maxp-minp))]
 
-        print(self.params)
+        # print(self.params)
 
         # Evaluation data
         self.evals = Opti.obs
@@ -83,37 +92,42 @@ class spot_setup(object):
     # We use the simulation function to write one random parameter set into a
     # parameter file, like it is needed for the HYMOD model, start the model
     # and read the model discharge output data:
-    def simulation(self, Opti, Config, Paras, Data, Site):
+    def simulation(self, x):
 
         # Create the inputs for ECH2O
-        params.sim_inputs(Opti, Paras, Site, Config, it)
+        params.sim_inputs(self.opti, self.par, self.site, self.config,
+                          0, mode='spotpy', paramcur=self.parameters)
 
         # To store simulations
-        simulations = np.full((Data.nobs, Config.trimL), np.nan)
+        simulations = np.full((self.data.nobs, self.data.lsimEff), np.nan)
 
         # Create or clean exec directory
-        if len(glob.glob(Config.PATH_EXEC)) == 0:
-            os.system('mkdir '+Config.PATH_EXEC)
+        if len(glob.glob(self.config.PATH_EXEC)) == 0:
+            os.system('mkdir '+self.config.PATH_EXEC)
         else:
-            os.system('rm -f '+Config.PATH_EXEC+'/*')
+            os.system('rm -f '+self.config.PATH_EXEC+'/*')
 
         # Run ECH2O
-        os.chdir(Config.PATH_OUT)
-        print('--> running ECH2O')
+        os.chdir(self.config.PATH_OUT)
+        print('--> running ECH2O...',)
 
         try:
             start = time.time()
-            os.system(Config.cmde_ech2o+' > '+Config.PATH_EXEC+'/ech2o.log')
+            os.system(self.config.cmde_ech2o+' > '+self.config.PATH_EXEC +
+                      '/ech2o.log')
             print('    run time:', time.time() - start, 'seconds (limit at ',
-                  Config.tlimit, ')')
+                  self.config.tlimit, ')')
 
+            os.chdir(self.config.PATH_EXEC)
             # Store outputs: for now restricted to time series
-            for i in range(Data.nobs):
-                oname = Data.names[i]
-                simulations[i, :] = outputs.readsim(Config, Data, oname)
+            for i in range(self.data.nobs):
+                oname = self.data.names[i]
+                simulations[i, :] = outputs.read_sim(self.config, self.data,
+                                                     oname)
+            os.chdir(self.config.PATH_OUT)
 
         except('Model has failed'):
-            print('prout')
+            print('Something went wrong, this run is useless')
             # Report param config that failed
             # f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
             # if len(glob.glob(f_failpar)) == 0:
@@ -140,7 +154,14 @@ class spot_setup(object):
         return self.evals
 
     def objectivefunction(self, simulation, evaluation, params=None):
-        # Use multi-objective GL from Shoups and Vrught, as in
-        # Knighton et al., 2017, 2020
-        like = likelihoods.ShoupsVrught_GL(evaluation, simulation)
+        # Use multi-objective function, a simple sum
+        # like = objfunc.Multi_SchoupsVrugtGL(evaluation, simulation,
+        like = objfunc.MultiObj(evaluation, simulation,
+                                self.data, self.opti)
+        # like = 0
+        # for i in range(self.data.nobs):
+        #     sim = simulation()[i]
+        #     obs = evaluation()[i]
+        #     # GL from Schoups & Vrugt (2010), as in Knighton et al., 2017, 2020
+        #     like += likelihoods.SchoupsVrugt_GL(obs, sim)
         return like

@@ -103,7 +103,7 @@ def calibMC_runs(Config, Opti, Data, Paras, Site):
             # Write parameters values for this sequence
             params.store(Opti, Config, it)
             # Group sampling outputs
-            outputs.store(Data, Opti, Config, it)
+            outputs.store_sim(Data, Opti, Config, it)
 
         os.chdir(Config.PATH_OUT)
         # sys.exit()
@@ -146,7 +146,7 @@ def forward_runs(Config, Opti, Data, Paras, Site, options):
         if runOK(Data, Opti, Config) == 1:
 
             # Group outputs
-            outputs.store(Data, Opti, Config, it)
+            outputs.store_sim(Data, Opti, Config, it)
 
             # -- Report the full BasinSummary.txt files?
             if Config.repBS == 1:
@@ -225,7 +225,7 @@ def morris_runs(Config, Opti, Data, Paras, Site):
         os.chdir(Config.PATH_EXEC)
         if runOK(Data, Opti, Config) == 1:
             # Group outputs
-            outputs.store(Data, Opti, Config, irun)
+            outputs.store_sim(Data, Opti, Config, irun)
             # -- Report the full BasinSummary.txt files?
             if Config.repBS == 1:
                 os.system('mv '+Config.PATH_EXEC+'/BasinSummary.txt ' +

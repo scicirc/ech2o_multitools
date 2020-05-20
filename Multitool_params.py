@@ -45,16 +45,30 @@ def store(Opti, Config, it):
         f_in.write(str(it+1)+','+','.join([str(x) for x in Opti.x])+'\n')
 
 # ----------------------------------------------------------------------------
-# -- Updating inputs for ECH2O
+# -- Creating/updating inputs for ECH2O
 
 
-def sim_inputs(Opti, Paras, Site, Config, it):
+def sim_inputs(Opti, Paras, Site, Config, it=0, mode='no_spotpy',
+               paramcur=None):
 
     # Small switch not to read the vegetation params file every time
     # readveg = 1
 
-    # -- Get the parameter sample of the current iteration
-    Opti.x = Opti.xpar[it]
+    # -- Get the parameter values
+    if mode == 'spotpy':
+        # In spotpy mode there is no Opti.xpar array with all samples,
+        # values are read directly from the spot_setup class
+        # In addition, parameter with log10 variation should be "de-log10ned"
+        # here!
+        Opti.x = []
+        for i in range(Opti.nvar):
+            if Opti.log[i] == 1:
+                Opti.x += [10**(paramcur()[i][0])]
+            else:
+                Opti.x += [paramcur()[i][0]]
+    else:
+        # Therwise, just get the samples of the current iteration
+        Opti.x = Opti.xpar[it]
 
     for pname in Paras.names:
 
@@ -72,7 +86,7 @@ def sim_inputs(Opti, Paras, Site, Config, it):
                     outmap += \
                         Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im]]
 
-                if Opti.simRock == 1:
+                if Site.simRock == 1:
                     # Taking into account rock/scree: micro-topsoil, low poros
                     # and fixed anisotropy
                     if pname == 'HLayer1':

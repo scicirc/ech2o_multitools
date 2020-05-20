@@ -36,15 +36,16 @@ def read_sim(Config, Data, oname):
         # tmp = np.genfromtxt(Data.obs[oname]['sim_file'],
         #                     delimiter='\t', skip_header=hskip,
         #                     unpack=True)[idx] * \
-        #     Data.obs[oname]['conv']
+        #     Data.obs[oname]['sim_conv']
         tmp = pd.read_table(Data.obs[oname]['sim_file'],
-                            skip_header=hskip).iloc[idx] * \
+                            skiprows=hskip, header=None).iloc[:, idx] * \
             Data.obs[oname]['sim_conv']
         # Shave off the transient part
         # if Config.trimB > 1:
         #    sim = tmp[Config.trimB-1:Config.trimB-1+Config.trimL]
         if Data.lspin > 1:
             sim = tmp[Data.lspin-1:Data.lsim-1]
+        # print(sim)
 
     # Integrated variables (in BasinSummary.txt) -----------------
     if Data.obs[oname]['type'] == 'Total':
@@ -97,7 +98,7 @@ def store_sim(Data, Opti, Config, it):
 
             tmp = np.genfromtxt(Data.obs[oname]['sim_file'], delimiter='\t',
                                 skip_header=1,
-                                unpack=True)[idx]*Data.obs[oname]['conv']
+                                unpack=True)[idx]*Data.obs[oname]['sim_conv']
 
             # Shave off the transient part (if any)
             if Config.trimB > 1:
@@ -118,7 +119,7 @@ def store_sim(Data, Opti, Config, it):
 
             tmp = np.genfromtxt(
                 Data.obs[oname]['sim_file'], delimiter='\t',
-                skip_header=hskip, unpack=True)[idx]*Data.obs[oname]['conv']
+                skip_header=hskip, unpack=True)[idx]*Data.obs[oname]['sim_conv']
 
             # Shave off the transient part (if any)
             if Config.trimB > 1:
@@ -142,7 +143,7 @@ def store_sim(Data, Opti, Config, it):
 
             # Now that we have what we need, read the PCraster map...
             var_val = \
-                pcr.pcr2numpy(pcr.readmap(f_m), MV)*Data.obs[oname]['conv']
+                pcr.pcr2numpy(pcr.readmap(f_m), MV)*Data.obs[oname]['sim_conv']
 
             # Write output NCDF file
             ncFile = Config.PATH_OUT+'/'+oname+'_all.nc'
@@ -293,7 +294,7 @@ def store_sim(Data, Opti, Config, it):
                 if(it2 == 0):
                     var_val = pcr.pcr2numpy(
                         pcr.readmap(MapNames[it2]),
-                        MV)[None, ...]*Data.obs[oname]['conv']
+                        MV)[None, ...]*Data.obs[oname]['sim_conv']
                 # Read subsequent map, same procedure and then append
                 else:
                     var_val = \

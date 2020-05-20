@@ -30,7 +30,7 @@ import csv
 # ----------------------------------------------------------------------------
 
 
-def config(Config, options):
+def config(cwd_tmp, options):
 
     # -- General config file (where parameters info is taken from)
     if options.file is not None:
@@ -41,19 +41,30 @@ def config(Config, options):
         file = options.file
         frep = os.path.dirname(file)
         if frep == '':
-            file = os.path.join(Config.PATH_MAIN, file)
+            file = os.path.join(cwd_tmp, file)
         print('The user provided definition file is: '+options.file)
 
-    # -- Number of CPUs used in parallel
-    if options.ncpu is None:
-        options.ncpu = 1
-    Config.ncpu = copy.copy(options.ncpu)
+    # -- Import classes and setup from the def file
+    sys.path.insert(0, cwd_tmp)
+    Config = __import__(file_py).Config
+    Opti = __import__(file_py).Opti
+    Data = __import__(file_py).Data
+    Paras = __import__(file_py).Paras
+    Site = __import__(file_py).Site
 
     # -- Main mode
-    if options.mode is None:
-        sys.exit("Please choose a script mode!")
-    else:
-        Config.mode = copy.copy(options.mode)
+    if Config.mode not in ['calib_MCsampling', 'calib_MCruns',
+                           'calib_DREAM', 'forward_runs',
+                           'sensi_morris']:
+        sys.exit("Please choose a valid script mode!")
+
+    # Working directory specified in the def file
+    if Config.PATH_MAIN is None:
+        Config.PATH_MAIN = cwd_tmp
+
+    # -- Number of CPUs used in parallel
+    if Config.ncpu is None:
+        Config.ncpu = 1
 
     # -- Restart: do not start from first iteration
     if options.restart is None:
@@ -107,10 +118,8 @@ def config(Config, options):
         Config.MapAv = 0
 
     # -- Resolution (default 50m, used with reference Spatial folder)
-    if options.Resol is not None:
-        Config.Resol = copy.copy(options.Resol)
-    else:
-        Config.Resol = '50m'
+    if Site.Resol is None:
+        Site.Resol = '50m'
 
     # -- Report BasinSummary.txt
     if options.BSum is not None:
@@ -155,7 +164,7 @@ def config(Config, options):
         print('')
 
     # -- Calibration: all parameter path (and datasets, if needed)
-    if Config.mode.split('_')[0] == 'calib':
+    if Config.mode in ['calib_MCsampling', 'calib_MCruns']:
         Config.PATH_PAR = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                        'Calibration_Samples'))
         Config.FILE_PAR = Config.PATH_PAR+'/'+options.outdir.split('.')[0] + \
@@ -168,7 +177,8 @@ def config(Config, options):
         print("Parameter samples' directory:          ", Config.PATH_PAR)
         print('')
 
-        # Observations (effectively only needed in DREAM mode)
+    if Config.mode.split('_')[0] == 'calib':
+        # Observations (for now only needed in DREAM mode)
         Config.PATH_OBS = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                        'Calibration_Datasets'))
 
@@ -202,14 +212,17 @@ def config(Config, options):
     # -- For runs
     if Config.runECH2O == 1:
         # -- Execution command
-        if options.exe is not None:
-            if len(glob.glob(options.exe)) == 0:
+        if Config.exe is not None:
+            if len(glob.glob(Config.exe)) == 0:
                 sys.exit('The user provided EXEC file was not found: ' +
-                         options.exe)
-            exe_ech2o = options.exe
-            print('The user provided EXEC file is: '+options.exe)
+                         Config.exe)
+            exe_ech2o = Config.exe
+            print('The user provided EXEC file is: '+exe_ech2o)
 
         # Ech2O run config file
+        # Path for EcH2O config file
+        Config.cfgdir = Config.PATH_MAIN+'Input_Configs/'
+
         if options.cfg is not None:
             cfg_ech2o = options.cfg+'.ini'
             if Config.mode == 1 and \
@@ -231,12 +244,10 @@ def config(Config, options):
         Config.numsim = options.outdir.split('.')[::-1][0]
 
         # Tracking age and/or tracers?
-        if options.isTrck is not None:
-            Config.isTrck = int(options.isTrck)
-        else:
-            Config.isTrck = 0
+        if Site.isTrck is None:
+            Site.isTrck = 0
 
-        if Config.isTrck == 1:
+        if Site.isTrck == 1:
             if options.cfgTrck is not None:
                 cfgTrck_ech2o = options.cfgTrck+'.ini'
             else:
@@ -307,7 +318,7 @@ def config(Config, options):
         # Forcings and reference maps
         Config.PATH_SPA_REF = \
             os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                         'Input_Maps_' + Config.Resol))
+                                         'Input_Maps_' + Site.Resol))
         Config.PATH_CLIM_REF = \
             os.path.abspath(os.path.join(Config.PATH_MAIN, 'Input_Climate'))
 
@@ -358,7 +369,7 @@ def config(Config, options):
         os.system('cp '+os.path.join(Config.PATH_MAIN, Config.cfgdir,
                                      cfg_ech2o) +
                   ' ' + os.path.join(Config.PATH_OUT, cfg_ech2o))
-        if Config.isTrck == 1:
+        if Site.isTrck == 1:
             os.system('cp -p '+os.path.join(Config.PATH_MAIN, Config.cfgdir,
                                             cfgTrck_ech2o) + ' ' +
                       os.path.join(Config.PATH_OUT, cfgTrck_ech2o))
@@ -369,9 +380,9 @@ def config(Config, options):
             fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
             fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM_REF+'\n')
             fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')
-            fw.write('ClimateZones = ClimZones_'+Config.Resol+'.map\n')
-            fw.write('Isohyet_map = isohyet_'+Config.Resol+'.map\n')
-            if Config.isTrck == 1:
+            fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
+            fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
+            if Site.isTrck == 1:
                 fw.write('Tracking = 1\n')
                 fw.write('TrackingConfig = '+os.path.join(Config.PATH_OUT,
                                                           cfgTrck_ech2o)+'\n')
@@ -381,13 +392,6 @@ def config(Config, options):
 
         # -- Copy def file in the output
         os.system('cp '+file+' '+Config.PATH_OUT)
-
-    # -- Import classes and setup from the def file
-    sys.path.insert(0, Config.PATH_MAIN)
-    Opti = __import__(file_py).Opti
-    Data = __import__(file_py).Data
-    Paras = __import__(file_py).Paras
-    Site = __import__(file_py).Site
 
     # -- Trim: only saves the time steps within the trim
     if options.trimB is None:
@@ -410,8 +414,8 @@ def config(Config, options):
                      'goes beyond simulation time!')
 
     # Bare rock simulation
-    if Opti.simRock is None:
-        Opti.simRock = 0
+    if Site.simRock is None:
+        Site.simRock = 0
 
     # -- Used for simulations
     Config.treal = [Data.simbeg+timedelta(days=x) for x in range(Config.trimL)]
@@ -419,7 +423,7 @@ def config(Config, options):
 
     # ---------------------------------------------------------------------------
     # Return the classes read in the definition file
-    return (Opti, Data, Paras, Site)
+    return (Config, Opti, Data, Paras, Site)
 # ==================================================================================
 
 
@@ -593,8 +597,9 @@ def observations(Config, Opti, Data):
     Data.names = sorted(Data.obs.keys())
 
     # Date of the simulations (used for calibration periods, mostly)
+    Data.lsimEff = Data.lsim - Data.lspin
     Data.simt = [Data.simbeg + timedelta(days=x)
-                 for x in range(Data.lsim - Data.lspin)]
+                 for x in range(Data.lsimEff)]
 
     if Config.mode == 'calib_DREAM':
         print('Reading measured datasets for calibration...')
@@ -604,7 +609,7 @@ def observations(Config, Opti, Data):
 
         for oname in Data.names:
 
-            print(oname)
+            # print(oname)
             # -- Get the obs
             f_obs = Config.PATH_OBS + '/' + Data.obs[oname]['obs_file']
 
@@ -619,21 +624,24 @@ def observations(Config, Opti, Data):
 
             # Calibration period:
             # Check if specified, otherwise use the whole simulation
+            # in any case, remove the spinup (it will be removed from
+            # simulation outputs in post-processing)
             if 'fit_beg' not in Data.obs[oname].keys() or \
                type(Data.obs[oname]['fit_beg']) is not datetime.date:
                 fitbeg = Data.simt[0]
             else:
-                fitbeg = Data.obs[oname]['fit_beg']
+                fitbeg = max(Data.obs[oname]['fit_beg'], Data.simt[0])
             if 'fit_end' not in Data.obs[oname].keys() or \
                type(Data.obs[oname]['fit_end']) is not datetime.date:
-                fitend = Data.simt[Data.lsim - Data.lspin - 1]
+                fitend = Data.simt[Data.lsimEff-1]
             else:
-                fitend = Data.obs[oname]['fit_end']
+                fitend = min(Data.obs[oname]['fit_end'],
+                             Data.simt[Data.lsimEff - 1])
 
             # Crop obs between desired time frame
             tmp = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
 
-            Opti.obs[oname] = tmp.dropna(how='any')
+            Opti.obs[oname] = tmp.dropna(how='all')
 # ==================================================================================
 
 
@@ -655,7 +663,7 @@ def runs(Config, Opti, Paras, Site):
         Site.bmaps[Site.soils[im]] = pcr.readmap(Config.PATH_SPA+'/' +
                                                  Site.sfiles[im])
     Site.bmaps['unit'] = pcr.readmap(Config.PATH_SPA+'/unit.map')
-    if Opti.simRock == 1:
+    if Site.simRock == 1:
         # Site.bmaps['nolowK'] = readmap(Config.PATH_SPA+'/unit.nolowK.map')
         Site.bmaps['rock'] = pcr.readmap(Config.PATH_SPA+'/unit.rock.map')
 

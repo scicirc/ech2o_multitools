@@ -31,21 +31,17 @@ parser = OptionParser()
 # --- Definition ---
 
 '''
-What do you want to do ?
+What do you want to do ? ==> Specified by the "mode" in Config (def file)
  'calib_MCsampling': generate brute force Monte Carlo ensemble
                    of parameters sets for calibration
  'calib_MCruns': runs the model for all MC-sampled parameters
  'calib_DREAM': calibration using the Differential Evolution Adaptative
                 Metropolis (DREAM) algorithm, using the Spotpy package
  'forward_runs': runs the model for an ensemble of runs,
-                 (usually the best configurations from the calibration. 
+                 (usually the best configurations from the calibration.
                  Allows to look at observations not used in calibration)
  'sensi_morris': performs a Morris sensitivity analysis
 '''
-
-parser.add_option("--mode", dest="mode", metavar="mode",
-                  help="Switch ('calib_MCsampling','calib_MCruns'," +
-                  "'calib_DREAM','forwards_runs','sensi_morris')")
 
 # Other options: see subroutine in Multitool_init.py
 # Configuration file
@@ -55,17 +51,11 @@ parser.add_option("--file", dest="file", metavar="FILE",
 # Output directory
 parser.add_option("--outdir", dest="outdir", metavar="outdir",
                   help="Output directory")
-# Number of CPUs used
-parser.add_option("--ncpu", dest="ncpu", metavar="ncpu",
-                  help="Number of CPUs used")
 # Use scratch ? (saves EcH2O tmp outputs on scratch, then saves on users after
 # each run)
 parser.add_option("--scratch", dest="scratch", metavar="scratch",
                   help="Uses of localscratch (1: fastest storage) " +
                   "or shared (2: fast)")
-# Resolution of EcH2O
-parser.add_option("--Resol", dest="Resol", metavar="Resol",
-                  help="resolution (in m) for simulation, by default 30m)")
 # Report BasinSummary.txt ? (by default = 0)
 parser.add_option("--BSum", dest="BSum", metavar="BSum",
                   help="report BasinSummary.txt files for each simulation")
@@ -83,15 +73,9 @@ parser.add_option("--sampling", dest="sampling", metavar="sampling",
 # tracking activated in simulation)
 parser.add_option("--cfgTrck", dest="cfgTrck", metavar="cfgTrck",
                   help="Name of the ECH2O configTrck file")
-# Name of the ECH2O executable
-parser.add_option("--exe", dest="exe", metavar="exe",
-                  help="Name of the ECH2O exec file")
 # Name of the reference ECH2O config file
 parser.add_option("--cfg", dest="cfg", metavar="cfg",
                   help="Name of the ECH2O config file")
-# Flux tracking activated ?
-parser.add_option("--isTrck", dest="isTrck", metavar="isTrck",
-                  help="Switch of water tracking")
 # Time limit for the runs
 parser.add_option("--tlimit", dest="tlimit", metavar="tlimit",
                   help="Time limit of one ECH2O run (in seconds)")
@@ -147,18 +131,14 @@ parser.add_option("--MSspace", dest="MSspace", metavar="MSspace",
 
 # =============================================================================
 
-
-class Config:
-    # set working directory
-    PATH_MAIN = os.getcwd()+'/'
-    cfgdir = PATH_MAIN+'Input_Configs/'
-
+# Current working directory (temporary, just to import the def file)
+cwd_tmp = os.getcwd()+'/'
 
 # =============================================================================
 # == Initialization
 
 # Configuration --------------------------------
-(Opti, Data, Paras, Site) = init.config(Config, options)
+(Config, Opti, Data, Paras, Site) = init.config(cwd_tmp, options)
 
 # Parameters: from definition to all values ------
 init.parameters(Config, Opti, Paras, Site, options)
@@ -182,12 +162,13 @@ if Config.mode == 'calib_MCruns':
 
 elif Config.mode == 'calib_DREAM':
     # Initialize
-    spot_setup = MT_spotpy.spot_setup(Config, Opti, _used_algorithm='dream')
+    spot_setup = MT_spotpy.spot_setup(Config, Opti, Paras,
+                                      Data, Site, _used_algorithm='dream')
     sampler = spotpy.algorithms.dream(spot_setup, dbname='DREAM_ech2o',
                                       dbformat='csv')
     r_hat = sampler.sample(Opti.rep, nChains=Opti.nChains,
-                           convergence_limit=Opti.conv_lim,
-                           runs_after_convergence=Opti.run_after_conv)
+                           convergence_limit=Opti.convergence_limit,
+                           runs_after_convergence=Opti.runs_after_conv)
 
 elif Config.mode == 'forward_runs':
     # Ensemble "forward" runs
