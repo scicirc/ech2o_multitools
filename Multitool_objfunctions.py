@@ -17,7 +17,7 @@ from scipy.special import gamma
 import numpy as np
 import pandas as pd
 import math
-import sys
+# import sys
 
 
 # ==============================================================================
@@ -52,10 +52,15 @@ def MultiObj(obs, sim, Data, Opti, w=True):
             # print(oname, 'remove mean')
             s -= np.mean(s)
             o -= np.mean(o)
+            # Use RMSE for water table
+            L = -1*RMSE(o, s)
+        else:
+            # MAE for streamflow
+            L = -1*MAE(o, s)
 
         # Now use your favorite metrics for each obs type
         # for now, Schoups & Vrugt
-        L = SchoupsVrugt_GL(o, s, oname, max_B=0.5)
+        # L = SchoupsVrugt_GL(o, s, oname, max_B=0.5)
 
         # Weight by the number of obs ?
         if w is True:
@@ -69,6 +74,34 @@ def MultiObj(obs, sim, Data, Opti, w=True):
 
     # print('OJ: ', like)
     return like
+# ==============================================================================
+# -- Likelihood: Mean absolute error
+
+
+def MAE(obs, sim):
+
+    # Normalize
+    sd = np.std(obs)
+    obs /= sd
+    sim /= sd
+    # MAE
+    mae = np.mean(np.abs(obs-sim))
+
+    return mae
+# ==============================================================================
+# -- Likelihood: RMSE
+
+
+def RMSE(obs, sim):
+
+    # Normalize
+    sd = np.std(obs)
+    obs /= sd
+    sim /= sd
+    # Rmse
+    rmse = np.sqrt(np.mean((obs-sim)**2))
+
+    return rmse
 
 # ==============================================================================
 # -- Likelihood: Nash-Sutcliffe
@@ -83,7 +116,7 @@ def NashSutcliffe(obs, sim):
 
     return 1 - n/d
 # ==============================================================================
-# -- Multi-data global likelihood from Schoups & Vrught, 2010
+# -- Generalized likelihood from Schoups & Vrught, 2010
 
 
 def SchoupsVrugt_GL(obs, sim, oname, max_B):
@@ -120,29 +153,35 @@ def SchoupsVrugt_GL(obs, sim, oname, max_B):
         if beta < 0:
             beta = abs(beta)
 
+        # Residual error: fixed part
         sig0 = np.random.normal(base_sig0, sd_mult*(1 - 0))
         if sig0 > 1:
             sig0 = 1 + (1-sig0)
         if sig0 < 0:
             sig0 = 0 + abs(sig0)
+        # Residual error: heteroscedastic part
+        if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
+            # Assumed homoscedastic for water table depth
+            sig1 = 0
+        else:
+            sig1 = np.random.normal(base_sig1, sd_mult*(2 - 0))
+            if sig1 > 2:
+                sig1 = 2 + (2-sig1)
+            if sig1 < 0:
+                sig1 = abs(sig1)
 
-        sig1 = np.random.normal(base_sig1, sd_mult*(2 - 0))
-        if sig1 > 2:
-            sig1 = -1*sig1 + 4
-        if sig1 < 0:
-            sig1 = -1*sig1 + 0
-
+        # Autocorrelation coefficient
         phi = np.random.normal(base_phi, sd_mult*(max_B - 0))
         if phi > max_B:
-            phi = -1*phi + 2*max_B
+            phi = max_B + (max_B - phi)
         if phi < 0:
-            phi = -1*phi + 0
+            phi = abs(phi)
 
         # Remove autocorrelation from residuals
         Res = sim - obs
         Res_Norm = np.zeros(len(Res))
         Res_Norm_Hom = np.zeros(len(Res))
-        
+
         for c in range(len(Res)):
             Res_Norm[c] = Res[c] - phi*Res[c-1]
 
@@ -162,10 +201,10 @@ def SchoupsVrugt_GL(obs, sim, oname, max_B):
         sig_xi = math.sqrt((M2 - M1**2)*(xi**2 + xi**-2) +
                            2*(M1**2) - M2)
 
-        A1_mcmc = gamma(3*(1 + beta)/2)
-        A2_mcmc = gamma((1 + beta)/2)
-        wb = math.sqrt(A1_mcmc)/((1+beta)*(A2_mcmc**(3/2)))
-        cb = (A1_mcmc/A2_mcmc)**(1/(1 + beta))
+        kurto1 = gamma(3*(1 + beta)/2)
+        kurto2 = gamma((1 + beta)/2)
+        wb = math.sqrt(kurto1)/((1+beta)*(kurto2**(3/2)))
+        cb = (kurto1/kurto2)**(1/(1 + beta))
 
         alpha_wt = (mu_xi + sig_xi*Res_Norm_Hom) * \
             (xi**np.sign(mu_xi + sig_xi*Res_Norm_Hom))
@@ -196,9 +235,9 @@ def SchoupsVrugt_GL(obs, sim, oname, max_B):
             base_sig1 = sig1
             base_phi = phi
 
-    print(oname, 'xi:', np.round(xi, 3), 'beta:', np.round(beta, 3),
-          'phi:', np.round(phi, 3),
-          'sig0', np.round(sig0, 3), 'sig1', np.round(sig1, 3))
+    # print(oname, 'xi:', np.round(xi, 3), 'beta:', np.round(beta, 3),
+    #       'phi:', np.round(phi, 3),
+    #       'sig0', np.round(sig0, 3), 'sig1', np.round(sig1, 3))
     return max_L
     # Results[0] = max_L
     # Results[1] = base_xi

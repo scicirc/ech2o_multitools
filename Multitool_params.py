@@ -48,7 +48,7 @@ def store(Opti, Config, it):
 # -- Creating/updating inputs for ECH2O
 
 
-def sim_inputs(Opti, Paras, Site, Config, it=0, mode='no_spotpy',
+def sim_inputs(Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                paramcur=None):
 
     # Small switch not to read the vegetation params file every time
@@ -107,7 +107,7 @@ def sim_inputs(Opti, Paras, Site, Config, it=0, mode='no_spotpy',
                             Site.bmaps['rock']*0.1
 
                 pcr.report(outmap,
-                           Config.PATH_SPA+'/'+Paras.ref[pname]['file']+'.map')
+                           path_spa+'/'+Paras.ref[pname]['file']+'.map')
 
             # No spatial/veg dependence, but channel stuff
             else:
@@ -121,7 +121,7 @@ def sim_inputs(Opti, Paras, Site, Config, it=0, mode='no_spotpy',
                     outmap = Site.bmaps['unit']*Opti.x[Paras.ind[pname]]
 
                 pcr.report(outmap,
-                           Config.PATH_SPA+'/'+Paras.ref[pname]['file']+'.map')
+                           path_spa+'/'+Paras.ref[pname]['file']+'.map')
 
         # - Vegetation parameters
         else:
@@ -140,34 +140,34 @@ def sim_inputs(Opti, Paras, Site, Config, it=0, mode='no_spotpy',
     # Initial soil water content: needs porosity profile and depth to have
     # consistent initial soil moisture for each layer
     if 'Porosity0' in Paras.names:
-        poros = pcr.readmap(Config.PATH_SPA+'/' +
+        poros = pcr.readmap(path_spa+'/' +
                             Paras.ref['Porosity0']['file']+'.map')
     elif 'Porosity' in Paras.names:
-        poros = pcr.readmap(Config.PATH_SPA+'/'+Paras.ref['Porosity']['file'] +
+        poros = pcr.readmap(path_spa+'/'+Paras.ref['Porosity']['file'] +
                             '.map')
     else:
-        poros = pcr.readmap(Config.PATH_SPA+'/poros0.map')
+        poros = pcr.readmap(path_spa+'/poros0.map')
 
     if 'kPorosity' in Paras.names:
 
-        kporos = pcr.readmap(Config.PATH_SPA+'/' +
+        kporos = pcr.readmap(path_spa+'/' +
                              Paras.ref['kPorosity']['file']+'.map')
 
         if 'HLayer1' in Paras.names:
-            dL1 = pcr.readmap(Config.PATH_SPA+'/' +
+            dL1 = pcr.readmap(path_spa+'/' +
                               Paras.ref['HLayer1']['file']+'.map')
         else:
-            dL1 = pcr.readmap(Config.PATH_SPA+'/soildepth.L1.map')
+            dL1 = pcr.readmap(path_spa+'/soildepth.L1.map')
         if 'HLayer2' in Paras.names:
-            dL2 = pcr.readmap(Config.PATH_SPA+'/' +
+            dL2 = pcr.readmap(path_spa+'/' +
                               Paras.ref['HLayer2']['file']+'.map')
         else:
-            dL2 = pcr.readmap(Config.PATH_SPA+'/soildepth.L2.map')
+            dL2 = pcr.readmap(path_spa+'/soildepth.L2.map')
         if 'Depth' in Paras.names:
-            dTot = pcr.readmap(Config.PATH_SPA+'/' +
+            dTot = pcr.readmap(path_spa+'/' +
                                Paras.ref['Depth']['file']+'.map')
         else:
-            dTot = pcr.readmap(Config.PATH_SPA+'/soildepth.map')
+            dTot = pcr.readmap(path_spa+'/soildepth.map')
 
         # Layer-integrated values from profile
         porosL1 = kporos*poros*(1-pcr.exp(-dL1/kporos))/dL1
@@ -178,8 +178,8 @@ def sim_inputs(Opti, Paras, Site, Config, it=0, mode='no_spotpy',
 
     elif 'PorosL2' in Paras.names and 'PorosL3' in Paras.names:
         porosL1 = poros
-        porosL2 = pcr.readmap(Config.PATH_SPA+'/poros.L2.map')
-        porosL3 = pcr.readmap(Config.PATH_SPA+'/poros.L3.map')
+        porosL2 = pcr.readmap(path_spa+'/poros.L2.map')
+        porosL3 = pcr.readmap(path_spa+'/poros.L3.map')
 
     else:
         porosL1 = poros
@@ -187,13 +187,9 @@ def sim_inputs(Opti, Paras, Site, Config, it=0, mode='no_spotpy',
         porosL3 = poros
 
     # -- Use a fraction of these porosities as initial soil moisture
-    pcr.report(porosL1*0.8, Config.PATH_SPA + '/Init_SWC.L1.map')
-    pcr.report(porosL2*0.8, Config.PATH_SPA + '/Init_SWC.L2.map')
-    pcr.report(porosL3*0.85, Config.PATH_SPA+'/Init_SWC.L3.map')
-
-    # - Finalizing soil parameterization
-    # Check that initial soil moisture is not smaller residual soil
-    # tbd... for now just pick the porosity and thetar reange wisely enough
+    pcr.report(porosL1*0.9, path_spa + '/Init_SWC.L1.map')
+    pcr.report(porosL2*0.9, path_spa + '/Init_SWC.L2.map')
+    pcr.report(porosL3*0.9, path_spa+'/Init_SWC.L3.map')
 
     # - Finalizing the vegetation parameterization
     if Paras.isveg > 0:
@@ -205,7 +201,7 @@ def sim_inputs(Opti, Paras, Site, Config, it=0, mode='no_spotpy',
         #    vegnew[iv][vegnew['name'].index('TurnovL_MTS')] = \
         # copy.copy(vegnew[iv][vegnew['name'].index('TurnovL')])
         # Write the vegetation params file (if there's at least one veg param)
-        vegfile = open(Config.PATH_SPA+'/'+Site.vfile, 'w')
+        vegfile = open(path_spa+'/'+Site.vfile, 'w')
         vegfile.write('\t'.join(Opti.vref['header'])+'\n')
         for iv in range(Site.nv):
             vegfile.write('\t'.join(vegnew[iv])+'\n')

@@ -24,7 +24,7 @@ class Config:
     # EcH2O exectuable name
     exe = 'ech2o_iso'
     # Number of CPUs used (=1 if not specified)
-    ncpu = 8
+    ncpu = 2
     # EcH2O's Config files
     # cfg = 'config_90m_nospin_Ts.ini'  # Main one
     # cfgTrck = 'configTrck_Ts.ini'     # Tracking one
@@ -39,11 +39,15 @@ class Config:
 class Opti:
 
     # Parameters for DREAM calibration
-    rep = 50  # Maximum number of repetitions
-    nChains = 4  # Number of chains
+    rep = 2000  # Maximum number of repetitions
+    nChains = 6  # Number of chains
     convergence_limit = 1.2  # Gelman-Rubin convegence limit criterion
-    runs_after_conv = 100  # To construct posterior distrib
+    runs_after_conv = 50  # To construct posterior distrib
 
+    DREAMpar = 'mpi'
+    # Sampling sequence: 'seq' (default)-> normal iterations
+    # 'mpc': multiprocessing on a single windows pc
+    # 'mpi': parallel computing for unix (mac/linux/HPC)
 
 # ==========================================================================
 # Site conceptualization
@@ -65,7 +69,6 @@ class Site:
     vegs = ['Tree', 'Grass']
     nv = len(vegs)
     vfile = 'SpeciesParams.tab'
-
     # Take into account bare rock? (limiting soil evap)
     simRock = 0
 

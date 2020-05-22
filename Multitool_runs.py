@@ -50,21 +50,23 @@ def calibMC_runs(Config, Opti, Data, Paras, Site):
     for it in range(it0, Opti.nit):
 
         Opti.itout = '%05i' % int(it+1)
+        print('Iteration ', Opti.itout, ' of ', Opti.nit)
 
+        # Create / clean up the run outputs directory
         if len(glob.glob(Config.PATH_EXEC)) == 0:
             os.system('mkdir '+Config.PATH_EXEC)
         else:
             os.system('rm -f '+Config.PATH_EXEC+'/*')
-        print('Iteration ', Opti.itout, ' of ', Opti.nit)
 
         # Create the inputs for ECH2O
-        params.sim_inputs(Opti, Paras, Site, Config, it)
+        params.sim_inputs(Opti, Paras, Site, Config.PATH_SPA, it)
         # Run ECH2O
         os.chdir(Config.PATH_OUT)
-        print('--> running ECH2O')
+        print('|| running ECH2O...', end='\r')
         start = time.time()
-        os.system(Config.cmde_ech2o+' > ech2o.log')
-        print('    run time:', time.time() - start,
+        os.system(Config.cmde_ech2o+' config.ini > ' +
+                  Config.PATH_EXEC+'/ech2o.log')
+        print('run time:', time.time()-start,
               'seconds (limit at '+Config.tlimit+')')
 
         # Check if it ran properly
@@ -73,10 +75,11 @@ def calibMC_runs(Config, Opti, Data, Paras, Site):
             # If the run fails, let's give it one more chance!
             os.chdir(Config.PATH_OUT)
             os.system('rm -f '+Config.PATH_EXEC+'/*')
-            print('--> running ECH2O')
+            print('|| running ECH2O...', end='\r')
             start = time.time()
-            os.system(Config.cmde_ech2o+' > '+Config.PATH_EXEC+'/ech2o.log')
-            print('    run time:', time.time() - start,
+            os.system(Config.cmde_ech2o+' config.ini > ' +
+                      Config.PATH_EXEC+'/ech2o.log')
+            print('run time:', time.time()-start,
                   'seconds (limit at '+Config.tlimit+')')
             os.chdir(Config.PATH_EXEC)
             # Still not running properly? Report and move on
@@ -131,16 +134,22 @@ def forward_runs(Config, Opti, Data, Paras, Site, options):
 
         print('Iteration '+str(it+1)+' of '+str(nruns))
 
+        # Create / clean up the run outputs directory
+        if len(glob.glob(Config.PATH_EXEC)) == 0:
+            os.system('mkdir '+Config.PATH_EXEC)
+        else:
+            os.system('rm -f '+Config.PATH_EXEC+'/*')
+
         # Create the inputs for ECH2O
-        params.sim_inputs(Opti, Paras, Site, Config, it)
+        params.sim_inputs(Opti, Paras, Site, Config.PATH_SPA, it)
         # Run ECH2O
         os.chdir(Config.PATH_OUT)
-        print('--> running ECH2O')
-
+        print('|| running ECH2O...', end='\r')
         start = time.time()
-        os.system(Config.cmde_ech2o+' > '+Config.PATH_EXEC+'/ech2o.log')
-        print('    run time:', time.time() - start, 'seconds (limit at ',
-              Config.tlimit, ')')
+        os.system(Config.cmde_ech2o+' config.ini > ' +
+                  Config.PATH_EXEC+'/ech2o.log')
+        print('run time:', time.time()-start,
+              'seconds (limit at', Config.tlimit, ')')
         # Check if it ran properly
         os.chdir(Config.PATH_EXEC)
         if runOK(Data, Opti, Config) == 1:
@@ -207,19 +216,26 @@ def morris_runs(Config, Opti, Data, Paras, Site):
         # runnb = '%02i' % int(irun+1)
         print('Run '+str(irun+1)+' out of '+str('%02i' % int(Opti.nvar+1)))
 
+        # Create / clean up the run outputs directory
+        if len(glob.glob(Config.PATH_EXEC)) == 0:
+            os.system('mkdir '+Config.PATH_EXEC)
+        else:
+            os.system('rm -f '+Config.PATH_EXEC+'/*')
+
         # print
         # print('|- Creating parameter maps / table for this run...'
 
         # Create the inputs for ECH2O
-        params.sim_inputs(Opti, Paras, Site, Config, irun)
+        params.sim_inputs(Opti, Paras, Site, Config.PATH_SPA, irun)
 
         # Run ECH2O
         os.chdir(Config.PATH_OUT)
-        print('--> running ECH2O')
+        print('|| running ECH2O...')
         start = time.time()
-        os.system(Config.cmde_ech2o+' > '+Config.PATH_EXEC+'/ech2o.log')
-        print('    run time:', time.time() - start, 'seconds (limit at ',
-              Config.tlimit, ')')
+        os.system(Config.cmde_ech2o+' config.ini > ' +
+                  Config.PATH_EXEC+'/ech2o.log')
+        print('run time:', time.time() - start,
+              'seconds (limit at ', Config.tlimit, ')')
 
         # Check if it ran properly
         os.chdir(Config.PATH_EXEC)

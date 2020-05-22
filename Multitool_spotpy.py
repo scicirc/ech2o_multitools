@@ -12,6 +12,7 @@ created by Tobias Houska
 
 import time
 import os
+import copy
 # import sys
 import glob
 import spotpy
@@ -22,6 +23,8 @@ import Multitool_params as params
 # import Multitool_likelihoods as likelihoods
 import Multitool_objfunctions as objfunc
 
+from distutils.dir_util import copy_tree, remove_tree, mkpath
+from distutils.file_util import copy_file
 
 # ==============================================================================
 
@@ -48,7 +51,7 @@ class spot_setup(object):
         sdmult = 0.1
 
         # Pass on classes
-        self.config = Config
+        self.config = copy.copy(Config)
         self.opti = Opti
         self.par = Paras
         self.site = Site
@@ -60,30 +63,23 @@ class spot_setup(object):
             maxp = Opti.max[i]
             # print(Opti.names[i], minp, maxp)
             # Logarithmic sampling, will be de-logged during Ech2O's
-            # inputs writing
+            # inputs writing (see Multitool_params.sim_inputs)
             if Opti.log[i] == 1:
                 self.params += [spotpy.parameter.Uniform(Opti.names[i],
                                                          low=np.log10(minp),
                                                          high=np.log10(maxp))]
-                # tmp = spotpy.parameter.Normal(name=Opti.names[i],
-                #                               low=np.log10(minp),
-                #                               high=np.log10(maxp),
-                #                               stddev=sdmult*np.log10(maxp/minp))
             else:
                 self.params += \
                     [spotpy.parameter.Uniform(name=Opti.names[i],
                                               low=minp, high=maxp)]
-                # [spotpy.parameter.Normal(name=Opti.names[i],
-                #                          low=minp, high=maxp,
-                #                          stddev=sdmult*(maxp-minp))]
-
         # print(self.params)
 
         # Evaluation data
         self.evals = Opti.obs
 
-        self.curdir = Config.PATH_MAIN
+        self.curdir = Config.PATH_OUT
         self.owd = Config.PATH_EXEC
+        self.parallel = parallel
 
     # Retrieve parameters
     def parameters(self):
@@ -94,39 +90,66 @@ class spot_setup(object):
     # and read the model discharge output data:
     def simulation(self, x):
 
-        # Create the inputs for ECH2O
-        params.sim_inputs(self.opti, self.par, self.site, self.config,
-                          0, mode='spotpy', paramcur=self.parameters)
+        os.chdir(self.curdir)
 
-        # To store simulations
+        if self.parallel == 'seq':
+            self.PATH_SPA = copy.copy(self.config.PATH_SPA)
+            self.PATH_EXEC = copy.copy(self.config.PATH_EXEC)
+            self.cfg_ech2o = 'config.ini'
+            mkpath(self.PATH_EXEC)
+        elif self.parallel == 'mpi':
+            # Running n parallel on a unix system.
+            # Check the ID of the current computer core
+            call = str(int(os.environ['OMPI_COMM_WORLD_RANK'])+2)
+        elif self.parallel == 'mpc':
+            # Running n parallel on a single (Windows) computer.
+            # ID of the current computer core
+            call = str(os.getpid())
+        else:
+            raise 'No call variable was assigned'
+
+        # For parallel computing, a few more preparations
+        if self.parallel in ['mpi', 'mpc']:
+            # Generate a new input folder with all underlying files
+            self.PATH_SPA = self.config.PATH_SPA+call
+            copy_tree(self.config.PATH_SPA, self.PATH_SPA)
+            # An execution directory next to the "template" one
+            self.PATH_EXEC = self.config.PATH_EXEC+call
+            mkpath(self.PATH_EXEC)
+            # Copy ech2o config file define input maps directory
+            self.cfg_ech2o = self.PATH_EXEC+'/config.ini'
+            copy_file(self.curdir+'/config.ini', self.cfg_ech2o)
+            with open(self.cfg_ech2o, 'a') as fw:
+                fw.write('Maps_Folder = '+self.PATH_SPA+'\n')
+                fw.write('Output_Folder = '+self.PATH_EXEC+'\n')
+
+        # To store simulations (will remain np.nan if simulation fails)
         simulations = np.full((self.data.nobs, self.data.lsimEff), np.nan)
 
-        # Create or clean exec directory
-        if len(glob.glob(self.config.PATH_EXEC)) == 0:
-            os.system('mkdir '+self.config.PATH_EXEC)
-        else:
-            os.system('rm -f '+self.config.PATH_EXEC+'/*')
-
-        # Run ECH2O
-        os.chdir(self.config.PATH_OUT)
-        print('--> running ECH2O...',)
-
         try:
-            start = time.time()
-            os.system(self.config.cmde_ech2o+' > '+self.config.PATH_EXEC +
-                      '/ech2o.log')
-            print('    run time:', time.time() - start, 'seconds (limit at ',
-                  self.config.tlimit, ')')
+            # Create the inputs for ECH2O's run
+            params.sim_inputs(self.opti, self.par, self.site,
+                              self.config.PATH_SPA+call,
+                              0, mode='spotpy', paramcur=self.parameters)
 
-            os.chdir(self.config.PATH_EXEC)
+            # Run ECH2O
+            print('|| running ECH2O...', end='\r')
+            start = time.time()
+            os.system(self.config.cmde_ech2o + ' ' + self.cfg_ech2o +
+                      ' > '+self.PATH_EXEC + '/ech2o.log')
+            print('|| EcH2O run done for chain ID#'+call+', using',
+                  str(self.config.ncpu), 'cpu(s). Run time:',
+                  np.round(time.time()-start, 3), 'seconds')
+            # (limit at',self.config.tlimit, ')')
+
+            os.chdir(self.PATH_EXEC)
             # Store outputs: for now restricted to time series
             for i in range(self.data.nobs):
                 oname = self.data.names[i]
                 simulations[i, :] = outputs.read_sim(self.config, self.data,
                                                      oname)
-            os.chdir(self.config.PATH_OUT)
 
-        except('Model has failed'):
+        except():  # 'Model has failed'):
             print('Something went wrong, this run is useless')
             # Report param config that failed
             # f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
@@ -144,6 +167,10 @@ class spot_setup(object):
             #           Config.PATH_OUT + '/ech2o_'+it+'.log')
 
         os.chdir(self.curdir)
+
+        # Clean up
+        if self.parallel in ['mpc', 'mpi']:
+            remove_tree(self.PATH_EXEC)
 
         return simulations
 

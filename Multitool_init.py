@@ -27,6 +27,12 @@ import Multitool_params as params
 import Multitool_morris as morris
 import pandas as pd
 import csv
+
+import multiprocessing as mp
+
+from distutils.dir_util import copy_tree, remove_tree, mkpath
+from distutils.file_util import copy_file
+
 # ----------------------------------------------------------------------------
 
 
@@ -62,19 +68,8 @@ def config(cwd_tmp, options):
     if Config.PATH_MAIN is None:
         Config.PATH_MAIN = cwd_tmp
 
-    # -- Number of CPUs used in parallel
-    if Config.ncpu is None:
-        Config.ncpu = 1
-
-    # -- Restart: do not start from first iteration
-    if options.restart is None:
-        Config.restart = 0
-    else:
-        Config.restart = int(options.restart)
-        if Config.restart > 1:
-            sys.exit('Wrong value for restart')
-
-    # -- Output path
+    # -- Output directory
+    # Base name
     if options.outdir is None:
         if Config.mode != 'forward_runs':
             options.outdir = os.path.splitext(options.file)[0]
@@ -89,43 +84,39 @@ def config(cwd_tmp, options):
                     options.inEns
             if(len(tmp) > 2):
                 sys.exit('Error: incorrect config file format.')
-
-    # -- scratch?
-    if options.scratch is not None:
-        if int(options.scratch) == 1:
-            Config.scratch = 1
-        else:
-            Config.scratch = 0
+    # Absolute location
+    if Config.mode == 'forward_runs' and options.OMP_it is not None:
+        Config.OMP_it = int(options.OMP_it)
+        Config.PATH_OUTmain = \
+            os.path.abspath(os.path.join(Config.PATH_MAIN,
+                                         options.outdir))
+        if len(glob.glob(Config.PATH_OUTmain)) == 0:
+            os.system('mkdir ' + Config.PATH_OUTmain)
+        Config.PATH_OUT = \
+            os.path.abspath(os.path.join(Config.PATH_OUTmain,
+                                         'EnsembleRun_' +
+                                         str(Config.OMP_it)))
     else:
-        Config.scratch = 0
+        Config.PATH_OUT = os.path.abspath(os.path.join(Config.PATH_MAIN,
+                                                       options.outdir))
+    # Create if needed
+    if len(glob.glob(Config.PATH_OUT)) == 0:
+        os.system('mkdir ' + Config.PATH_OUT)
 
-    # -- Time wall for ECH2O execution
-    if options.tlimit is None:
-        Config.tlimit = '100000'
-    else:
-        Config.tlimit = options.tlimit
-    Config.tcmd = 'ulimit -t '+str(int(Config.tlimit)*int(Config.ncpu))+' ;'
+    # -- Copy def file in the output
+    os.system('cp '+file+' '+Config.PATH_OUT)
 
-    # -- Maps averaging
-    if options.MapAv is not None:
-        Config.MapAv = int(options.MapAv)
-        if Config.MapAv == 1:
-            if options.MapAvT in ['week', 'month', 'season']:
-                Config.MapAvT = options.MapAvT
-            else:
-                sys.exit('Wrong maps averaging option!')
+    # -- Restart: do not start from first iteration
+    if options.restart is None:
+        Config.restart = 0
     else:
-        Config.MapAv = 0
+        Config.restart = int(options.restart)
+        if Config.restart > 1:
+            sys.exit('Wrong value for restart')
 
     # -- Resolution (default 50m, used with reference Spatial folder)
     if Site.Resol is None:
         Site.Resol = '50m'
-
-    # -- Report BasinSummary.txt
-    if options.BSum is not None:
-        Config.repBS = int(options.BSum)
-    else:
-        Config.repBS = 0
 
     # -- MS init: many things don't happen if it is the case
     if Config.mode == 'sensi_morris':
@@ -182,9 +173,19 @@ def config(cwd_tmp, options):
         Config.PATH_OBS = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                        'Calibration_Datasets'))
 
+    # Parameters for DREAM calibration
+    Opti.parallel = False
+    if Config.mode == 'calib_DREAM':
+        if Opti.DREAMpar is None:  # By default, sequential runs
+            Opti.DREAMpar = 'seq'
+        elif Opti.DREAMpar in ['mpc', 'mpi']:
+            Opti.parallel = True
+            # If in parallel mode, use as many CPUs as possible unless
+            # the number of chains is larger
+            Config.ncpu = max(1, mp.cpu_count() // Opti.nChains)
+
     # -- Sensitivity: all parameter path
     if Config.mode == 'sensi_morris':
-
         print('')
         if(Config.MSspace == 'trajectory'):
             Config.PATH_TRAJ = os.path.abspath(os.path.join(Config.PATH_MAIN,
@@ -207,219 +208,7 @@ def config(cwd_tmp, options):
         print("Elementary effects directory:          ", Config.PATH_EE)
         Config.FILE_EE = Config.PATH_EE+'/'+options.outdir.split('.')[0]
 
-    print('')
-
-    # -- For runs
-    if Config.runECH2O == 1:
-        # -- Execution command
-        if Config.exe is not None:
-            if len(glob.glob(Config.exe)) == 0:
-                sys.exit('The user provided EXEC file was not found: ' +
-                         Config.exe)
-            exe_ech2o = Config.exe
-            print('The user provided EXEC file is: '+exe_ech2o)
-
-        # Ech2O run config file
-        # Path for EcH2O config file
-        Config.cfgdir = Config.PATH_MAIN+'Input_Configs/'
-
-        if options.cfg is not None:
-            cfg_ech2o = options.cfg+'.ini'
-            if Config.mode == 1 and \
-               len(glob.glob(Config.cfgdir+cfg_ech2o)) == 0:
-                sys.exit('The user provided CFG file was not found: ' +
-                         cfg_ech2o)
-            if Config.mode == 2 and \
-               len(glob.glob(Config.cfgdir+cfg_ech2o)) == 0:
-                sys.exit('The user provided CFG file was not found: ' +
-                         cfg_ech2o)
-            print('The user provided CFG file is: '+cfg_ech2o)
-
-        # Time limit and OMP use
-        Config.cmde_ech2o = ' '.join([Config.tcmd, 'OMP_NUM_THREADS=' +
-                                      str(Config.ncpu), './' + exe_ech2o,
-                                      cfg_ech2o])
-
-        # (if needed) get the parallel job number, based on the output dir name
-        Config.numsim = options.outdir.split('.')[::-1][0]
-
-        # Tracking age and/or tracers?
-        if Site.isTrck is None:
-            Site.isTrck = 0
-
-        if Site.isTrck == 1:
-            if options.cfgTrck is not None:
-                cfgTrck_ech2o = options.cfgTrck+'.ini'
-            else:
-                cfgTrck_ech2o = options.cfg.split('_')[0] + \
-                    'Trck_'+options.cfg.split('_')[1]+'.ini'
-
-            if len(glob.glob(Config.cfgdir+cfgTrck_ech2o)) == 0:
-                sys.exit('The user provided CFGtrck file was not found: ' +
-                         cfgTrck_ech2o)
-            else:
-                print('The user provided CFGtrck file is: '+cfgTrck_ech2o)
-
-        # --- Defining the various PATHs
-        if options.OMP_it is not None:
-            Config.OMP_it = int(options.OMP_it)
-            Config.PATH_OUTmain = \
-                os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                             options.outdir))
-            if len(glob.glob(Config.PATH_OUTmain)) == 0:
-                os.system('mkdir ' + Config.PATH_OUTmain)
-            Config.PATH_OUT = \
-                os.path.abspath(os.path.join(Config.PATH_OUTmain,
-                                             'EnsembleRun_' +
-                                             str(Config.OMP_it)))
-        else:
-            Config.PATH_OUT = os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                                           options.outdir))
-
-        Config.PATH_SPA = os.path.abspath(os.path.join(Config.PATH_OUT,
-                                                       'Spatial'))
-
-        # -- Define execution directoy, depends on scratch options
-        if Config.scratch > 0:
-            if Config.scratch == 1:
-                Config.PATH_EXEC = '/scratch/users/s08sk8/'+options.outdir
-            if Config.scratch == 2:
-                Config.PATH_EXEC = '/nobackup/users/s08sk8/'+options.outdir
-        else:
-            Config.PATH_EXEC = os.path.abspath(os.path.join(Config.PATH_OUT,
-                                                            'tmp'))
-        # -- Forward runs: parameter sets to use
-        if Config.mode == 'forward_runs':
-            if options.inEns is not None:
-                Config.FILE_PAR = Config.PATH_MAIN+'Input_Params/' +\
-                    options.inEns+'.txt'
-                # Config.FILE_PAR = Config.PATH_MAIN+'Input_Params/'+\
-                # options.inEns+'.'+
-                # options.nEns+'bestParams.txt'
-                if len(glob.glob(Config.FILE_PAR)) == 0:
-                    sys.exit('The param file (ensemble set) was not found: ' +
-                             Config.FILE_PAR)
-
-                print('')
-                print('The ensemble param file is : '+Config.FILE_PAR)
-            else:
-                sys.exit('The param file (ensemble set) needs to be ' +
-                         'specified (--inEns)')
-
-            nv = np.genfromtxt(Config.FILE_PAR, delimiter=',',
-                               unpack=True)[1::].shape[0]
-            if options.nEns is not None:
-                Config.nEns = min(int(options.nEns), nv)
-            else:
-                Config.nEns = nv
-
-    # -- Runs directories
-    if Config.runECH2O == 1:
-        # Forcings and reference maps
-        Config.PATH_SPA_REF = \
-            os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                         'Input_Maps_' + Site.Resol))
-        Config.PATH_CLIM_REF = \
-            os.path.abspath(os.path.join(Config.PATH_MAIN, 'Input_Climate'))
-
-        # Output directory
-        if len(glob.glob(Config.PATH_OUT)) == 0:
-            os.system('mkdir ' + Config.PATH_OUT)
-
-        # Creation of inputs directory (PATH_SPA will use parameter sampling)
-        if len(glob.glob(Config.PATH_SPA)) == 0:
-            os.system('mkdir ' + Config.PATH_SPA)
-        # Copy of reference data
-        os.system('cp -p '+Config.PATH_SPA_REF+'/*.map '+Config.PATH_SPA)
-        os.system('cp -p '+Config.PATH_SPA_REF+'/SpeciesParams*.tab ' +
-                  Config.PATH_SPA)
-
-        # Execution directory
-        if len(glob.glob(Config.PATH_EXEC)) == 0:
-            os.system('mkdir '+Config.PATH_EXEC)
-        else:
-            os.system('rm -f '+Config.PATH_EXEC+'/*')
-
-        # -- Some verbose
-        print('')
-        print('Original/template maps & parameters:' + Config.PATH_SPA_REF)
-        print('Original climate data:' + Config.PATH_CLIM_REF)
-        if Config.scratch > 0:
-            print('-----------------------------------------')
-            print("Scratch storage activated! Hopefully that will speed " +
-                  "things up...")
-            print('Temporary maps & parameters:' + Config.PATH_SPA)
-            # print 'Temporary climate data:', Config.PATH_CLIMS
-            print('Temporary outputs:' + Config.PATH_EXEC)
-            print('-----------------------------------------')
-        else:
-            print('Maps & parameters:' + Config.PATH_SPA)
-        # print 'Climatic forcing: ', Config.PATH_CLIM
-        print('Final outputs:          ' + Config.PATH_OUT)
-
-        print('')
-
-        # Symbolic link to executable
-        if len(glob.glob(os.path.join(Config.PATH_OUT, exe_ech2o))) != 0:
-            os.system('rm '+os.path.join(Config.PATH_OUT, exe_ech2o))
-        os.symlink(os.path.join(Config.PATH_MAIN, exe_ech2o),
-                   os.path.join(Config.PATH_OUT, exe_ech2o))
-
-        # Copy config files (on /users even if there's scratch, for debugging)
-        os.system('cp '+os.path.join(Config.PATH_MAIN, Config.cfgdir,
-                                     cfg_ech2o) +
-                  ' ' + os.path.join(Config.PATH_OUT, cfg_ech2o))
-        if Site.isTrck == 1:
-            os.system('cp -p '+os.path.join(Config.PATH_MAIN, Config.cfgdir,
-                                            cfgTrck_ech2o) + ' ' +
-                      os.path.join(Config.PATH_OUT, cfgTrck_ech2o))
-
-        # -- Modify template config file with config-specific info
-        with open(os.path.join(Config.PATH_OUT, cfg_ech2o), 'a') as fw:
-            fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
-            fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
-            fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM_REF+'\n')
-            fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')
-            fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
-            fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
-            if Site.isTrck == 1:
-                fw.write('Tracking = 1\n')
-                fw.write('TrackingConfig = '+os.path.join(Config.PATH_OUT,
-                                                          cfgTrck_ech2o)+'\n')
-            else:
-                fw.write('Tracking = 0')
-            fw.write('\n\n')
-
-        # -- Copy def file in the output
-        os.system('cp '+file+' '+Config.PATH_OUT)
-
-    # -- Trim: only saves the time steps within the trim
-    if options.trimB is None:
-        Config.trimB = 1
-    else:
-        Config.trimB = int(options.trimB)
-
-    if options.trimBmap is None:
-        Config.trimBmap = 1
-    else:
-        Config.trimBmap = int(options.trimBmap)
-
-    if options.trimL is None:
-        Config.trimL = Data.lsim - Config.trimB + 1
-    else:
-        if int(options.trimL) <= Data.lsim - Config.trimB+1:
-            Config.trimL = int(options.trimL)
-        else:
-            sys.exit('Error: the specified output slicing start+length ' +
-                     'goes beyond simulation time!')
-
-    # Bare rock simulation
-    if Site.simRock is None:
-        Site.simRock = 0
-
-    # -- Used for simulations
-    Config.treal = [Data.simbeg+timedelta(days=x) for x in range(Config.trimL)]
-    # sys.exit()
+    # print('')
 
     # ---------------------------------------------------------------------------
     # Return the classes read in the definition file
@@ -600,10 +389,12 @@ def observations(Config, Opti, Data):
     Data.lsimEff = Data.lsim - Data.lspin
     Data.simt = [Data.simbeg + timedelta(days=x)
                  for x in range(Data.lsimEff)]
+    # Same thing in froward mode (needs to be merged...)
+    Config.treal = [Data.simbeg+timedelta(days=x) for x in range(Config.trimL)]
 
     if Config.mode == 'calib_DREAM':
+
         print('Reading measured datasets for calibration...')
-        print
 
         Opti.obs = {}  # np.full((Data.nobs, Config.trimL), np.nan)
 
@@ -645,15 +436,209 @@ def observations(Config, Opti, Data):
 # ==================================================================================
 
 
-def runs(Config, Opti, Paras, Site):
+def runs(Config, Opti, Data, Paras, Site, options):
 
+    # -- Runs directories
+    # Forcings and reference maps
+    Config.PATH_SPA_REF = \
+        os.path.abspath(os.path.join(Config.PATH_MAIN,
+                                     'Input_Maps_' + Site.Resol))
+    Config.PATH_CLIM_REF = \
+        os.path.abspath(os.path.join(Config.PATH_MAIN, 'Input_Climate'))
+
+    # Creation of inputs directory (PATH_SPA will use parameter sampling)
+    # (in case of parallel runs as in DREAM+mpc/mpi, it will serve as
+    # -yet another- template)
+    Config.PATH_SPA = os.path.abspath(os.path.join(Config.PATH_OUT,
+                                                   'Spatial'))
+    if len(glob.glob(Config.PATH_SPA)) == 0:
+        mkpath(Config.PATH_SPA)
+        # Copy of reference data
+        os.system('cp -p '+Config.PATH_SPA_REF+'/*.map '+Config.PATH_SPA)
+        os.system('cp -p '+Config.PATH_SPA_REF+'/SpeciesParams*.tab ' +
+                  Config.PATH_SPA)
+
+    # -- Some verbose
+    print('')
+    print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
+    print('Climate data:\n', Config.PATH_CLIM_REF)
+    # print('Maps & parameters:' + Config.PATH_SPA)
+    print('Final outputs:\n', Config.PATH_OUT)
+    print('-----------------------------------------')
+    print('')
+
+    # -- About running EcH2O
+    # Executable
+    if Config.exe is not None:
+        if len(glob.glob(Config.exe)) == 0:
+            sys.exit('The user provided EXEC file was not found: ' +
+                     Config.exe)
+            print('The user provided EXEC file is: '+Config.exe)
+    # Symbolic link to executable
+    if len(glob.glob(os.path.join(Config.PATH_OUT, Config.exe))) != 0:
+        os.system('rm '+os.path.join(Config.PATH_OUT, Config.exe))
+    os.symlink(os.path.join(Config.PATH_MAIN, Config.exe),
+               os.path.join(Config.PATH_OUT, Config.exe))
+    # Time wall for ECH2O execution
+    if options.tlimit is None:
+        Config.tlimit = '2000'
+    else:
+        Config.tlimit = options.tlimit
+    # Number of CPUs used in parallel
+    if Config.ncpu is None:
+        Config.ncpu = 1
+    # Time limit
+    Config.tcmd = 'ulimit -t ' + \
+        str(int(Config.tlimit)*int(Config.ncpu))+' ;'
+    # Execution command with OMP use
+    Config.cmde_ech2o = ' '.join([Config.tcmd, 'OMP_NUM_THREADS=' +
+                                  str(Config.ncpu), './' + Config.exe])
+    # Scratch disk?
+    Config.scratch = 0
+    if options.scratch is not None:
+        if int(options.scratch) == 1:
+            Config.scratch = 1
+    # Execution directory (in case of parallel runs
+    # with DREAM, the acutal directory will be next to this one)
+    if Config.scratch > 0:
+        if Config.scratch == 1:
+            Config.PATH_EXEC = '/scratch/users/s08sk8/'+options.outdir
+        if Config.scratch == 2:
+            Config.PATH_EXEC = '/nobackup/users/s08sk8/'+options.outdir
+        print('-----------------------------------------')
+        print("Scratch storage activated! Hopefully that will speed " +
+              "things up...")
+    else:
+        Config.PATH_EXEC = os.path.abspath(os.path.join(Config.PATH_OUT,
+                                                        'tmp'))
+
+    # -- Ech2O run config file
+    # Path for EcH2O config file
+    Config.cfgdir = Config.PATH_MAIN+'Input_Configs/'
+    if options.cfg is not None:
+        Config.cfg_ech2o = options.cfg+'.ini'
+        if len(glob.glob(Config.cfgdir+Config.cfg_ech2o)) == 0:
+            sys.exit('The user provided CFG file was not found: ' +
+                     Config.cfg_ech2o)
+        print('The user provided CFG file is: '+Config.cfg_ech2o)
+        # Copy config files (on /users even if there's scratch, for debugging)
+        os.system('cp '+os.path.join(Config.PATH_MAIN, Config.cfgdir,
+                                     Config.cfg_ech2o) +
+                  ' ' + os.path.join(Config.PATH_OUT, 'config.ini'))
+        # Modify template config file with config-specific info
+        with open(os.path.join(Config.PATH_OUT, 'config.ini'), 'a') as fw:
+            fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
+            fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM_REF+'\n')
+            fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
+            fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
+            # Input maps directory defined here (unless you need parallel runs
+            # with DREAM, in which case the directory will change on the fly)
+            if Opti.parallel is False:
+                fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
+                fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')
+
+    else:
+        sys.exit('Error: the script need a template ech2o config file!')
+
+    # (if needed) get the parallel job number, based on the output dir name
+    Config.numsim = options.outdir.split('.')[::-1][0]
+
+    # -- Tracking age and/or tracers?
+    if Site.isTrck is None:
+        Site.isTrck = 0
+    if Site.isTrck == 1:
+        if options.cfgTrck is not None:
+            cfgTrck_ech2o = options.cfgTrck+'.ini'
+        else:
+            cfgTrck_ech2o = options.cfg.split('_')[0] + \
+                'Trck_'+options.cfg.split('_')[1]+'.ini'
+
+        if len(glob.glob(Config.cfgdir+cfgTrck_ech2o)) != 0:
+            print('The user provided CFGtrck file is: '+cfgTrck_ech2o)
+            # Copy template configTrck to outdir
+            os.system('cp '+os.path.join(Config.PATH_MAIN, Config.cfgdir,
+                                         cfgTrck_ech2o) + ' ' +
+                      os.path.join(Config.PATH_OUT, 'configTrck.ini'))
+            # Add tracking info in main ech2o config file
+            with open(os.path.join(Config.PATH_OUT, 'config.ini'),
+                      'a') as fw:
+                fw.write('Tracking = 1\n')
+                fw.write('TrackingConfig = configTrck.ini\n')
+        else:
+            sys.exit('The user provided CFGtrck file was not found: ' +
+                     cfgTrck_ech2o)
+    elif Site.isTrck == 0:
+        with open(os.path.join(Config.PATH_OUT, 'config.ini'), 'a') as fw:
+            fw.write('Tracking = 0\n')
+
+    # -- Forward runs: parameter sets to use
+    if Config.mode == 'forward_runs':
+        if options.inEns is not None:
+            Config.FILE_PAR = Config.PATH_MAIN+'Input_Params/' +\
+                options.inEns+'.txt'
+            # Config.FILE_PAR = Config.PATH_MAIN+'Input_Params/'+\
+            # options.inEns+'.'+
+            # options.nEns+'bestParams.txt'
+            if len(glob.glob(Config.FILE_PAR)) == 0:
+                sys.exit('The param file (ensemble set) was not found: ' +
+                         Config.FILE_PAR)
+
+            print('')
+            print('The ensemble param file is : '+Config.FILE_PAR)
+        else:
+            sys.exit('The param file (ensemble set) needs to be ' +
+                     'specified (--inEns)')
+        # Number of runs is the size of the parameters file, unless specified
+        nv = np.genfromtxt(Config.FILE_PAR, delimiter=',',
+                           unpack=True)[1::].shape[0]
+        if options.nEns is not None:
+            Config.nEns = min(int(options.nEns), nv)
+        else:
+            Config.nEns = nv
+
+    # --- Reporting stuff
+    # Trim: only saves the time steps within the trim
+    if options.trimB is None:
+        Config.trimB = 1
+    else:
+        Config.trimB = int(options.trimB)
+    # Initial cutoff for map reporting
+    if options.trimBmap is None:
+        Config.trimBmap = 1
+    else:
+        Config.trimBmap = int(options.trimBmap)
+    # Length of saved outputs
+    if options.trimL is None:
+        Config.trimL = Data.lsim - Config.trimB + 1
+    else:
+        if int(options.trimL) <= Data.lsim - Config.trimB+1:
+            Config.trimL = int(options.trimL)
+        else:
+            sys.exit('Error: the specified output slicing start+length ' +
+                     'goes beyond simulation time!')
+    # Maps averaging
+    if options.MapAv is not None:
+        Config.MapAv = int(options.MapAv)
+        if Config.MapAv == 1:
+            if options.MapAvT in ['week', 'month', 'season']:
+                Config.MapAvT = options.MapAvT
+            else:
+                sys.exit('Wrong maps averaging option!')
+    else:
+        Config.MapAv = 0
+    # Report BasinSummary.txt
+    if options.BSum is not None:
+        Config.repBS = int(options.BSum)
+    else:
+        Config.repBS = 0
+
+    # -- Preparing inputs maps/files for site geometry etc.
     # Remove the default map files of calibrated param in the inputs directory
     # --> helps checking early on if there is an improper map update
     for pname in Paras.names:
         if Paras.ref[pname]['veg'] == 0:
             os.system('rm -f '+Config.PATH_SPA+'/' +
                       Paras.ref[pname]['file']+'.map')
-
     # Soils / units maps
     Config.cloneMap = pcr.boolean(pcr.readmap(Config.PATH_SPA+'/base.map'))
     pcr.setclone(Config.PATH_SPA+'/base.map')
@@ -663,13 +648,14 @@ def runs(Config, Opti, Paras, Site):
         Site.bmaps[Site.soils[im]] = pcr.readmap(Config.PATH_SPA+'/' +
                                                  Site.sfiles[im])
     Site.bmaps['unit'] = pcr.readmap(Config.PATH_SPA+'/unit.map')
-    if Site.simRock == 1:
-        # Site.bmaps['nolowK'] = readmap(Config.PATH_SPA+'/unit.nolowK.map')
-        Site.bmaps['rock'] = pcr.readmap(Config.PATH_SPA+'/unit.rock.map')
-
+    # Stream network
     Site.bmaps['chanmask'] = pcr.readmap(Config.PATH_SPA+'/chanmask.map')
     Site.bmaps['chanmask_NaN'] = pcr.readmap(Config.PATH_SPA +
                                              '/chanmask_NaN.map')
+    # Bare rock simulation
+    if Site.simRock is not None and Site.simRock == 1:
+        # Site.bmaps['nolowK'] = readmap(Config.PATH_SPA+'/unit.nolowK.map')
+        Site.bmaps['rock'] = pcr.readmap(Config.PATH_SPA+'/unit.rock.map')
 
     # Reference dictionary for vegetation inputs file
     Opti.vref = {}

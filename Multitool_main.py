@@ -143,16 +143,16 @@ cwd_tmp = os.getcwd()+'/'
 # Parameters: from definition to all values ------
 init.parameters(Config, Opti, Paras, Site, options)
 
-# Initialize observation names
-# (and read datasets if in DREAM calibration mode)
-init.observations(Config, Opti, Data)
-
 # Whenever there are EcH2O runs: a few others initializations
 if Config.runECH2O == 1:
-    init.runs(Config, Opti, Paras, Site)
+    # Runs' properties etc.
+    init.runs(Config, Opti, Data, Paras, Site, options)
+    # Initialize observation names
+    # (and read datasets if in DREAM calibration mode)
+    init.observations(Config, Opti, Data)
 
 # -- How many variables ?
-print('Total number of variables :', Opti.nvar)
+print('Total number of parameters :', Opti.nvar)
 
 # === Runs ========================================
 # -------------------
@@ -163,9 +163,13 @@ if Config.mode == 'calib_MCruns':
 elif Config.mode == 'calib_DREAM':
     # Initialize
     spot_setup = MT_spotpy.spot_setup(Config, Opti, Paras,
-                                      Data, Site, _used_algorithm='dream')
-    sampler = spotpy.algorithms.dream(spot_setup, dbname='DREAM_ech2o',
+                                      Data, Site,
+                                      parallel=Opti.DREAMpar,
+                                      _used_algorithm='dream')
+    sampler = spotpy.algorithms.dream(spot_setup, parallel=Opti.DREAMpar,
+                                      dbname=Config.PATH_OUT+'/DREAM_ech2o',
                                       dbformat='csv')
+    # Run DREAM
     r_hat = sampler.sample(Opti.rep, nChains=Opti.nChains,
                            convergence_limit=Opti.convergence_limit,
                            runs_after_convergence=Opti.runs_after_conv)
