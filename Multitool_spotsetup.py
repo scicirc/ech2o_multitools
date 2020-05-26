@@ -15,7 +15,7 @@ import os
 import copy
 # import sys
 import glob
-import spotpy
+import spotpy_forked.spotpy as spotpy
 import numpy as np
 
 import Multitool_outputs as outputs
@@ -124,7 +124,8 @@ class spot_setup(object):
                 fw.write('Output_Folder = '+self.PATH_EXEC+'\n')
 
         # To store simulations (will remain np.nan if simulation fails)
-        simulations = np.full((self.data.nobs, self.data.lsimEff), np.nan)
+        simulations = np.full((self.data.nobs, self.data.lsimEff),
+                              np.nan).tolist()
 
         try:
             # Create the inputs for ECH2O's run
@@ -144,10 +145,16 @@ class spot_setup(object):
 
             os.chdir(self.PATH_EXEC)
             # Store outputs: for now restricted to time series
-            for i in range(self.data.nobs):
-                oname = self.data.names[i]
-                simulations[i, :] = outputs.read_sim(self.config, self.data,
-                                                     oname)
+            if self.data.nobs == 1:
+                simulations = outputs.read_sim(self.config, self.data,
+                                               self.data.names[0]).tolist()
+                # print(type(simulations))
+            else:
+                for i in range(self.data.nobs):
+                    oname = self.data.names[i]
+                    simulations[i][:] = outputs.read_sim(self.config,
+                                                         self.data,
+                                                         oname).tolist()
 
         except():  # 'Model has failed'):
             print('Something went wrong, this run is useless')
@@ -183,8 +190,10 @@ class spot_setup(object):
     def objectivefunction(self, simulation, evaluation, params=None):
         # Use multi-objective function, a simple sum
         # like = objfunc.Multi_SchoupsVrugtGL(evaluation, simulation,
+        # like = spotpy.objectivefunctions.log_p(evaluation, simulation)
         like = objfunc.MultiObj(evaluation, simulation,
-                                self.data, self.opti)
+                                self.data, self.opti, w=False)
+
         # like = 0
         # for i in range(self.data.nobs):
         #     sim = simulation()[i]

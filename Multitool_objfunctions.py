@@ -18,18 +18,20 @@ import numpy as np
 import pandas as pd
 import math
 # import sys
-
-
+import spotpy_forked.spotpy as spotpy
+import sys
 # ==============================================================================
-# -- Multi-data Nash-Sutcliffe
+# -- Multi-objective function(s)
 
 
 def MultiObj(obs, sim, Data, Opti, w=True):
 
     like = 0
     w_tot = 0
-
+    Ltot = []
+    
     for i in range(Data.nobs):
+
         oname = Data.names[i]
 
         # Have obervation and simulations matching the same time period
@@ -38,8 +40,15 @@ def MultiObj(obs, sim, Data, Opti, w=True):
         o = np.asanyarray(obs[oname]['value'].values)
         # sim: trim sim to obs timespan
         # + only keep dates with obs (even if nan)
-        s = np.asanyarray([sim[i, j] for j in range(Data.lsimEff) if
-                           Data.simt[j] in tobs])
+        # print(sim)
+        # print(sim.shape)
+        if Data.nobs == 1:
+            s = np.asanyarray([sim[j] for j in range(Data.lsimEff) if
+                              Data.simt[j] in tobs])
+        else:
+            s = np.asanyarray([sim[i][j] for j in range(Data.lsimEff) if
+                               Data.simt[j] in tobs])
+
         # Remove nan
         tmp = s*o
         s = np.asanyarray([s[k] for k in range(len(tmp)) if not
@@ -50,14 +59,17 @@ def MultiObj(obs, sim, Data, Opti, w=True):
         # For GWD, we center using mean
         if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
             # print(oname, 'remove mean')
-            s -= np.mean(s)
-            o -= np.mean(o)
+            # s -= np.mean(s)
+            # o -= np.mean(o)
             # Use RMSE for water table
-            L = -1*RMSE(o, s)
+            # L = -1*RMSE(o, s)
+            L = - spotpy.objectivefunctions.rmse(o, s) / np.mean(o)
         else:
             # MAE for streamflow
-            L = -1*MAE(o, s)
+            # L = -1*MAE(o, s)
+            L = - spotpy.objectivefunctions.mae(o, s) / np.mean(o)
 
+        Ltot += [L]
         # Now use your favorite metrics for each obs type
         # for now, Schoups & Vrugt
         # L = SchoupsVrugt_GL(o, s, oname, max_B=0.5)
@@ -71,7 +83,7 @@ def MultiObj(obs, sim, Data, Opti, w=True):
         # print(oname, mean_o, n, d, 1-n/d)
     if w is True:
         like /= w_tot
-
+    print(np.round(Ltot, 2))
     # print('OJ: ', like)
     return like
 # ==============================================================================

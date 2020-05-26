@@ -20,8 +20,8 @@ from optparse import OptionParser
 # --- Subroutines
 import Multitool_init as init
 import Multitool_runs as runs
-import Multitool_spotpy as MT_spotpy
-import spotpy
+import Multitool_spotsetup as spot_setup
+import spotpy_forked.spotpy as spotpy
 # ---------
 #  OPTIONS
 # ---------
@@ -162,10 +162,10 @@ if Config.mode == 'calib_MCruns':
 
 elif Config.mode == 'calib_DREAM':
     # Initialize
-    spot_setup = MT_spotpy.spot_setup(Config, Opti, Paras,
-                                      Data, Site,
-                                      parallel=Opti.DREAMpar,
-                                      _used_algorithm='dream')
+    spot_setup = spot_setup.spot_setup(Config, Opti, Paras,
+                                       Data, Site,
+                                       parallel=Opti.DREAMpar,
+                                       _used_algorithm='dream')
     sampler = spotpy.algorithms.dream(spot_setup, parallel=Opti.DREAMpar,
                                       dbname=Config.PATH_OUT+'/DREAM_ech2o',
                                       dbformat='csv')
