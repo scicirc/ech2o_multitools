@@ -22,9 +22,9 @@ from datetime import timedelta
 from datetime import datetime
 
 
-import Multitool_sampling as sampling
-import Multitool_params as params
-import Multitool_morris as morris
+import func_sampling as sampling
+import func_params as params
+import func_morris as morris
 import pandas as pd
 import csv
 

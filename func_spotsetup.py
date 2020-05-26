@@ -18,10 +18,10 @@ import glob
 import spotpy_forked.spotpy as spotpy
 import numpy as np
 
-import Multitool_outputs as outputs
-import Multitool_params as params
-# import Multitool_likelihoods as likelihoods
-import Multitool_objfunctions as objfunc
+import func_outputs as outputs
+import func_params as params
+# import func_likelihoods as likelihoods
+import func_objfunctions as objfunc
 
 from distutils.dir_util import copy_tree, remove_tree, mkpath
 from distutils.file_util import copy_file
@@ -63,7 +63,7 @@ class spot_setup(object):
             maxp = Opti.max[i]
             # print(Opti.names[i], minp, maxp)
             # Logarithmic sampling, will be de-logged during Ech2O's
-            # inputs writing (see Multitool_params.sim_inputs)
+            # inputs writing (see func_params.sim_inputs)
             if Opti.log[i] == 1:
                 self.params += [spotpy.parameter.Uniform(Opti.names[i],
                                                          low=np.log10(minp),

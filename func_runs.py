@@ -17,9 +17,9 @@ import os
 import time
 import glob
 import numpy as np
-import Multitool_params as params
-import Multitool_outputs as outputs
-import Multitool_morris as morris
+import func_params as params
+import func_outputs as outputs
+import func_morris as morris
 # ----------------------------------------------------------------------------
 
 

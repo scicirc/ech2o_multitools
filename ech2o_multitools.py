@@ -18,9 +18,9 @@ from optparse import OptionParser
 # from itertools import chain
 
 # --- Subroutines
-import Multitool_init as init
-import Multitool_runs as runs
-import Multitool_spotsetup as spot_setup
+import func_init as init
+import func_runs as runs
+import func_spotsetup as spot_setup
 import spotpy_forked.spotpy as spotpy
 # ---------
 #  OPTIONS
@@ -43,7 +43,7 @@ What do you want to do ? ==> Specified by the "mode" in Config (def file)
  'sensi_morris': performs a Morris sensitivity analysis
 '''
 
-# Other options: see subroutine in Multitool_init.py
+# Other options: see subroutine in func_init.py
 # Configuration file
 parser.add_option("--file", dest="file", metavar="FILE",
                   help="Name of the file that defines the calibration " +
