@@ -161,18 +161,27 @@ if Config.mode == 'calib_MCruns':
     runs.calibMC_runs(Config, Opti, Data, Paras, Site)
 
 elif Config.mode == 'calib_DREAM':
+
     # Initialize
-    spot_setup = spot_setup.spot_setup(Config, Opti, Paras,
-                                       Data, Site,
-                                       parallel=Opti.DREAMpar,
-                                       _used_algorithm='dream')
-    sampler = spotpy.algorithms.dream(spot_setup, parallel=Opti.DREAMpar,
-                                      dbname=Config.PATH_OUT+'/DREAM_ech2o',
-                                      dbformat='csv')
+    spot_setup = \
+        spot_setup.spot_setup(Config, Opti, Paras,
+                              Data, Site,
+                              parallel=Opti.DREAMpar,
+                              _used_algorithm='dream',
+                              dbname=Config.PATH_OUT+'/DREAM_ech2o.txt')
+    sampler = \
+        spotpy.algorithms.dream(spot_setup, parallel=Opti.DREAMpar,
+                                dbformat='custom')
+    # dbname=Config.PATH_OUT+'/DREAM_ech2o',
+    # dbformat='csv')
+
     # Run DREAM
     r_hat = sampler.sample(Opti.rep, nChains=Opti.nChains,
                            convergence_limit=Opti.convergence_limit,
                            runs_after_convergence=Opti.runs_after_conv)
+
+    # Close the created txt file
+    spot_setup.database.close()
 
 elif Config.mode == 'forward_runs':
     # Ensemble "forward" runs

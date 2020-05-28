@@ -344,15 +344,16 @@ class dream(_algorithm):
                 print(text)
                 intervaltime = time.time()
 
-            if (np.array(r_hat) < convergence_limit).all() and not convergence and self.nChainruns[-1] >=5:
-                #Stop sampling
-                print('#############')
-                print('Convergence has been achieved after '+str(self.iter)+' of '+str(self.repetitions)+' runs! Finally, '+str(runs_after_convergence)+' runs will be additionally sampled to form the posterior distribution')
-                print('#############')
-                self.repetitions = self.iter + runs_after_convergence
-                self.set_repetiton(self.repetitions)
-                #self.iter =self.repetitions - runs_after_convergence
-                convergence=True
+            if not convergence:
+                if (np.array(r_hat) < convergence_limit).all() and self.nChainruns[-1] >=5:
+                    #Stop sampling
+                    print('#############')
+                    print('Convergence has been achieved after '+str(self.iter)+' of '+str(self.repetitions)+' runs! Finally, '+str(runs_after_convergence)+' runs will be additionally sampled to form the posterior distribution')
+                    print('#############')
+                    self.repetitions = self.iter + runs_after_convergence
+                    self.set_repetiton(self.repetitions)
+                    #self.iter =self.repetitions - runs_after_convergence
+                    convergence=True
                 
         self.final_call()
 

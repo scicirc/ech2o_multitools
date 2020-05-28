@@ -13,8 +13,8 @@ created by Tobias Houska
 import time
 import os
 import copy
-# import sys
-import glob
+import sys
+# import glob
 import spotpy_forked.spotpy as spotpy
 import numpy as np
 
@@ -45,10 +45,7 @@ from distutils.file_util import copy_file
 class spot_setup(object):
 
     def __init__(self, Config, Opti, Paras, Data, Site, parallel='seq',
-                 _used_algorithm='default'):
-
-        # Parameters
-        sdmult = 0.1
+                 _used_algorithm='default', dbname=None):
 
         # Pass on classes
         self.config = copy.copy(Config)
@@ -57,21 +54,31 @@ class spot_setup(object):
         self.site = Site
         self.data = Data
 
+        # Initial parameters sampling
+        # In case of logarithmic sampling, min/max/guess/sd are
+        # are already "converted", and are de-logged during Ech2O's
+        # inputs writing (see func_params.sim_inputs)
         self.params = []
-        for i in range(Opti.nvar):
-            minp = Opti.min[i]
-            maxp = Opti.max[i]
-            # print(Opti.names[i], minp, maxp)
-            # Logarithmic sampling, will be de-logged during Ech2O's
-            # inputs writing (see func_params.sim_inputs)
-            if Opti.log[i] == 1:
-                self.params += [spotpy.parameter.Uniform(Opti.names[i],
-                                                         low=np.log10(minp),
-                                                         high=np.log10(maxp))]
-            else:
+        if Opti.initSample == 'normal':
+            for i in range(Opti.nvar):
+                if np.isnan(Opti.std[i]*Opti.guess[i]):
+                    sys.exit('Error: no std and/or guess to sample with',
+                             Opti.names[i])
+                else:
+                    self.params += \
+                        [spotpy.parameter.Normal(Opti.names[i],
+                                                 stddev=Opti.std[i],
+                                                 mean=Opti.guess[i])]
+                # print(Opti.names[i], Opti.std[i], Opti.guess[i],
+                # self.params[i])
+        else:
+            for i in range(Opti.nvar):
                 self.params += \
                     [spotpy.parameter.Uniform(name=Opti.names[i],
-                                              low=minp, high=maxp)]
+                                              low=Opti.min[i],
+                                              high=Opti.max[i])]
+                # print(Opti.names[i], Opti.min[i], Opti.max[i],
+                # self.params[i])
         # print(self.params)
 
         # Evaluation data
@@ -80,6 +87,28 @@ class spot_setup(object):
         self.curdir = Config.PATH_OUT
         self.owd = Config.PATH_EXEC
         self.parallel = parallel
+
+        # Initialize custom database output.
+        # More than one simulation type: save all likelihood
+        # (DREAM only use the first one, i.e here the multi-objective)
+        # chain, and use explicit simulations name in header
+        if dbname is not None:
+            self.db_headers = ['Likelihood']
+            if self.data.nobs > 1:
+                self.db_headers.extend(['like.' + a for a in self.data.names])
+            self.db_headers.extend(['par.{0}'.format(x) for x in
+                                    self.opti.names])
+            self.db_headers.append('chain')
+            if self.data.nobs > 1:
+                for i in range(self.data.nobs):
+                    for j in range(self.data.lsimEff):
+                        self.db_headers.extend(['sim.'+self.data.names[i] +
+                                                '.'+str(j+1)])
+            else:
+                for i in range(self.data.lsimEff):
+                    self.db_headers.extend(['sim' + '.' + str(i)])
+            self.database = open(dbname, 'w')
+            self.database.write(",".join(self.db_headers) + "\n")
 
     # Retrieve parameters
     def parameters(self):
@@ -119,6 +148,7 @@ class spot_setup(object):
             # Copy ech2o config file define input maps directory
             self.cfg_ech2o = self.PATH_EXEC+'/config.ini'
             copy_file(self.curdir+'/config.ini', self.cfg_ech2o)
+            # Update the "new" config file with output and map locations
             with open(self.cfg_ech2o, 'a') as fw:
                 fw.write('Maps_Folder = '+self.PATH_SPA+'\n')
                 fw.write('Output_Folder = '+self.PATH_EXEC+'\n')
@@ -130,7 +160,7 @@ class spot_setup(object):
         try:
             # Create the inputs for ECH2O's run
             params.sim_inputs(self.opti, self.par, self.site,
-                              self.config.PATH_SPA+call,
+                              self.PATH_SPA,
                               0, mode='spotpy', paramcur=self.parameters)
 
             # Run ECH2O
@@ -138,9 +168,14 @@ class spot_setup(object):
             start = time.time()
             os.system(self.config.cmde_ech2o + ' ' + self.cfg_ech2o +
                       ' > '+self.PATH_EXEC + '/ech2o.log')
-            print('|| EcH2O run done for chain ID#'+call+', using',
-                  str(self.config.ncpu), 'cpu(s). Run time:',
-                  np.round(time.time()-start, 3), 'seconds')
+            if self.parallel in ['mpi', 'mpc']:
+                print('|| EcH2O run done for core ID#'+call+', using',
+                      str(self.config.ncpu), 'cpu(s). Run time:',
+                      np.round(time.time()-start, 3), 'seconds')
+            else:
+                print('|| EcH2O run done using',
+                      str(self.config.ncpu), 'cpu(s). Run time:',
+                      np.round(time.time()-start, 3), 'seconds')
             # (limit at',self.config.tlimit, ')')
 
             os.chdir(self.PATH_EXEC)
@@ -188,16 +223,27 @@ class spot_setup(object):
         return self.evals
 
     def objectivefunction(self, simulation, evaluation, params=None):
-        # Use multi-objective function, a simple sum
-        # like = objfunc.Multi_SchoupsVrugtGL(evaluation, simulation,
-        # like = spotpy.objectivefunctions.log_p(evaluation, simulation)
-        like = objfunc.MultiObj(evaluation, simulation,
-                                self.data, self.opti, w=False)
 
-        # like = 0
-        # for i in range(self.data.nobs):
-        #     sim = simulation()[i]
-        #     obs = evaluation()[i]
-        #     # GL from Schoups & Vrugt (2010), as in Knighton et al., 2017, 2020
-        #     like += likelihoods.SchoupsVrugt_GL(obs, sim)
+        # Use multi-objective function
+        like = objfunc.MultiObj(evaluation, simulation, self.data, self.opti)
         return like
+
+    # Custom txt-formatted database (see __init__)
+    def save(self, objectivefunctions, parameter, simulations,
+             chain, *args, **kwargs):
+
+        if self.data.nobs > 1:
+            like_str = ",".join((str(l) for l in objectivefunctions))
+            sim_str = []
+            for i in range(self.data.nobs):
+                sim_str += simulations[i]
+                # print([','.join([str(s) for s in simulations[i]])])
+            sim_str = ','.join([str(s) for s in sim_str])
+        else:
+            like_str = objectivefunctions
+            sim_str = ",".join([str(s) for s in simulations])
+
+        param_str = ",".join((str(p) for p in parameter))
+
+        line = ",".join([like_str, param_str, str(int(chain)), sim_str]) + '\n'
+        self.database.write(line)

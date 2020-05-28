@@ -30,8 +30,7 @@ import csv
 
 import multiprocessing as mp
 
-from distutils.dir_util import copy_tree, remove_tree, mkpath
-from distutils.file_util import copy_file
+from distutils.dir_util import mkpath
 
 # ----------------------------------------------------------------------------
 
@@ -223,6 +222,8 @@ def parameters(Config, Opti, Paras, Site, options):
     # Read dictionary to get all param setup
     Opti.min = []
     Opti.max = []
+    Opti.guess = []
+    Opti.std = []
     Opti.log = []
     Opti.names = []
     Opti.ind = []
@@ -231,6 +232,10 @@ def parameters(Config, Opti, Paras, Site, options):
     ipar = 0
     ipar2 = 0
     Paras.isveg = 0
+
+    # Initial Sampling type (for DREAM)
+    if not hasattr(Opti, 'initSample'):
+        Opti.initSample = 'uniform'
 
     for par in Paras.names:
 
@@ -241,18 +246,60 @@ def parameters(Config, Opti, Paras, Site, options):
         # Build vectors used in the optimisation
         if Config.mode != 'forward_runs':
 
-            if type(Paras.ref[par]['min']) == float or \
-               type(Paras.ref[par]['min']) == int:
-                Opti.min += [Paras.ref[par]['min']]
-                Opti.max += [Paras.ref[par]['max']]
+            # Log-sampling ?
+            if 'log' not in Paras.ref[par].keys():
+                Opti.log += list(np.repeat(0, nr))
             else:
-                Opti.min += Paras.ref[par]['min']
-                Opti.max += Paras.ref[par]['max']
+                Opti.log += list(np.repeat(Paras.ref[par]['log'], nr))
 
-            Opti.log = Opti.log + list(np.repeat(Paras.ref[par]['log'], nr))
+            # For sampling (uniform -and normal if no sd provided-)
+            if 'min' in Paras.ref[par].keys():
+                if type(Paras.ref[par]['min']) in [float, int]:
+                    Opti.min += [Paras.ref[par]['min']]
+                    Opti.max += [Paras.ref[par]['max']]
+                elif len(Paras.ref[par]['min']) == nr:
+                    Opti.min += Paras.ref[par]['min']
+                    Opti.max += Paras.ref[par]['max']
+                else:
+                    sys.exit('Wrong "min" or "max" format for', par)
+            else:
+                Opti.min += list(np.repeat(np.nan, nr))
+                Opti.max += list(np.repeat(np.nan, nr))
+            # In log sampling case with spotpy, log-transform boundaries too
+            if Config.mode == 'calib_DREAM' and Opti.log[ipar2] == 1:
+                Opti.min[ipar2:ipar2+nr+1] = \
+                    np.log10(Opti.min[ipar2:ipar2+nr+1]).tolist()
+                Opti.max[ipar2:ipar2+nr+1] = \
+                    np.log10(Opti.max[ipar2:ipar2+nr+1]).tolist()
+
+            # For normal sampling (or uniform if guess provided)
+            if 'guess' in Paras.ref[par].keys():
+                if type(Paras.ref[par]['guess']) in [float, int]:
+                    Opti.guess += [Paras.ref[par]['guess']]
+                elif len(Paras.ref[par]['guess']) == nr:
+                    Opti.guess += Paras.ref[par]['guess']
+                else:
+                    sys.exit('Wrong "guess" format for', par)
+            else:
+                Opti.guess += list(np.repeat(np.nan, nr))
+
+            # For normal sampling: 0.1 of min/max range if not specified
+            if 'std' in Paras.ref[par].keys():
+                if type(Paras.ref[par]['std']) in [float, int]:
+                    Opti.std += [Paras.ref[par]['std']]
+                elif len(Paras.ref[par]['std']) == nr:
+                    Opti.std += Paras.ref[par]['std']
+                else:
+                    sys.exit('Wrong "std" format for', par)
+            else:
+                # Parameters
+                sdmult = 0.1
+                for j in range(nr):
+                    # (Log sampling case taken into account above)
+                    Opti.std += [sdmult*(Opti.max[ipar2+j]-Opti.min[ipar2+j])]
 
         # Link betwen params and all variables
-        Opti.ind = Opti.ind+list(np.repeat(ipar, nr))
+        Opti.ind += list(np.repeat(ipar, nr))
         ipar += 1
         if nr > 1:
             Paras.ind[par] = list(np.arange(ipar2, ipar2+nr, 1))
@@ -260,6 +307,11 @@ def parameters(Config, Opti, Paras, Site, options):
             Paras.ind[par] = ipar2
         ipar2 += nr
         # For outputs
+        if 'soil' not in Paras.ref[par].keys():
+            Paras.ref[par]['soil'] = 0
+        if 'veg' not in Paras.ref[par].keys():
+            Paras.ref[par]['veg'] = 0
+
         if Paras.ref[par]['soil'] == 1:
             Opti.names = Opti.names + [par + '_' + s for s in Site.soils]
             Opti.comp = Opti.comp + [i for i in range(Site.ns)]

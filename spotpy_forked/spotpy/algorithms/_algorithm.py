@@ -9,8 +9,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-from spotpy import database
-from spotpy import parameter
+from .. import database
+from .. import parameter
 import numpy as np
 import time
 import threading
@@ -335,6 +335,8 @@ class _algorithm(object):
                 dbinit=self.dbinit, db_precision=self.db_precision,
                 setup=self.setup)
 
+            print(self.dbname)
+            print(self.dbformat)
             self.dbinit = False
 
 

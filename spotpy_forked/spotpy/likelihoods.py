@@ -151,8 +151,9 @@ def logLikelihood(data, comparedata, measerror=None):
     measerror = __jitter_measerror_if_needed("logLikelihood", measerror)
 
     # TODO: Maximize is done but in positive way (from negative to zero is hard)
-    return -data.__len__() / 2 * np.log(2 * np.pi) - np.nansum(np.log(measerror)) - 0.5 * np.sum(
-        ((data - comparedata) / measerror) ** 2)
+    return -data.__len__() / 2 * np.log(2 * np.pi) - \
+        np.nansum(np.log(measerror)) - \
+        0.5 * np.sum(((data - comparedata) / measerror) ** 2)
 
 
 def gaussianLikelihoodMeasErrorOut(data, comparedata):
