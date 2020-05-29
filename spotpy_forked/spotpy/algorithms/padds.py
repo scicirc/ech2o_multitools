@@ -1,9 +1,9 @@
 import numpy as np
 from copy import deepcopy
 
-from spotpy.algorithms.dds import DDSGenerator
+from .dds import DDSGenerator
 from . import _algorithm
-from spotpy.parameter import ParameterSet
+from ..parameter import ParameterSet
 import copy
 from scipy.spatial.qhull import ConvexHull, QhullError
 

@@ -14,7 +14,7 @@
 import sys
 import copy
 import numpy as np
-import pyDOE
+# import pyDOE
 # import random
 
 # ----------------------------------------------------------------------------

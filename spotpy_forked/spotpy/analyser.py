@@ -11,7 +11,7 @@ Note: This part of SPOTPY is in alpha status and not yet ready for production us
 '''
 
 import numpy as np
-import spotpy
+from . import parameter, objectivefunctions
 
 font = {'family' : 'calibri',
     'weight' : 'normal',
@@ -223,7 +223,7 @@ def calc_like(results,evaluation,objectivefunction):
     :evaluation: Expects values, which correspond to your simulations
     :type: list
     
-    :objectivefunction: Takes evaluation and simulation data and returns a objectivefunction, e.g. spotpy.objectvefunction.rmse
+    :objectivefunction: Takes evaluation and simulation data and returns a objectivefunction, e.g. objectvefunction.rmse
     :type: function
 
     :return: New objectivefunction list
@@ -354,7 +354,7 @@ def get_min_max(spotpy_setup):
     :return: Possible minimal and maximal values of all parameters in the parameters function of the spotpy_setup class
     :rtype: Two arrays
     """
-    parameter_obj = spotpy.parameter.generate(spotpy.parameter.get_parameters_from_setup(spotpy_setup))
+    parameter_obj = parameter.generate(parameter.get_parameters_from_setup(spotpy_setup))
     randompar = parameter_obj['random']
     for i in range(1000):
         randompar = np.column_stack((randompar, parameter_obj['random']))
@@ -570,7 +570,7 @@ def plot_heatmap_griewank(results,algorithms, fig_name='heatmap_griewank.png'):
 def plot_objectivefunction(results,evaluation,limit=None,sort=True, fig_name = 'objective_function.png'):
     """Example Plot as seen in the SPOTPY Documentation"""
     import matplotlib.pyplot as plt
-    likes=calc_like(results,evaluation,spotpy.objectivefunctions.rmse)
+    likes=calc_like(results,evaluation,objectivefunctions.rmse)
     data=likes
     #Calc confidence Interval
     mean = np.average(data)
@@ -616,7 +616,7 @@ def plot_parametertrace_algorithms(result_lists, algorithmnames, spot_setup,
     plt.rc('font', **font)
     fig=plt.figure(figsize=(17,5))
     subplots=len(result_lists)
-    parameter = spotpy.parameter.get_parameters_array(spot_setup)
+    parameter = parameter.get_parameters_array(spot_setup)
     rows=len(parameter['name'])
     for j in range(rows):
         for i in range(subplots):
@@ -748,7 +748,7 @@ def plot_posterior(results,evaluation,dates=None,ylabel='Posterior model simulat
 
     parameternames=list(get_parameternames(results)    )
     bestparameterstring=''
-    maxNSE=spotpy.objectivefunctions.nashsutcliffe(bestmodelrun,evaluation)
+    maxNSE=objectivefunctions.nashsutcliffe(bestmodelrun,evaluation)
     for i in range(len(parameternames)):
         if i%8==0:
             bestparameterstring+='\n'
@@ -842,7 +842,7 @@ def plot_bestmodelruns(results,evaluation,algorithms=None,dates=None,ylabel='Bes
             sim=get_modelruns(results[i])
             par=get_parameters(results[i])
             for s in sim:
-                likes.append(spotpy.objectivefunctions.lognashsutcliffe(evaluation,list(s)))
+                likes.append(objectivefunctions.lognashsutcliffe(evaluation,list(s)))
 
             maximum=max(likes)
             index=likes.index(maximum)
@@ -857,7 +857,7 @@ def plot_bestmodelruns(results,evaluation,algorithms=None,dates=None,ylabel='Bes
                 index,maximum=get_minlikeindex(results[i])
             bestmodelrun=list(get_modelruns(results[i])[index][0])#Transform values into list to ensure plotting
 
-        maxLike=spotpy.objectivefunctions.lognashsutcliffe(evaluation,bestmodelrun)
+        maxLike=objectivefunctions.lognashsutcliffe(evaluation,bestmodelrun)
 
         if dates is not None:
             plt.plot(dates,bestmodelrun,'-',color=colors[i],label=algorithms[i]+': LogNSE='+str(round(maxLike,4)))
@@ -887,7 +887,7 @@ def plot_objectivefunctiontraces(results,evaluation,algorithms,fig_name='Like_tr
 
     for i in range(len(results)):
         ax  = plt.subplot(1,len(results),i+1)
-        likes=calc_like(results[i],evaluation,spotpy.objectivefunctions.rmse)
+        likes=calc_like(results[i],evaluation,objectivefunctions.rmse)
         ax.plot(likes,'b-')
         ax.set_ylim(0,25)
         ax.set_xlim(0,len(results[0]))

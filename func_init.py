@@ -90,7 +90,7 @@ def config(cwd_tmp, options):
             os.path.abspath(os.path.join(Config.PATH_MAIN,
                                          options.outdir))
         if len(glob.glob(Config.PATH_OUTmain)) == 0:
-            os.system('mkdir ' + Config.PATH_OUTmain)
+            mkpath(Config.PATH_OUTmain)
         Config.PATH_OUT = \
             os.path.abspath(os.path.join(Config.PATH_OUTmain,
                                          'EnsembleRun_' +
@@ -100,7 +100,7 @@ def config(cwd_tmp, options):
                                                        options.outdir))
     # Create if needed
     if len(glob.glob(Config.PATH_OUT)) == 0:
-        os.system('mkdir ' + Config.PATH_OUT)
+        mkpath(Config.PATH_OUT)
 
     # -- Copy def file in the output
     os.system('cp '+file+' '+Config.PATH_OUT)
@@ -161,7 +161,7 @@ def config(cwd_tmp, options):
             '_parameters.'
         # -- Creation of output directory
         if len(glob.glob(Config.PATH_PAR)) == 0:
-            os.system('mkdir ' + Config.PATH_PAR)
+            mkdir(Config.PATH_PAR)
         # -- Some verbose
         print('')
         print("Parameter samples' directory:          ", Config.PATH_PAR)
@@ -181,7 +181,9 @@ def config(cwd_tmp, options):
             Opti.parallel = True
             # If in parallel mode, use as many CPUs as possible unless
             # the number of chains is larger
-            Config.ncpu = max(1, mp.cpu_count() // Opti.nChains)
+            # NOPE; not fit for cluster where cpu_count() doesn't work?
+            # just choose cpus wisely in def + job files
+            # Config.ncpu = max(1, mp.cpu_count() // Opti.nChains)
 
     # -- Sensitivity: all parameter path
     if Config.mode == 'sensi_morris':
@@ -198,7 +200,7 @@ def config(cwd_tmp, options):
         Config.FILE_TRAJ = Config.PATH_TRAJ+'/'+options.outdir.split('.')[0]
         # -- Creation of output directory
         if len(glob.glob(Config.PATH_TRAJ)) == 0:
-            os.system('mkdir ' + Config.PATH_TRAJ)
+            mkdir(Config.PATH_TRAJ)
 
         # -- Output of elementary effects
         # if(Config.MSinit == 0):

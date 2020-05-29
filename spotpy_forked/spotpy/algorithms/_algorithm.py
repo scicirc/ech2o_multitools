@@ -262,21 +262,21 @@ class _algorithm(object):
         # A repeater is a convinent wrapper to repeat tasks
         # We have the same interface for sequential and for parallel tasks
         if parallel == 'seq':
-            from spotpy.parallel.sequential import ForEach
+            from ..parallel.sequential import ForEach
         elif parallel == 'mpi':
-            from spotpy.parallel.mpi import ForEach
+            from ..parallel.mpi import ForEach
 
         # MPC is based on pathos mutiprocessing and uses ordered map, so results are given back in the order
         # as the parameters are
         elif parallel == 'mpc':
-            from spotpy.parallel.mproc import ForEach
+            from ..parallel.mproc import ForEach
 
         # UMPC is based on pathos mutiprocessing and uses unordered map, so results are given back in the order
         # as the subprocesses are finished which may speed up the whole simulation process but is not recommended if
         # objective functions do their calculation based on the order of the data because the order of the result is chaotic
         # and randomized
         elif parallel == 'umpc':
-            from spotpy.parallel.umproc import ForEach
+            from ..parallel.umproc import ForEach
         else:
             raise ValueError(
                 "'%s' is not a valid keyword for parallel processing" % parallel)
@@ -335,8 +335,6 @@ class _algorithm(object):
                 dbinit=self.dbinit, db_precision=self.db_precision,
                 setup=self.setup)
 
-            print(self.dbname)
-            print(self.dbformat)
             self.dbinit = False
 
 

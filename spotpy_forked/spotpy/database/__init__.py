@@ -33,7 +33,6 @@ def get_datawriter(dbformat, *args, **kwargs):
     """Given a dbformat (ram, csv, sql, noData, etc), return the constructor
         of the appropriate class from this file.
     """
-    print('yo!')
     db_class = __getattr__(dbformat)
     datawriter = db_class(*args, **kwargs)
     return datawriter

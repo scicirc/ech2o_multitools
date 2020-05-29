@@ -17,7 +17,7 @@ import sys
 import copy
 import csv
 import numpy as np
-import pyDOE
+# import pyDOE
 
 # --------------------------------------------------------------------------------------------
 # -- Creation of the Morris trajectories

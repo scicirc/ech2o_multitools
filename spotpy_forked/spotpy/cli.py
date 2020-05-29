@@ -83,7 +83,7 @@ def gui(ctx):
     """
     Shows a GUI for manual calibration
     """
-    from spotpy.gui.mpl import GUI
+    from .. import gui.mpl.GUI as GUI
     setup = ctx.obj
     gui = GUI(setup)
     gui.show()

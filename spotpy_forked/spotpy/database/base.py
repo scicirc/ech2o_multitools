@@ -162,7 +162,7 @@ class custom(database):
         super(custom, self).__init__(*args, **kwargs)
 
     def save(self, objectivefunction, parameterlist, simulations, *args, **kwargs):
-        print(self.chains)
+        # print(self.chains)
         self.setup.save(objectivefunction, parameterlist, simulations,
                         chain=self.chains, *args, **kwargs)
 
