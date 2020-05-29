@@ -13,7 +13,7 @@ Created on 10/2016
 '''
 
 import os
-import sys
+# import sys
 from optparse import OptionParser
 # from itertools import chain
 
@@ -168,7 +168,8 @@ elif Config.mode == 'calib_DREAM':
                               Data, Site,
                               parallel=Opti.DREAMpar,
                               _used_algorithm='dream',
-                              dbname=Config.PATH_OUT+'/DREAM_ech2o.txt')
+                              # file extension added automatically
+                              dbname=Config.PATH_OUT+'/DREAMech2o')
     sampler = \
         spotpy.algorithms.dream(spot_setup, parallel=Opti.DREAMpar,
                                 dbformat='custom')

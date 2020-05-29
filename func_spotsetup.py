@@ -25,6 +25,7 @@ import func_objfunctions as objfunc
 
 from distutils.dir_util import copy_tree, remove_tree, mkpath
 from distutils.file_util import copy_file
+from contextlib import ExitStack
 
 # ==============================================================================
 
@@ -93,22 +94,55 @@ class spot_setup(object):
         # (DREAM only use the first one, i.e here the multi-objective)
         # chain, and use explicit simulations name in header
         if dbname is not None:
-            self.db_headers = ['Likelihood']
+            # If multi-objecive calibration, we'll write one file per
+            # simulation type containing "individual" likelihood and
+            # times series, plus a "general" file with parameters
+            # and likelihoods
             if self.data.nobs > 1:
-                self.db_headers.extend(['like.' + a for a in self.data.names])
-            self.db_headers.extend(['par.{0}'.format(x) for x in
-                                    self.opti.names])
-            self.db_headers.append('chain')
-            if self.data.nobs > 1:
-                for i in range(self.data.nobs):
+                self.dbheaders = {}
+                self.filenames = [dbname+'_general.txt'] + \
+                    [dbname+'.'+a+'.txt' for a in self.data.names]
+                self.outnames = ['general'] + self.data.names
+                # General file
+                self.dbheaders['general'] = ['Likelihood']
+                self.dbheaders['general'].extend(['like.' + a
+                                                  for a in self.data.names])
+                self.dbheaders['general'].extend(['par.{0}'.format(x) for x in
+                                                  self.opti.names])
+                self.dbheaders['general'].append('chain')
+                # Simulation-specific files
+                for oname in self.data.names:
+                    self.dbheaders[oname] = ['like.'+oname]
+                    self.dbheaders[oname].extend(['par.{0}'.format(x) for x in
+                                                 self.opti.names])
                     for j in range(self.data.lsimEff):
-                        self.db_headers.extend(['sim.'+self.data.names[i] +
-                                                '.'+str(j+1)])
+                        self.dbheaders[oname].extend(['sim.t'+str(j+1)])
+                    self.dbheaders[oname].append('chain')
+                # Write headers
+                with ExitStack() as stack:
+                    # Open all files
+                    self.database = [stack.enter_context(open(fname, 'w')) for
+                                     fname in self.filenames]
+                    # All opened files will automatically be closed at the end
+                    # ofthe with statement, even if attempts to open files
+                    # later in the list raise an exception
+                    for i in range(self.data.nobs+1):
+                        self.database[i].write(",".
+                                               join(self.dbheaders[
+                                                   self.outnames[i]])+"\n")
             else:
+                # Only one calibration datasets: some tweaks from the
+                # standard .csv style database
+                self.filenames = dbname+'.txt'
+                self.dbheaders = ['Likelihood']
+                self.dbheaders.extend(['par.{0}'.format(x) for x in
+                                       self.opti.names])
                 for i in range(self.data.lsimEff):
-                    self.db_headers.extend(['sim' + '.' + str(i)])
-            self.database = open(dbname, 'w')
-            self.database.write(",".join(self.db_headers) + "\n")
+                    self.dbheaders.extend(['sim' + '.t' + str(i)])
+                self.dbheaders.append('chain')
+                # Write
+                self.database = open(dbname, 'w')
+                self.database.write(",".join(self.dbheaders) + "\n")
 
     # Retrieve parameters
     def parameters(self):
@@ -229,21 +263,28 @@ class spot_setup(object):
         return like
 
     # Custom txt-formatted database (see __init__)
-    def save(self, objectivefunctions, parameter, simulations,
+    def save(self, objfuncs, parameter, simulations,
              chain, *args, **kwargs):
 
+        param_str = ",".join([str(p) for p in parameter])
+
         if self.data.nobs > 1:
-            like_str = ",".join((str(l) for l in objectivefunctions))
-            sim_str = []
-            for i in range(self.data.nobs):
-                sim_str += simulations[i]
-                # print([','.join([str(s) for s in simulations[i]])])
-            sim_str = ','.join([str(s) for s in sim_str])
+            with ExitStack() as stack:
+                # Open all files for append-writing
+                self.database = [stack.enter_context(open(fname, 'a')) for
+                                 fname in self.filenames]
+                # "general" file
+                like_str = ','.join([str(l) for l in objfuncs])
+                self.database[0].write(",".join([like_str, param_str,
+                                                 str(int(chain))])+'\n')
+                # Sim-specific files
+                for i in range(self.data.nobs):
+                    sim_str = ','.join([str(s) for s in simulations[i]])
+                    line = ','.join([str(objfuncs[i+1]), param_str, sim_str,
+                                     str(int(chain))]) + '\n'
+                    self.database[i+1].write(line)
         else:
-            like_str = objectivefunctions
+            # One calibration datasets: one file
             sim_str = ",".join([str(s) for s in simulations])
-
-        param_str = ",".join((str(p) for p in parameter))
-
-        line = ",".join([like_str, param_str, str(int(chain)), sim_str]) + '\n'
-        self.database.write(line)
+            self.database.write(",".join([objfuncs, param_str,
+                                          str(int(chain)), sim_str]) + '\n')
