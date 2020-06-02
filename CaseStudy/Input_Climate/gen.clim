@@ -1,0 +1,43 @@
+#!/bin/bash
+
+pcrcalc 'ClimZones_50m.map = unit_50m.map'
+pcrcalc 'isohyet_50m.map = unit_50m.map'
+
+pcrcalc 'ClimZones_90m.map = unit_90m.map'
+pcrcalc 'isohyet_90m.map = unit_90m.map'
+
+../../asc2c Tavg.txt Tavg.bin
+../../asc2c Tmin.txt Tmin.bin
+../../asc2c Tmax.txt Tmax.bin
+../../asc2c RH.txt RH.bin
+../../asc2c Precip.txt Precip.bin
+../../asc2c Windspeed.txt Windspeed.bin
+../../asc2c Sdown.txt Sdown.bin
+../../asc2c Ldown.txt Ldown.bin
+# LAI time series
+../../asc2c LAI_0.txt LAI_0.bin
+../../asc2c LAI_1.txt LAI_1.bin
+
+../../asc2c Tavg_spin13Y.txt Tavg_spin13Y.bin
+../../asc2c Tmin_spin13Y.txt Tmin_spin13Y.bin
+../../asc2c Tmax_spin13Y.txt Tmax_spin13Y.bin
+../../asc2c RH_spin13Y.txt RH_spin13Y.bin
+../../asc2c Precip_spin13Y.txt Precip_spin13Y.bin
+../../asc2c Windspeed_spin13Y.txt Windspeed_spin13Y.bin
+../../asc2c Sdown_spin13Y.txt Sdown_spin13Y.bin
+../../asc2c Ldown_spin13Y.txt Ldown_spin13Y.bin
+# LAI time series
+../../asc2c LAI_0_spin13Y.txt LAI_spin13Y_0.bin
+../../asc2c LAI_1_spin13Y.txt LAI_spin13Y_1.bin
+
+../../asc2c Tavg_spin91Y.txt Tavg_spin91Y.bin
+../../asc2c Tmin_spin91Y.txt Tmin_spin91Y.bin
+../../asc2c Tmax_spin91Y.txt Tmax_spin91Y.bin
+../../asc2c RH_spin91Y.txt RH_spin91Y.bin
+../../asc2c Precip_spin91Y.txt Precip_spin91Y.bin
+../../asc2c Windspeed_spin91Y.txt Windspeed_spin91Y.bin
+../../asc2c Sdown_spin91Y.txt Sdown_spin91Y.bin
+../../asc2c Ldown_spin91Y.txt Ldown_spin91Y.bin
+# LAI time series
+../../asc2c LAI_0_spin91Y.txt LAI_spin91Y_0.bin
+../../asc2c LAI_1_spin91Y.txt LAI_spin91Y_1.bin
