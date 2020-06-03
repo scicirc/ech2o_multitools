@@ -60,15 +60,22 @@ def sim_inputs(Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
         # values are read directly from the spot_setup class
         # In addition, parameter with log10 variation should be "de-log10ned"
         # here!
+        # print('Parameter value:')
+
         Opti.x = []
         for i in range(Opti.nvar):
             if Opti.log[i] == 1:
-                Opti.x += [10**(paramcur()[i][0])]
+                # Opti.x += [10**(paramcur()[i][0])]
+                Opti.x += [10**paramcur[i]]
             else:
-                Opti.x += [paramcur()[i][0]]
+                # Opti.x += [paramcur()[i][0]]
+                Opti.x += [paramcur[i]]
+
+            # print('|',Opti.names[i],':',Opti.x[i],end='\r')
     else:
         # Therwise, just get the samples of the current iteration
         Opti.x = Opti.xpar[it]
+    
 
     for pname in Paras.names:
 

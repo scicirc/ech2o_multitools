@@ -43,10 +43,12 @@ def read_sim(Config, Data, oname):
         # Shave off the transient part
         # if Config.trimB > 1:
         #    sim = tmp[Config.trimB-1:Config.trimB-1+Config.trimL]
+        # print(oname, len(tmp))
         if Data.lspin > 1:
             sim = tmp[Data.lspin-1:Data.lsim-1]
         # print(sim.shape)
         # print(sim)
+        # print(len(sim))
 
     # Integrated variables (in BasinSummary.txt) -----------------
     if Data.obs[oname]['type'] == 'Total':

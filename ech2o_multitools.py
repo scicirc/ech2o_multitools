@@ -181,9 +181,10 @@ elif Config.mode == 'calib_DREAM':
                            convergence_limit=Opti.convergence_limit,
                            runs_after_convergence=Opti.runs_after_conv)
 
-    # Close the created txt file
-    spot_setup.database.close()
-
+    # Close the created txt file (if nobs=1, otherwise it's automatic)
+    if Data.nobs == 1:
+        spot_setup.database.close()
+    
 elif Config.mode == 'forward_runs':
     # Ensemble "forward" runs
     runs.forward_runs(Config, Opti, Data, Paras, Site, options)

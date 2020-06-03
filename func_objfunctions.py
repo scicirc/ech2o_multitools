@@ -40,17 +40,9 @@ def MultiObj(obs, sim, Data, Opti, w=False):
         # print(sim)
         # print(sim.shape)
         if Data.nobs == 1:
-            if(len(sim) < Data.lsimEff):
-                print('sim length:',len(sim),', expected:',Data.lsimEff)
-                sys.exit('Error: simulation output shorter than specified '+
-                         "in configuration, maybe check EcH2O's config file...")
             s = np.asanyarray([sim[j] for j in range(Data.lsimEff) if
                                Data.simt[j] in tobs])
         else:
-            if(len(sim[i]) < Data.lsimEff):
-                print('sim length:',len(sim[i]),', expected:',Data.lsimEff)
-                sys.exit('Error: simulation output shorter than specified '+
-                         "in configuration, maybe check EcH2O's config file...")
             s = np.asanyarray([sim[i][j] for j in range(Data.lsimEff) if
                                Data.simt[j] in tobs])
 
@@ -66,8 +58,8 @@ def MultiObj(obs, sim, Data, Opti, w=False):
         # For GWD, we center using mean
         if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
             # print(oname, 'remove mean')
-            s -= np.mean(s)
-            o -= np.mean(o)
+            # s -= np.mean(s)
+            # o -= np.mean(o)
             # Use RMSE for water table
             # L = - spotpy.objectivefunctions.rmse(o, s) / np.mean(o)
             # LogLikehood as used in Vrugt et al. (2016)

@@ -27,10 +27,12 @@ import func_params as params
 import func_morris as morris
 import pandas as pd
 import csv
+# import mpi4py.MPI as MPI
 
 import multiprocessing as mp
 
-from distutils.dir_util import mkpath
+from distutils.dir_util import mkpath, copy_tree
+from distutils.file_util import copy_file
 
 # ----------------------------------------------------------------------------
 
@@ -103,7 +105,7 @@ def config(cwd_tmp, options):
         mkpath(Config.PATH_OUT)
 
     # -- Copy def file in the output
-    os.system('cp '+file+' '+Config.PATH_OUT)
+    copy_file(file, Config.PATH_OUT, update=1)
 
     # -- Restart: do not start from first iteration
     if options.restart is None:
@@ -136,12 +138,27 @@ def config(cwd_tmp, options):
         # (Config.mode == 'sensi_morris' and Config.MSinit == 1):
         Config.runECH2O = 0
 
+    # Determine if a parallel computing mode is activated
+    Opti.parallel = False
+    if Config.mode == 'calib_DREAM':
+        if Opti.DREAMpar is None:  # By default, sequential runs
+            Opti.DREAMpar = 'seq'
+        elif Opti.DREAMpar in ['mpc', 'mpi']:
+            Opti.parallel = True
+            # Determine with process we're on, to avoid multiple prints
+            
+            # If in parallel mode, use as many CPUs as possible unless
+            # the number of chains is larger
+            # NOPE; not fit for cluster where cpu_count() doesn't work?
+            # just choose cpus wisely in def + job files
+            # Config.ncpu = max(1, mp.cpu_count() // Opti.nChains)
+
     # print(options.outdir)
 
     print('')
     print('******************************************************************')
     if Config.mode.split('_')[0] == 'calib':
-        print('CALIBRATION with EcH2O: ')
+        print('CALIBRATION with EcH2O: \n')
     elif Config.mode == 'forward_runs':
         print('ENSEMBLE RUNS with EcH2O')
     elif Config.mode == 'sensi_morris':
@@ -171,19 +188,6 @@ def config(cwd_tmp, options):
         # Observations (for now only needed in DREAM mode)
         Config.PATH_OBS = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                        'Calibration_Datasets'))
-
-    # Parameters for DREAM calibration
-    Opti.parallel = False
-    if Config.mode == 'calib_DREAM':
-        if Opti.DREAMpar is None:  # By default, sequential runs
-            Opti.DREAMpar = 'seq'
-        elif Opti.DREAMpar in ['mpc', 'mpi']:
-            Opti.parallel = True
-            # If in parallel mode, use as many CPUs as possible unless
-            # the number of chains is larger
-            # NOPE; not fit for cluster where cpu_count() doesn't work?
-            # just choose cpus wisely in def + job files
-            # Config.ncpu = max(1, mp.cpu_count() // Opti.nChains)
 
     # -- Sensitivity: all parameter path
     if Config.mode == 'sensi_morris':
@@ -503,23 +507,46 @@ def runs(Config, Opti, Data, Paras, Site, options):
     # Creation of inputs directory (PATH_SPA will use parameter sampling)
     # (in case of parallel runs as in DREAM+mpc/mpi, it will serve as
     # -yet another- template)
+    # print(os.environ.keys())
+    # if Opti.parallel == False:
     Config.PATH_SPA = os.path.abspath(os.path.join(Config.PATH_OUT,
                                                    'Spatial'))
-    if len(glob.glob(Config.PATH_SPA)) == 0:
-        mkpath(Config.PATH_SPA)
-        # Copy of reference data
-        os.system('cp -p '+Config.PATH_SPA_REF+'/*.map '+Config.PATH_SPA)
-        os.system('cp -p '+Config.PATH_SPA_REF+'/SpeciesParams*.tab ' +
-                  Config.PATH_SPA)
+    # else:
+    #     # In parallel computing case, one PATH_SPA per task
+    #     if Opti.DREAMpar  == 'mpi':
+    #         # Running n parallel on a unix system (open MPI type).
+    #         # Check the ID of the current mpi task
+    #         if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
+    #             call = str(int(os.environ['OMPI_COMM_WORLD_RANK'])+1)
+    #         elif 'PMI_RANK' in os.environ.keys():
+    #             call = str(int(os.environ['PMI_RANK'])+1)
+    #         else:
+    #             sys.exit('The ID of this task could not be found...')
+    #     if Opti.DREAMpar == 'mpc':
+    #         # Running n parallel on a single (Windows) computer.
+    #         # ID of the current computer core
+    #         call = str(os.getpid())
+            
+    #     Config.PATH_SPA = os.path.abspath(os.path.join(Config.PATH_OUT,
+    #                                                    'Spatial_'+call))
 
-    # -- Some verbose
-    print('')
-    print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
-    print('Climate data:\n', Config.PATH_CLIM_REF)
-    # print('Maps & parameters:' + Config.PATH_SPA)
-    print('Final outputs:\n', Config.PATH_OUT)
-    print('-----------------------------------------')
-    print('')
+    # Copy of reference input data
+    # print(Config.PATH_SPA_REF)
+    # print(Config.PATH_SPA)
+    mkpath(Config.PATH_SPA)
+    # copy_tree(Config.PATH_SPA_REF, Config.PATH_SPA)
+    try:
+        os.system('cp -f '+Config.PATH_SPA_REF+'/*.map '+
+                  Config.PATH_SPA)
+    except(FileExistsError):
+        print('')
+    try:
+        os.system('cp -f '+Config.PATH_SPA_REF+'/SpeciesParams.tab '+
+                  Config.PATH_SPA)
+    except(FileExistsError):
+        print('')
+    # copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA,
+    #         update=1)
 
     # -- About running EcH2O
     # Executable
@@ -528,11 +555,21 @@ def runs(Config, Opti, Data, Paras, Site, options):
             sys.exit('The user provided EXEC file was not found: ' +
                      Config.exe)
             print('The user provided EXEC file is: '+Config.exe)
-    # Symbolic link to executable
-    if len(glob.glob(os.path.join(Config.PATH_OUT, Config.exe))) != 0:
-        os.system('rm '+os.path.join(Config.PATH_OUT, Config.exe))
-    os.symlink(os.path.join(Config.PATH_MAIN, Config.exe),
-               os.path.join(Config.PATH_OUT, Config.exe))
+    
+    # Clean up / update old symlink
+    copy_file(os.path.join(Config.PATH_MAIN, Config.exe),
+              Config.PATH_OUT, update=1)
+    # try:
+    #     os.system('rm -f '+os.path.join(Config.PATH_OUT, Config.exe))
+    # except(FileNotFound):
+    #     print('No symlink found, no need to remove')
+    # # Symbolic link to executable
+    # try:        
+    #     os.symlink(os.path.join(Config.PATH_MAIN, Config.exe),
+    #                os.path.join(Config.PATH_OUT, Config.exe))
+    # except(FileExistsError):
+    #     print('No symlink created, the exec file is alredy there')
+
     # Time wall for ECH2O execution
     if options.tlimit is None:
         Config.tlimit = '2000'
@@ -556,15 +593,48 @@ def runs(Config, Opti, Data, Paras, Site, options):
     # with DREAM, the acutal directory will be next to this one)
     if Config.scratch > 0:
         if Config.scratch == 1:
-            Config.PATH_EXEC = '/scratch/users/s08sk8/'+options.outdir
-        if Config.scratch == 2:
-            Config.PATH_EXEC = '/nobackup/users/s08sk8/'+options.outdir
+            Config.PATH_EXEC = '/scratch/sylvain.kuppel/'+options.outdir
+        # if Config.scratch == 2:
+        #     Config.PATH_EXEC = '/nobackup/users/s08sk8/'+options.outdir
         print('-----------------------------------------')
         print("Scratch storage activated! Hopefully that will speed " +
               "things up...")
     else:
         Config.PATH_EXEC = os.path.abspath(os.path.join(Config.PATH_OUT,
                                                         'tmp'))
+
+    # # In parellel computing case, one execution folder per task
+    # if Opti.parallel == True:
+    #     # In parallel computing case, one PATH_SPA per task
+    #     if Opti.DREAMpar  == 'mpi':
+    #         # Running n parallel on a unix system (open MPI type).
+    #         # Check the ID of the current mpi task
+    #         if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
+    #             call = str(int(os.environ['OMPI_COMM_WORLD_RANK'])+1)
+    #         elif 'PMI_RANK' in os.environ.keys():
+    #             call = str(int(os.environ['PMI_RANK'])+1)
+    #         else:
+    #             sys.exit('The ID of this task could not be found...')
+    #     elif Opti.DREAMpar == 'mpc':
+    #         # Running n parallel on a single (Windows) computer.
+    #         # ID of the current computer core
+    #         call = str(os.getpid())
+
+    #     Config.PATH_EXEC += '_' + call
+    #     print('path exec 1:', Config.PATH_EXEC)
+
+        
+    # -- Some verbose
+    print('')
+    print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
+    print('Climate data:\n', Config.PATH_CLIM_REF)
+    print('Final outputs:\n', Config.PATH_OUT)
+    if Opti.parallel == False:
+        print('Maps & parameters:', Config.PATH_SPA)
+        print('Raw output from simulations:', Config.PATH_EXEC)
+    print('-----------------------------------------')
+    print('')
+
 
     # -- Ech2O run config file
     # Path for EcH2O config file
@@ -576,9 +646,9 @@ def runs(Config, Opti, Data, Paras, Site, options):
                      Config.cfg_ech2o)
         print('The user provided CFG file is: '+Config.cfg_ech2o)
         # Copy config files (on /users even if there's scratch, for debugging)
-        os.system('cp '+os.path.join(Config.PATH_MAIN, Config.cfgdir,
-                                     Config.cfg_ech2o) +
-                  ' ' + os.path.join(Config.PATH_OUT, 'config.ini'))
+        copy_file(os.path.join(Config.PATH_MAIN, Config.cfgdir, Config.cfg_ech2o),
+                  os.path.join(Config.PATH_OUT, 'config.ini'),
+                  update=1)
         # Modify template config file with config-specific info
         with open(os.path.join(Config.PATH_OUT, 'config.ini'), 'a') as fw:
             fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
@@ -586,7 +656,8 @@ def runs(Config, Opti, Data, Paras, Site, options):
             fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
             fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
             # Input maps directory defined here (unless you need parallel runs
-            # with DREAM, in which case the directory will change on the fly)
+            # with DREAM, in which case the directory will change on the fly,
+            # see spot_setup.simulation)
             if Opti.parallel is False:
                 fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
                 fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')

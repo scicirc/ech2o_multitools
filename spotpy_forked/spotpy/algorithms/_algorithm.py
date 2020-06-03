@@ -344,22 +344,22 @@ class _algorithm(object):
         else:
             return type(data) == list or type(data) == type(np.array([]))
 
-    def save(self, like, randompar, simulations, chains=1):
+    def save(self, like, randompar, simulations, chains=1, rep=1):
         # Initialize the database if no run was performed so far
         self._init_database(like, randompar, simulations)
         # Test if like and the save threshold are float/list and compare accordingly
         if self.__is_list_type(like) and self.__is_list_type(self.save_threshold):
             if all(i > j for i, j in zip(like, self.save_threshold)): #Compares list/list
-                self.datawriter.save(like, randompar, simulations, chains=chains)
+                self.datawriter.save(like, randompar, simulations, chains=chains, rep=rep)
         if (not self.__is_list_type(like)) and (not self.__is_list_type(self.save_threshold)):
             if like>self.save_threshold: #Compares float/float
-                self.datawriter.save(like, randompar, simulations, chains=chains)
+                self.datawriter.save(like, randompar, simulations, chains=chains, rep=rep)
         if self.__is_list_type(like) and (not self.__is_list_type(self.save_threshold)):
             if like[0]>self.save_threshold: #Compares list/float
-                self.datawriter.save(like, randompar, simulations, chains=chains)
+                self.datawriter.save(like, randompar, simulations, chains=chains, rep=rep)
         if (not self.__is_list_type(like)) and self.__is_list_type(self.save_threshold): #Compares float/list
             if (like > self.save_threshold).all:
-                self.datawriter.save(like, randompar, simulations, chains=chains)
+                self.datawriter.save(like, randompar, simulations, chains=chains, rep=rep)
 
     def read_breakdata(self, dbname):
         ''' Read data from a pickle file if a breakpoint is set.
@@ -404,7 +404,7 @@ class _algorithm(object):
         self.status(like,params,block_print=block_print)
         
         if save_run is True and simulation is not None:
-            self.save(like, params, simulations=simulation, chains=chains)
+            self.save(like, params, simulations=simulation, chains=chains, rep=rep)
         if type(like)==type([]):
             return like[0]
         else:        

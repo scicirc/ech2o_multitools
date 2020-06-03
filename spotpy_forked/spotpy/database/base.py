@@ -161,10 +161,10 @@ class custom(database):
 
         super(custom, self).__init__(*args, **kwargs)
 
-    def save(self, objectivefunction, parameterlist, simulations, *args, **kwargs):
-        # print(self.chains)
+    def save(self, objectivefunction, parameterlist, simulations, chains=1, rep=1, 
+             *args, **kwargs):
         self.setup.save(objectivefunction, parameterlist, simulations,
-                        chain=self.chains, *args, **kwargs)
+                        chains=chains, rep=rep, *args, **kwargs)
 
     def finalize(self):
         pass
