@@ -1,0 +1,5 @@
+#!/bin/bash
+
+python3 ech2o_multitools.py --file=def_DREAMcalib.py --cfg=config_example_DREAMcalib --outdir=CalibDREAM
+
+#mpirun -c 7 python3 ech2o_multitools.py --file=def_DREAMcalib_mpi.py --cfg=config_example_DREAMcalib --outdir=CalibDREAM_mpi

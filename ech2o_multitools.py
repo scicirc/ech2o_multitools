@@ -56,9 +56,6 @@ parser.add_option("--outdir", dest="outdir", metavar="outdir",
 parser.add_option("--scratch", dest="scratch", metavar="scratch",
                   help="Uses of localscratch (1: fastest storage) " +
                   "or shared (2: fast)")
-# Report BasinSummary.txt ? (by default = 0)
-parser.add_option("--BSum", dest="BSum", metavar="BSum",
-                  help="report BasinSummary.txt files for each simulation")
 
 # == Options for specific routines modes ==
 
@@ -79,18 +76,6 @@ parser.add_option("--cfg", dest="cfg", metavar="cfg",
 # Time limit for the runs
 parser.add_option("--tlimit", dest="tlimit", metavar="tlimit",
                   help="Time limit of one ECH2O run (in seconds)")
-# Trim outputs ? If so, the beginning and/or ending of outputs should not be
-# saved (e.g. transient state)
-parser.add_option("--trimB", dest="trimB", metavar="trimB",
-                  help="Drop the beginning of outputs: 0 if not, " +
-                  "length otherwise")
-parser.add_option("--trimBmap", dest="trimBmap", metavar="trimBmap",
-                  help="Drop the beginning of map outputs: 0 if not, " +
-                  "length otherwise")
-parser.add_option("--trimL", dest="trimL", metavar="trimL",
-                  help="Length of the trim (if trimB>0): full trim by " +
-                  "default, integer otherwise (has to be larger than " +
-                  "total length - trimB)")
 
 # -- If mode == 'calib_MCruns'
 # Spinup ? (if post optim, mode = 2 ) ?

@@ -723,24 +723,21 @@ def runs(Config, Opti, Data, Paras, Site, options):
 
     # --- Reporting stuff
     # Trim: only saves the time steps within the trim
-    if options.trimB is None:
+    if Config.trimB is None:
         Config.trimB = 1
-    else:
-        Config.trimB = int(options.trimB)
+
     # Initial cutoff for map reporting
-    if options.trimBmap is None:
+    if Config.trimBmap is None:
         Config.trimBmap = 1
-    else:
-        Config.trimBmap = int(options.trimBmap)
+
     # Length of saved outputs
-    if options.trimL is None:
+    if Config.trimL is None:
         Config.trimL = Data.lsim - Config.trimB + 1
     else:
-        if int(options.trimL) <= Data.lsim - Config.trimB+1:
-            Config.trimL = int(options.trimL)
-        else:
+        if Config.trimL > Data.lsim - Config.trimB+1:
             sys.exit('Error: the specified output slicing start+length ' +
                      'goes beyond simulation time!')
+
     # Maps averaging
     if options.MapAv is not None:
         Config.MapAv = int(options.MapAv)
@@ -751,10 +748,9 @@ def runs(Config, Opti, Data, Paras, Site, options):
                 sys.exit('Wrong maps averaging option!')
     else:
         Config.MapAv = 0
+
     # Report BasinSummary.txt
-    if options.BSum is not None:
-        Config.repBS = int(options.BSum)
-    else:
+    if Config.repBS is None:
         Config.repBS = 0
 
     # -- Preparing inputs maps/files for site geometry etc.

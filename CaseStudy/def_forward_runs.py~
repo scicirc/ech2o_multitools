@@ -1,0 +1,198 @@
+# **************************************************************************
+# CONFIGURATION FILE
+# **************************************************************************
+
+# import numpy as np
+from datetime import datetime
+# , timedelta
+
+# ==========================================================================
+#  Optimization characteristics
+#
+# --------------------------------------------------------------------------
+
+
+class Opti:
+
+    main_path = '/users/s01ks6/Data/'
+    # -- Name of the output directory for the current assimilations
+    #    if no name is provided, the default path will be that of this def file
+    PATH_EXEC = 'setup_all'
+
+    # Number of iterations
+    nit = 1000
+
+    # Take into account bare rock? (limiting soil evap)
+    simRock = 0
+
+# ==========================================================================
+# Site conceptualization
+# ------------------------------------------------------------------------
+
+
+class Site:
+    # -- Soil
+    soils = ['VrtS', 'VrtD', 'FrlD', 'FrlS']
+    ns = len(soils)
+    sfiles = ['unit.soil_' + s + '.map' for s in soils]
+    # sfiles = ['unit.map']
+    # -- Vegetation
+    vegs = ['Tree', 'Grass']
+    nv = len(vegs)
+    vfile = 'SpeciesParams.tab'
+
+# ==============================================================================
+# Define the measurements on which assimilation is performed as well as
+# the error structures on the observations
+# ------------------------------------------------------------------------
+
+
+class Data:
+
+    # obsdir = '/users/s01ks6/Data/BB/'
+
+    # -- Observations used
+    obs = {}
+
+    # Hydrometric data
+    obs['Streamflow'] = {'sim_file': 'Streamflow.tab', 'sim_pts': 5,
+                         'conv': 1, 'type': 'Ts'}
+    # Groundwater level
+    obs['GWD_P1'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':5,
+                     'conv':1, 'type': 'Ts'}
+    obs['GWD_P2'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':2,
+                     'conv':1, 'type': 'Ts'}
+    obs['GWD_P3'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':1,
+                     'conv':1, 'type': 'Ts'}
+    obs['GWD_P5'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':10,
+                     'conv':1, 'type': 'Ts'}
+    obs['GWD_P6'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':7,
+                     'conv':1, 'type': 'Ts'}
+    obs['GWD_P7'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':6,
+                     'conv':1, 'type': 'Ts'}
+    obs['GWD_P8'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':4,
+                     'conv':1, 'type': 'Ts'}
+    obs['GWD_P9'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':4,
+                     'conv':1, 'type': 'Ts'}
+    obs['GWD_P10'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':4,
+                      'conv':1, 'type': 'Ts'}
+    obs['GWD_P12'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':9,
+                      'conv':1, 'type': 'Ts'}
+    obs['GWD_P13'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':8,
+                      'conv':1, 'type': 'Ts'}
+    
+    # == Catchment-scale values: From BasinSummary.txt
+    # & BasinAgeSummary.txt ------------
+    
+    # Water budget
+    obs['P_tot'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 1,
+                    'conv': 1, 'type': 'Total'}
+    obs['S_tot.SWE'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 2,
+                        'conv': 1, 'type': 'Total'}
+    obs['S_tot.Veg'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 3,
+                        'conv': 1, 'type': 'Total'}
+    obs['S_tot.Srf'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 4,
+                        'conv': 1, 'type': 'Total'}
+    obs['S_tot.Soil'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 5,
+                         'conv': 1, 'type': 'Total'}
+    obs['S_tot.L1'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 6,
+                       'conv': 1, 'type': 'Total'}
+    obs['S_tot.L2'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 7,
+                       'conv': 1, 'type': 'Total'}
+    obs['S_tot.RZ'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 9,
+                       'conv': 1, 'type': 'Total'}
+    obs['S_tot.GW'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 10,
+                       'conv': 1, 'type': 'Total'}
+    obs['Q_tot.E'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 11,
+                      'conv': 1, 'type': 'Total'}
+    obs['Q_tot.Es'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 12,
+                       'conv': 1, 'type': 'Total'}
+    obs['Q_tot.Ei'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 13,
+                       'conv': 1, 'type': 'Total'}
+    obs['Q_tot.Et'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 14,
+                       'conv': 1, 'type': 'Total'}
+    obs['Q_tot.Srf'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 16,
+                        'conv': 1, 'type': 'Total'}
+    obs['Q_tot.GW'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 17,
+                       'conv': 1, 'type': 'Total'}
+    obs['Q_tot.srfQ'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 18,
+                         'conv': 1, 'type': 'Total'}
+    obs['Q_tot.GWQ'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 19,
+                        'conv': 1, 'type': 'Total'}
+    obs['Q_tot.Rch'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 20,
+                        'conv': 1, 'type': 'Total'}
+    # Lumped ages
+    obs['Age_tot.S'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 1,
+                        'conv': 1, 'type': 'Total'}
+    obs['Age_tot.Soil'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 5,
+                           'conv': 1, 'type': 'Total'}
+    obs['Age_tot.L1'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 6,
+                         'conv': 1, 'type': 'Total'}
+    obs['Age_tot.L2'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 7,
+                         'conv': 1, 'type': 'Total'}
+    obs['Age_tot.RZ'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 9,
+                         'conv': 1, 'type': 'Total'}
+    obs['Age_tot.GW'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 10,
+                         'conv': 1, 'type': 'Total'}
+    obs['Age_tot.E'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 11,
+                        'conv': 1, 'type': 'Total'}
+    obs['Age_tot.Es'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 12,
+                         'conv': 1, 'type': 'Total'}
+    obs['Age_tot.Ei'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 13,
+                         'conv': 1, 'type': 'Total'}
+    obs['Age_tot.Et'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 14,
+                         'conv': 1, 'type': 'Total'}
+    obs['Age_tot.Q'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 16,
+                        'conv': 1, 'type': 'Total'}
+    obs['Age_tot.Qgw'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 17,
+                          'conv': 1, 'type': 'Total'}
+    obs['Age_tot.Out'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 18,
+                          'conv': 1, 'type': 'Total'}
+    obs['Age_tot.srfQ'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 19,
+                           'conv': 1, 'type': 'Total'}
+    obs['Age_tot.GWQ'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 20,
+                          'conv': 1, 'type': 'Total'}
+    obs['Age_tot.Rch'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 21,
+                          'conv': 1, 'type': 'Total'}
+
+    nobs = len(obs)
+
+    # -- Simulations outputs
+
+    # Starting date
+    simbeg = datetime(2004, 1, 1)
+    lsim = 10586
+    # simt = [simbeg+timedelta(days=x) for x in range(lsim)]
+
+    # Number of obsrvations points
+    nts = 10
+    # In case the tsmask.map is not ordered like Ech2O does:
+    # ascending order left->right, then top->bottom
+    sim_order = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# ==============================================================================
+# Parameters that are optimized
+# ------------------------------------------------------------------------------
+
+
+class Paras:
+    # -- Parameters to optimize: dimensions
+    ref = {}
+
+    ref['Manning'] = {'soil': 0, 'veg': 0, 'log': 0, 'file': 'chanmanningn'}
+    # - soil-dependent
+    ref['DepthL2'] = {'soil': 0, 'veg': 0, 'log': 0, 'file': 'soildepth.L2'}
+    ref['Porosity0'] = {'soil': 1, 'veg': 0, 'log': 0, 'file': 'poros'}
+    # ref['kPorosity'] = {'soil': 1, 'veg': 0, 'log': 0, 'file': 'kporos'}
+    ref['PorosL2'] = {'soil': 0, 'veg': 0, 'log': 0, 'file': 'poros.L2'}
+    ref['PorosL3'] = {'soil': 0, 'veg': 0, 'log': 0, 'file': 'poros.L3'}
+
+    ref['Khoriz0'] = {'soil': 0, 'veg': 0, 'log': 0, 'file': 'Khsat'}
+    ref['Anisotropy'] = {'soil': 1, 'veg': 0, 'log': 0, 'file': 'KvKh'}
+    ref['kKhoriz'] = {'soil': 0, 'veg': 0, 'log': 0, 'file': 'kKhsat'}
+    # Vegetation
+    ref['p_Tree'] = {'soil': 0, 'veg': 0, 'log': 0, 'file': 'p_0'}
+    ref['p_Grass'] = {'soil': 0, 'veg': 0, 'log': 0, 'file': 'p_1'}
+    ref['Kroot'] = {'soil': 0, 'veg': 1, 'log': 1}
+    # water use
+    ref['Gs_max'] = {'soil': 0, 'veg': 1, 'log': 1}
