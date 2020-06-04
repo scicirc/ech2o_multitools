@@ -137,6 +137,13 @@ def config(cwd_tmp, options):
     if Config.mode == 'calib_MCsampling':  # or
         # (Config.mode == 'sensi_morris' and Config.MSinit == 1):
         Config.runECH2O = 0
+    # Number of CPUs used in multi-threading: first check if it's given
+    # in the options (may be the case for Slurm-type MPI mode), otherwise
+    # in Config, default = 1
+    if options.ncpu is not None:
+        Config.ncpu = copy.copy(options.ncpu)
+    elif not hasattr(Config, 'ncpu'):
+        Config.ncpu = 1
 
     # Determine if a parallel computing mode is activated
     Opti.parallel = False
@@ -575,13 +582,10 @@ def runs(Config, Opti, Data, Paras, Site, options):
         Config.tlimit = '2000'
     else:
         Config.tlimit = options.tlimit
-    # Number of CPUs used in parallel
-    if Config.ncpu is None:
-        Config.ncpu = 1
     # Time limit
     Config.tcmd = 'ulimit -t ' + \
         str(int(Config.tlimit)*int(Config.ncpu))+' ;'
-    # Execution command with OMP use
+    # Execution command with Open MP use
     Config.cmde_ech2o = ' '.join([Config.tcmd, 'OMP_NUM_THREADS=' +
                                   str(Config.ncpu), './' + Config.exe])
     # Scratch disk?

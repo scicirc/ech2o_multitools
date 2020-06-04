@@ -51,6 +51,9 @@ parser.add_option("--file", dest="file", metavar="FILE",
 # Output directory
 parser.add_option("--outdir", dest="outdir", metavar="outdir",
                   help="Output directory")
+# Number of CPUs used
+parser.add_option("--ncpu", dest="ncpu", metavar="ncpu",
+                  help="Number of CPUs for each EcH2O run")
 # Use scratch ? (saves EcH2O tmp outputs on scratch, then saves on users after
 # each run)
 parser.add_option("--scratch", dest="scratch", metavar="scratch",
