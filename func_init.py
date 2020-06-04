@@ -723,15 +723,15 @@ def runs(Config, Opti, Data, Paras, Site, options):
 
     # --- Reporting stuff
     # Trim: only saves the time steps within the trim
-    if Config.trimB is None:
+    if not hasattr(Config, 'trimB'):
         Config.trimB = 1
 
     # Initial cutoff for map reporting
-    if Config.trimBmap is None:
+    if not hasattr(Config, 'trimBmap'):
         Config.trimBmap = 1
 
     # Length of saved outputs
-    if Config.trimL is None:
+    if not hasattr(Config, 'trimL'):
         Config.trimL = Data.lsim - Config.trimB + 1
     else:
         if Config.trimL > Data.lsim - Config.trimB+1:
@@ -750,7 +750,7 @@ def runs(Config, Opti, Data, Paras, Site, options):
         Config.MapAv = 0
 
     # Report BasinSummary.txt
-    if Config.repBS is None:
+    if hasattr(Config, 'repBS'):
         Config.repBS = 0
 
     # -- Preparing inputs maps/files for site geometry etc.
