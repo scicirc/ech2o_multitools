@@ -27,7 +27,9 @@ def MultiObj(obs, sim, Data, Opti, w=False):
     like = 0
     Ltot = []
 
-    print('simulation dims',np.array(sim).shape)
+    if sim is None:
+        sys.exit('Problem: the simulations outputs is empty!')
+    print('simulation dims', np.array(sim).shape)
 
     for i in range(Data.nobs):
 

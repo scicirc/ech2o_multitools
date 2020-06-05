@@ -165,10 +165,10 @@ def config(options):
             # just choose cpus wisely in def + job files
             # Config.ncpu = max(1, mp.cpu_count() // Opti.nChains)
 
-    # 
-    if (Opti.DREAMpar == 'mpi' and options.mpi != 1) or \
-       (Opti.DREAMpar != 'mpi' and options.mpi == 1):
-        sys.exit('Inconsitent MPI flags between Opti and options')
+    # #
+    # if (Opti.DREAMpar == 'mpi' and options.mpi != 1) or \
+    #    (Opti.DREAMpar != 'mpi' and options.mpi == 1):
+    #     sys.exit('Inconsitent MPI flags between Opti and options')
 
     # print(options.outdir)
     # -- Calibration: all parameter path (and datasets, if needed)
@@ -179,7 +179,7 @@ def config(options):
             '_parameters.'
         # -- Creation of output directory
         if len(glob.glob(Config.PATH_PAR)) == 0:
-            mkdir(Config.PATH_PAR)
+            mkpath(Config.PATH_PAR)
         # -- Some verbose
         print('')
         print("Parameter samples' directory:          ", Config.PATH_PAR)

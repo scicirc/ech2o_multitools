@@ -27,7 +27,7 @@ from distutils.dir_util import copy_tree, remove_tree, mkpath
 from distutils.file_util import copy_file
 from contextlib import ExitStack
 
-from mpi4py import MPI
+# from mpi4py import MPI
 
 # ==============================================================================
 
@@ -76,9 +76,9 @@ class spot_setup(object):
         self.curdir = copy.copy(Config.PATH_OUT)
         self.owd = copy.copy(Config.PATH_EXEC)
         self.parallel = copy.copy(parallel)
-        if self.parallel == 'mpi':
-            comm = MPI.COMM_WORLD
-            self.rank = comm.Get_rank()
+        # if self.parallel == 'mpi':
+        #    comm = MPI.COMM_WORLD
+        #    self.rank = comm.Get_rank()
         # Initialize custom database output.
         # More than one simulation type: save all likelihood
         # (DREAM only use the first one, i.e here the multi-objective)
@@ -162,13 +162,13 @@ class spot_setup(object):
         elif self.parallel == 'mpi':
             # Running n parallel on a unix system.
             # Check the ID of the current mpi task using mpi4py
-            call = str(int(self.rank))
-            # if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
-            #     call = str(int(os.environ['OMPI_COMM_WORLD_RANK'])+1)
-            # elif 'PMI_RANK' in os.environ.keys():
-            #     call = str(int(os.environ['PMI_RANK'])+1)
-            # else:
-            #     sys.exit('The ID of this task could not be found...')
+            # call = str(int(self.rank))
+            if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
+                call = str(int(os.environ['OMPI_COMM_WORLD_RANK']))
+            elif 'PMI_RANK' in os.environ.keys():
+                call = str(int(os.environ['PMI_RANK']))
+            else:
+                sys.exit('The ID of this task could not be found...')
         elif self.parallel == 'mpc':
             # Running n parallel on a single (Windows) computer.
             # ID of the current computer core
@@ -194,7 +194,7 @@ class spot_setup(object):
 
         # To store simulations (will remain np.nan if simulation fails)
         simulations = np.full((self.data.nobs, self.data.lsimEff),
-                               np.nan).tolist()
+                              np.nan).tolist()
         # print('path exec 2:',self.PATH_EXEC)
 
         # try:
@@ -202,12 +202,12 @@ class spot_setup(object):
         # print('Parameter object:')
         # print(self.parameters())
         # print(x)
-        
+
         # Create the inputs for ECH2O's run
         # Here, x is the current set of sampled parameter values.
         # It is ordered as in Opti.names etc., so it can be used as is
         if self.parallel == 'mpi':
-            it = self.rank
+            it = int(call)  # self.rank
         else:
             it = 0
         params.sim_inputs(self.opti, self.par, self.site,
