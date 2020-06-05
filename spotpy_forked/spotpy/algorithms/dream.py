@@ -198,6 +198,7 @@ class dream(_algorithm):
             whichW_UNIIsNull = W_uni == 0.0
             W_uni[whichW_UNIIsNull] = np.random.uniform(0.1,1,1)
 
+            print('n', n, 'sig2',sigma2, 'Wuni', W_uni, 'd', d)
             R_stat = np.sqrt((n + 1) / n * (np.divide(sigma2, W_uni)) - (d - 1) / (n * d))
             
             

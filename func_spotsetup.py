@@ -189,8 +189,7 @@ class spot_setup(object):
 
         # To store simulations (will remain np.nan if simulation fails)
         simulations = np.full((self.data.nobs, self.data.lsimEff),
-                              np.nan).tolist()
-
+                               np.nan).tolist()
         # print('path exec 2:',self.PATH_EXEC)
 
         try:
@@ -244,13 +243,13 @@ class spot_setup(object):
                     if(len(simulations[i]) < self.data.lsimEff):
                         print('sim length:',len(simulations[i]),
                               ', expected:',self.data.lsimEff)
-                        simulations[i] = [np.nan] * self.data.lsimEff
+                        simulations[i][:] = [np.nan] * self.data.lsimEff
                         # sys.exit('Error: simulation output shorter than specified '+
                         #         "in configuration, maybe check EcH2O's config file...")
 
         except():  # 'Model has failed'):
             print('Something went wrong, this run is useless')
-            simulations = [np.nan] * self.data.lsimEff
+            # simulations = [np.nan] * self.data.lsimEff
             # Report param config that failed
             # f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
             # if len(glob.glob(f_failpar)) == 0:
@@ -269,8 +268,8 @@ class spot_setup(object):
         os.chdir(self.curdir)
 
         # Clean up
-        if self.parallel in ['mpc', 'mpi']:
-            remove_tree(self.PATH_EXEC)
+        # if self.parallel in ['mpc', 'mpi']:
+        #    remove_tree(self.PATH_EXEC)
 
         return simulations
 

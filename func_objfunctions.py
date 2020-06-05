@@ -27,6 +27,8 @@ def MultiObj(obs, sim, Data, Opti, w=False):
     like = 0
     Ltot = []
 
+    print('simulation dims',np.array(sim).shape)
+
     for i in range(Data.nobs):
 
         oname = Data.names[i]
@@ -54,28 +56,31 @@ def MultiObj(obs, sim, Data, Opti, w=False):
                            np.isnan(tmp[j])])
 
         # Now use your favorite likelihood estimator for each obs type
-
-        # For GWD, we center using mean
-        if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
-            # print(oname, 'remove mean')
-            # s -= np.mean(s)
-            # o -= np.mean(o)
-            # Use RMSE for water table
-            # L = - spotpy.objectivefunctions.rmse(o, s) / np.mean(o)
-            # LogLikehood as used in Vrugt et al. (2016)
-            # o_err = np.repeat(0.3, len(o)).tolist()
-            # L = spotpy.likelihoods.logLikelihood(o, s,
-            #                                     measerror=o_err)
-            # Log Gaussian likelihood without error (temporary)
-            L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
-
+        
+        # First check if there is actual data/sim left after nan screening!
+        if s.__len__() == 0 or o.__len__() == 0:
+            L = np.nan
         else:
-            # MAE for streamflow
-            # L = - spotpy.objectivefunctions.mae(o, s) / np.mean(o)
-            # LogL gaussian likehood as used in Vrugt et al. (2016)
-            # L = spotpy.likelihoods.logLikelihood(o, s)
-            # Log Gaussian likelihood without error (temporary)
-            L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
+            # For GWD, we center using mean
+            if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
+                # print(oname, 'remove mean')
+                # s -= np.mean(s)
+                # o -= np.mean(o)
+                # Use RMSE for water table
+                # L = - spotpy.objectivefunctions.rmse(o, s) / np.mean(o)
+                # LogLikehood as used in Vrugt et al. (2016)
+                # o_err = np.repeat(0.3, len(o)).tolist()
+                # L = spotpy.likelihoods.logLikelihood(o, s,
+                #                                     measerror=o_err)
+                # Log Gaussian likelihood without error (temporary)
+                L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
+            else:
+                # MAE for streamflow
+                # L = - spotpy.objectivefunctions.mae(o, s) / np.mean(o)
+                # LogL gaussian likehood as used in Vrugt et al. (2016)
+                # L = spotpy.likelihoods.logLikelihood(o, s)
+                # Log Gaussian likelihood without error (temporary)
+                L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
 
         Ltot += [L]  # list of all likelihoods
         like += L  # "final" likelihood
