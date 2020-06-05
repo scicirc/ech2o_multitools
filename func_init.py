@@ -27,29 +27,30 @@ import func_params as params
 import func_morris as morris
 import pandas as pd
 import csv
-# import mpi4py.MPI as MPI
 
-import multiprocessing as mp
+# import multiprocessing as mp
 
-from distutils.dir_util import mkpath, copy_tree
+
+from distutils.dir_util import mkpath, copy_tree, remove_tree
 from distutils.file_util import copy_file
 
 # ----------------------------------------------------------------------------
 
 
-def config(cwd_tmp, options):
+def config(options):
 
-    # -- General config file (where parameters info is taken from)
+
+    # Current working directory (temporary, just to import the def file)
+    cwd_tmp = os.getcwd()+'/'
+
+    # General definition file for the script
     if options.file is not None:
         [file_py, ext] = os.path.splitext(options.file)
         if len(glob.glob(options.file)) == 0:
-            sys.exit('# STOP. The file that define the assimilation ' +
-                     'characteristics does not exist : \n   ...'+file_py+'.py')
-        file = options.file
-        frep = os.path.dirname(file)
-        if frep == '':
-            file = os.path.join(cwd_tmp, file)
-        print('The user provided definition file is: '+options.file)
+            sys.exit('# STOP. The file that define the script configuration' +
+                     'does not exist : \n   ...'+file_py+'.py')
+    else:
+        sys.exit('Please specify a file defining the cscript configuration')
 
     # -- Import classes and setup from the def file
     sys.path.insert(0, cwd_tmp)
@@ -58,6 +59,12 @@ def config(cwd_tmp, options):
     Data = __import__(file_py).Data
     Paras = __import__(file_py).Paras
     Site = __import__(file_py).Site
+
+    # Store name of def file in Config
+    Config.file = copy.copy(options.file)
+    frep = os.path.dirname(Config.file)
+    if frep == '':
+        Config.file = os.path.join(cwd_tmp, Config.file)
 
     # -- Main mode
     if Config.mode not in ['calib_MCsampling', 'calib_MCruns',
@@ -100,12 +107,6 @@ def config(cwd_tmp, options):
     else:
         Config.PATH_OUT = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                        options.outdir))
-    # Create if needed
-    if len(glob.glob(Config.PATH_OUT)) == 0:
-        mkpath(Config.PATH_OUT)
-
-    # -- Copy def file in the output
-    copy_file(file, Config.PATH_OUT, update=1)
 
     # -- Restart: do not start from first iteration
     if options.restart is None:
@@ -152,6 +153,10 @@ def config(cwd_tmp, options):
             Opti.DREAMpar = 'seq'
         elif Opti.DREAMpar in ['mpc', 'mpi']:
             Opti.parallel = True
+            #     from mpi4py import MPI
+            #     Config.MPIcomm = MPI.COMM_WORLD
+            #     Config.MPIsize = comm.Get_size()
+            #     Config.MPIrank = comm.Get_rank()
             # Determine with process we're on, to avoid multiple prints
             
             # If in parallel mode, use as many CPUs as possible unless
@@ -160,23 +165,12 @@ def config(cwd_tmp, options):
             # just choose cpus wisely in def + job files
             # Config.ncpu = max(1, mp.cpu_count() // Opti.nChains)
 
+    # 
+    if (Opti.DREAMpar == 'mpi' and options.mpi != 1) or \
+       (Opti.DREAMpar != 'mpi' and options.mpi == 1):
+        sys.exit('Inconsitent MPI flags between Opti and options')
+
     # print(options.outdir)
-
-    print('')
-    print('******************************************************************')
-    if Config.mode.split('_')[0] == 'calib':
-        print('CALIBRATION with EcH2O: \n')
-    elif Config.mode == 'forward_runs':
-        print('ENSEMBLE RUNS with EcH2O')
-    elif Config.mode == 'sensi_morris':
-        print('MORRIS SENSITIVITY with EcH2O: ')
-        print('- construction of the trajectories')
-        print('- forward runs')
-        print('- storage of outputs and info for posterior analysis : ' +
-              'elementary effects, etc.')
-        print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-        print('')
-
     # -- Calibration: all parameter path (and datasets, if needed)
     if Config.mode in ['calib_MCsampling', 'calib_MCruns']:
         Config.PATH_PAR = os.path.abspath(os.path.join(Config.PATH_MAIN,
@@ -360,9 +354,8 @@ def parameters(Config, Opti, Paras, Site, options):
 
     # -- Calibration runs: retrieve previously generated samples
     if Config.mode == 'calib_MCruns':
-
         print('Get parameters samples for this job...')
-        # Read parameters sample for this parallel run
+        # Read parameters sample for this instance of array task
         params.get(Opti, Config)
 
     # -- Forward ensemble runs: read directly the params from "best params"
@@ -441,64 +434,6 @@ def parameters(Config, Opti, Paras, Site, options):
             sys.exit("The definition file and input parameter file ain't " +
                      "matching!")
 # ==================================================================================
-# -- Read measurements for calibration
-
-
-def observations(Config, Opti, Data):
-
-    # Set the observations types collected from runs (sim outputs)
-    # (and compared to measurements if there is calibration)
-    Data.names = sorted(Data.obs.keys())
-
-    # Date of the simulations (used for calibration periods, mostly)
-    Data.lsimEff = Data.lsim - Data.lspin
-    Data.simt = [Data.simbeg + timedelta(days=x)
-                 for x in range(Data.lsimEff)]
-    # Same thing in froward mode (needs to be merged...)
-    Config.treal = [Data.simbeg+timedelta(days=x) for x in range(Config.trimL)]
-
-    if Config.mode == 'calib_DREAM':
-
-        print('Reading measured datasets for calibration...')
-
-        Opti.obs = {}  # np.full((Data.nobs, Config.trimL), np.nan)
-
-        for oname in Data.names:
-
-            # print(oname)
-            # -- Get the obs
-            f_obs = Config.PATH_OBS + '/' + Data.obs[oname]['obs_file']
-
-            # Read the file, keeping only the data and relevant TS columns
-            tmp = pd.read_csv(f_obs, sep=';').iloc[
-                :, [0, Data.obs[oname]['obs_col']-1]]
-            tmp.columns.values[:] = ['Date', 'value']
-            # Convert date column to datetime
-            tmp['Date'] = pd.to_datetime(tmp['Date'], format='%Y-%m-%d')
-            # Convert date column to datetime
-            tmp['value'] = tmp['value'] * Data.obs[oname]['obs_conv']
-
-            # Calibration period:
-            # Check if specified, otherwise use the whole simulation
-            # in any case, remove the spinup (it will be removed from
-            # simulation outputs in post-processing)
-            if 'fit_beg' not in Data.obs[oname].keys() or \
-               type(Data.obs[oname]['fit_beg']) is not datetime.date:
-                fitbeg = Data.simt[0]
-            else:
-                fitbeg = max(Data.obs[oname]['fit_beg'], Data.simt[0])
-            if 'fit_end' not in Data.obs[oname].keys() or \
-               type(Data.obs[oname]['fit_end']) is not datetime.date:
-                fitend = Data.simt[Data.lsimEff-1]
-            else:
-                fitend = min(Data.obs[oname]['fit_end'],
-                             Data.simt[Data.lsimEff - 1])
-
-            # Crop obs between desired time frame
-            tmp = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
-
-            Opti.obs[oname] = tmp.dropna(how='all')
-# ==================================================================================
 
 
 def runs(Config, Opti, Data, Paras, Site, options):
@@ -508,7 +443,7 @@ def runs(Config, Opti, Data, Paras, Site, options):
     Config.PATH_SPA_REF = \
         os.path.abspath(os.path.join(Config.PATH_MAIN,
                                      'Input_Maps_' + Site.Resol))
-    Config.PATH_CLIM_REF = \
+    Config.PATH_CLIM = \
         os.path.abspath(os.path.join(Config.PATH_MAIN, 'Input_Climate'))
 
     # Creation of inputs directory (PATH_SPA will use parameter sampling)
@@ -537,21 +472,21 @@ def runs(Config, Opti, Data, Paras, Site, options):
     #     Config.PATH_SPA = os.path.abspath(os.path.join(Config.PATH_OUT,
     #                                                    'Spatial_'+call))
 
-    # Copy of reference input data
-    # print(Config.PATH_SPA_REF)
-    # print(Config.PATH_SPA)
-    mkpath(Config.PATH_SPA)
-    # copy_tree(Config.PATH_SPA_REF, Config.PATH_SPA)
-    try:
-        os.system('cp -f '+Config.PATH_SPA_REF+'/*.map '+
-                  Config.PATH_SPA)
-    except(FileExistsError):
-        print('')
-    try:
-        os.system('cp -f '+Config.PATH_SPA_REF+'/SpeciesParams.tab '+
-                  Config.PATH_SPA)
-    except(FileExistsError):
-        print('')
+    # # Copy of reference input data
+    # # print(Config.PATH_SPA_REF)
+    # # print(Config.PATH_SPA)
+    # mkpath(Config.PATH_SPA)
+    # # copy_tree(Config.PATH_SPA_REF, Config.PATH_SPA)
+    # try:
+    #     os.system('cp -f '+Config.PATH_SPA_REF+'/*.map '+
+    #               Config.PATH_SPA)
+    # except(FileExistsError):
+    #     print('')
+    # try:
+    #     os.system('cp -f '+Config.PATH_SPA_REF+'/SpeciesParams.tab '+
+    #               Config.PATH_SPA)
+    # except(FileExistsError):
+    #     print('')
     # copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA,
     #         update=1)
 
@@ -563,9 +498,6 @@ def runs(Config, Opti, Data, Paras, Site, options):
                      Config.exe)
             print('The user provided EXEC file is: '+Config.exe)
     
-    # Clean up / update old symlink
-    copy_file(os.path.join(Config.PATH_MAIN, Config.exe),
-              Config.PATH_OUT, update=1)
     # try:
     #     os.system('rm -f '+os.path.join(Config.PATH_OUT, Config.exe))
     # except(FileNotFound):
@@ -604,8 +536,7 @@ def runs(Config, Opti, Data, Paras, Site, options):
         print("Scratch storage activated! Hopefully that will speed " +
               "things up...")
     else:
-        Config.PATH_EXEC = os.path.abspath(os.path.join(Config.PATH_OUT,
-                                                        'tmp'))
+        Config.PATH_EXEC = os.path.abspath(os.path.join(Config.PATH_OUT, 'tmp'))
 
     # # In parellel computing case, one execution folder per task
     # if Opti.parallel == True:
@@ -627,19 +558,6 @@ def runs(Config, Opti, Data, Paras, Site, options):
     #     Config.PATH_EXEC += '_' + call
     #     print('path exec 1:', Config.PATH_EXEC)
 
-        
-    # -- Some verbose
-    print('')
-    print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
-    print('Climate data:\n', Config.PATH_CLIM_REF)
-    print('Final outputs:\n', Config.PATH_OUT)
-    if Opti.parallel == False:
-        print('Maps & parameters:', Config.PATH_SPA)
-        print('Raw output from simulations:', Config.PATH_EXEC)
-    print('-----------------------------------------')
-    print('')
-
-
     # -- Ech2O run config file
     # Path for EcH2O config file
     Config.cfgdir = Config.PATH_MAIN+'Input_Configs/'
@@ -648,24 +566,6 @@ def runs(Config, Opti, Data, Paras, Site, options):
         if len(glob.glob(Config.cfgdir+Config.cfg_ech2o)) == 0:
             sys.exit('The user provided CFG file was not found: ' +
                      Config.cfg_ech2o)
-        print('The user provided CFG file is: '+Config.cfg_ech2o)
-        # Copy config files (on /users even if there's scratch, for debugging)
-        copy_file(os.path.join(Config.PATH_MAIN, Config.cfgdir, Config.cfg_ech2o),
-                  os.path.join(Config.PATH_OUT, 'config.ini'),
-                  update=1)
-        # Modify template config file with config-specific info
-        with open(os.path.join(Config.PATH_OUT, 'config.ini'), 'a') as fw:
-            fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
-            fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM_REF+'\n')
-            fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
-            fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
-            # Input maps directory defined here (unless you need parallel runs
-            # with DREAM, in which case the directory will change on the fly,
-            # see spot_setup.simulation)
-            if Opti.parallel is False:
-                fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
-                fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')
-
     else:
         sys.exit('Error: the script need a template ech2o config file!')
 
@@ -682,23 +582,9 @@ def runs(Config, Opti, Data, Paras, Site, options):
             cfgTrck_ech2o = options.cfg.split('_')[0] + \
                 'Trck_'+options.cfg.split('_')[1]+'.ini'
 
-        if len(glob.glob(Config.cfgdir+cfgTrck_ech2o)) != 0:
-            print('The user provided CFGtrck file is: '+cfgTrck_ech2o)
-            # Copy template configTrck to outdir
-            os.system('cp '+os.path.join(Config.PATH_MAIN, Config.cfgdir,
-                                         cfgTrck_ech2o) + ' ' +
-                      os.path.join(Config.PATH_OUT, 'configTrck.ini'))
-            # Add tracking info in main ech2o config file
-            with open(os.path.join(Config.PATH_OUT, 'config.ini'),
-                      'a') as fw:
-                fw.write('Tracking = 1\n')
-                fw.write('TrackingConfig = configTrck.ini\n')
-        else:
+        if len(glob.glob(Config.cfgdir+cfgTrck_ech2o)) == 0:
             sys.exit('The user provided CFGtrck file was not found: ' +
                      cfgTrck_ech2o)
-    elif Site.isTrck == 0:
-        with open(os.path.join(Config.PATH_OUT, 'config.ini'), 'a') as fw:
-            fw.write('Tracking = 0\n')
 
     # -- Forward runs: parameter sets to use
     if Config.mode == 'forward_runs':
@@ -757,7 +643,115 @@ def runs(Config, Opti, Data, Paras, Site, options):
     if hasattr(Config, 'repBS'):
         Config.repBS = 0
 
+# ==================================================================================
+# -- Read measurements for calibration
+
+
+def observations(Config, Opti, Data):
+
+    # Set the observations types collected from runs (sim outputs)
+    # (and compared to measurements if there is calibration)
+    Data.names = sorted(Data.obs.keys())
+
+    # Date of the simulations (used for calibration periods, mostly)
+    Data.lsimEff = Data.lsim - Data.lspin
+    Data.simt = [Data.simbeg + timedelta(days=x)
+                 for x in range(Data.lsimEff)]
+    # Same thing in froward mode (needs to be merged...)
+    Config.treal = [Data.simbeg+timedelta(days=x) for x in range(Config.trimL)]
+
+    if Config.mode == 'calib_DREAM':
+
+        # print('Reading measured datasets for calibration...')
+
+        Opti.obs = {}  # np.full((Data.nobs, Config.trimL), np.nan)
+
+        for oname in Data.names:
+
+            # print(oname)
+            # -- Get the obs
+            f_obs = Config.PATH_OBS + '/' + Data.obs[oname]['obs_file']
+
+            # Read the file, keeping only the data and relevant TS columns
+            tmp = pd.read_csv(f_obs, sep=';').iloc[
+                :, [0, Data.obs[oname]['obs_col']-1]]
+            tmp.columns.values[:] = ['Date', 'value']
+            # Convert date column to datetime
+            tmp['Date'] = pd.to_datetime(tmp['Date'], format='%Y-%m-%d')
+            # Convert date column to datetime
+            tmp['value'] = tmp['value'] * Data.obs[oname]['obs_conv']
+
+            # Calibration period:
+            # Check if specified, otherwise use the whole simulation
+            # in any case, remove the spinup (it will be removed from
+            # simulation outputs in post-processing)
+            if 'fit_beg' not in Data.obs[oname].keys() or \
+               type(Data.obs[oname]['fit_beg']) is not datetime.date:
+                fitbeg = Data.simt[0]
+            else:
+                fitbeg = max(Data.obs[oname]['fit_beg'], Data.simt[0])
+            if 'fit_end' not in Data.obs[oname].keys() or \
+               type(Data.obs[oname]['fit_end']) is not datetime.date:
+                fitend = Data.simt[Data.lsimEff-1]
+            else:
+                fitend = min(Data.obs[oname]['fit_end'],
+                             Data.simt[Data.lsimEff - 1])
+
+            # Crop obs between desired time frame
+            tmp = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
+
+            Opti.obs[oname] = tmp.dropna(how='all')
+# ==========================================================================
+
+
+def files(Config, Opti, Paras, Site):
+
+    # Copying and editing directories and files.
+
+    # Main output directory: create if needed
+    mkpath(Config.PATH_OUT)
+    # copy definition file there
+    copy_file(Config.file, Config.PATH_OUT)
+
+    # Copy of reference input parameters
+    # remove_tree(Config.PATH_SPA)
+    mkpath(Config.PATH_SPA)
+    os.system('cp -f '+Config.PATH_SPA_REF+'/*.map '+ Config.PATH_SPA)
+    copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA)
+    
+    # EcH2O executable file: clean up / update old symlink
+    copy_file(os.path.join(Config.PATH_MAIN, Config.exe),
+              Config.PATH_OUT)
+
+    # EcH2O config file: copy from template and edit 
+    copy_file(os.path.join(Config.PATH_MAIN, Config.cfgdir, Config.cfg_ech2o),
+              os.path.join(Config.PATH_OUT, 'config.ini'))
+    with open(os.path.join(Config.PATH_OUT, 'config.ini'), 'a') as fw:
+        fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
+        fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM+'\n')
+        fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
+        fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
+        # Input maps directory defined here (unless you need parallel runs
+        # with DREAM, in which case the directory will change on the fly,
+        # see spot_setup.simulation)
+        if Opti.parallel is False:
+            fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
+            fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')
+        # Further edit regarding tracking
+        if Site.isTrck == 1 :
+            fw.write('Tracking = 1\n')
+            fw.write('TrackingConfig = configTrck.ini\n')
+        else:
+            fw.write('Tracking = 0\n')
+
+    # If tracking, copy template configTrck file for EcH2O
+    if Site.isTrck == 1:
+        copy_file(os.path.join(Config.PATH_MAIN, Config.cfgdir,cfgTrck_ech2o),
+                  os.path.join(Config.PATH_OUT, 'configTrck.ini'))
+
+
     # -- Preparing inputs maps/files for site geometry etc.
+
     # Remove the default map files of calibrated param in the inputs directory
     # --> helps checking early on if there is an improper map update
     for pname in Paras.names:

@@ -130,6 +130,8 @@ def sim_inputs(Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                 pcr.report(outmap,
                            path_spa+'/'+Paras.ref[pname]['file']+'.map')
 
+            print('rank',it, ': map of',pname,
+                  'in',path_spa+'/'+Paras.ref[pname]['file']+'.map')
         # - Vegetation parameters
         else:
             # Change the value based on param name correspondance

@@ -12,8 +12,7 @@ Created on 10/2016
 -------------------------------------------------
 '''
 
-import os
-# import sys
+import os, sys, glob
 from optparse import OptionParser
 # from itertools import chain
 
@@ -51,7 +50,11 @@ parser.add_option("--file", dest="file", metavar="FILE",
 # Output directory
 parser.add_option("--outdir", dest="outdir", metavar="outdir",
                   help="Output directory")
-# Number of CPUs used
+
+# MPI parallel computing activated
+parser.add_option("--mpi", dest="mpi", metavar="mpi",
+                  help="MPI parallel option (0 or 1)")
+# Number of CPUs used per EcH2O run (useful in options in mpirun mode)
 parser.add_option("--ncpu", dest="ncpu", metavar="ncpu",
                   help="Number of CPUs for each EcH2O run")
 # Use scratch ? (saves EcH2O tmp outputs on scratch, then saves on users after
@@ -117,16 +120,21 @@ parser.add_option("--MSspace", dest="MSspace", metavar="MSspace",
 # Read the options
 (options, args) = parser.parse_args()
 
-# =============================================================================
-
-# Current working directory (temporary, just to import the def file)
-cwd_tmp = os.getcwd()+'/'
+# For MPI
+rank = -1
+if options.mpi == '1':
+    options.mpi = int(options.mpi)
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    print('rank/size', rank,'/', size, 'before initialiation routines')
 
 # =============================================================================
 # == Initialization
 
 # Configuration --------------------------------
-(Config, Opti, Data, Paras, Site) = init.config(cwd_tmp, options)
+(Config, Opti, Data, Paras, Site) = init.config(options)
 
 # Parameters: from definition to all values ------
 init.parameters(Config, Opti, Paras, Site, options)
@@ -139,8 +147,83 @@ if Config.runECH2O == 1:
     # (and read datasets if in DREAM calibration mode)
     init.observations(Config, Opti, Data)
 
-# -- How many variables ?
-print('Total number of parameters :', Opti.nvar)
+# Files and verbose: only do it once
+if options.mpi != 1 or \
+       (options.mpi == 1 and rank == 0):
+
+    # print(options.mpi+1)
+    # print('rank', str(rank), 'in initialization routines')
+
+    # ==== Introductory verbose
+    # if Opti.parallel == False or \
+    #   (Opti.DREAMpar != 'mpi' or Config.MPIrank == 0):
+    print('')
+    print('******************************************************************')
+    print('The user provided definition file is: '+options.file)
+    print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+    if Config.mode.split('_')[0] == 'calib':
+        print('CALIBRATION with EcH2O: \n')
+    elif Config.mode == 'forward_runs':
+        print('ENSEMBLE RUNS with EcH2O')
+    elif Config.mode == 'sensi_morris':
+        print('MORRIS SENSITIVITY with EcH2O: ')
+        print('- construction of the trajectories')
+        print('- forward runs')
+        print('- storage of outputs and info for posterior analysis : ' +
+              'elementary effects, etc.')
+        print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+        print('')
+    print('')
+    print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
+    print('Climate data:\n', Config.PATH_CLIM)
+    print('Final outputs:\n', Config.PATH_OUT)
+    if Opti.parallel == False:
+        print('Maps & parameters:', Config.PATH_SPA)
+        print('Raw output from simulations:', Config.PATH_EXEC)
+    print('The user provided CFG file is: '+Config.cfg_ech2o)
+    if Site.isTrck == 1:
+        print('The user provided CFGtrck file is: '+cfgTrck_ech2o)
+    print('-----------------------------------------')
+    # -- How many variables ?
+    print('Total number of parameters :', Opti.nvar)
+    print('')
+
+    # Copy, edit directories / files
+    # In MPI parallel mode, care as to be taken to write only once
+    init.files(Config, Opti, Paras, Site)
+
+    if options.mpi == 1:  # i.e., rank == 0:
+        for i in range(1,size):
+            print('Rank 0: rank',i, ', wait for me!')
+            req = comm.isend('waited for you, chillax...', dest=i, tag=1)
+            req.wait()
+
+elif options.mpi == 1:  # i.e., rank > 0
+    # sys.path.insert(0, cwd_tmp)
+    req = comm.irecv(source=0, tag=1)
+    data = req.wait()
+    print('rank', str(rank), data)
+    
+
+    # -- Import classes and setup from the def file
+#     Config = None #__import__(file_py).Config
+#     Opti = None #__import__(file_py).Opti
+#     Data = None #__import__(file_py).Data
+#     Paras = None # __import__(file_py).Paras
+#     Site = None # __import__(file_py).Site
+
+# #print(Config.__dict__.keys())
+# #if options.mpi == 1:
+#     # In MPI mode, broadcast the class to all processes
+#     # Config = comm.bcast(Config, root=0)
+#     Opti = comm.bcast(Opti, root=0)
+#     Data = comm.bcast(Data, root=0)
+#     Paras = comm.bcast(Paras, root=0)
+#     Site = comm.bcast(Site, root=0)
+
+#print(Config.__dict__.keys())
+
+# sys.exit()
 
 # === Runs ========================================
 # -------------------

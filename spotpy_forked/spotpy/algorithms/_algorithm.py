@@ -435,6 +435,7 @@ class _algorithm(object):
         # we need a layer to fetch returned data from a threaded process into a queue.
         def model_layer(q,all_params):
             # Call self.model with a namedtuple instead of another sequence
+            print('run ech2o ?')
             q.put(self.setup.simulation(self.partype(*all_params)))
 
         # starting a queue, where in python2.7 this is a multiprocessing class and can cause errors because of

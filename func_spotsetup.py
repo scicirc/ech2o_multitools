@@ -27,6 +27,8 @@ from distutils.dir_util import copy_tree, remove_tree, mkpath
 from distutils.file_util import copy_file
 from contextlib import ExitStack
 
+from mpi4py import MPI
+
 # ==============================================================================
 
 
@@ -74,7 +76,9 @@ class spot_setup(object):
         self.curdir = copy.copy(Config.PATH_OUT)
         self.owd = copy.copy(Config.PATH_EXEC)
         self.parallel = copy.copy(parallel)
-
+        if self.parallel == 'mpi':
+            comm = MPI.COMM_WORLD
+            self.rank = comm.Get_rank()
         # Initialize custom database output.
         # More than one simulation type: save all likelihood
         # (DREAM only use the first one, i.e here the multi-objective)
@@ -157,13 +161,14 @@ class spot_setup(object):
             mkpath(self.PATH_EXEC)
         elif self.parallel == 'mpi':
             # Running n parallel on a unix system.
-            # Check the ID of the current mpi task
-            if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
-                call = str(int(os.environ['OMPI_COMM_WORLD_RANK'])+1)
-            elif 'PMI_RANK' in os.environ.keys():
-                call = str(int(os.environ['PMI_RANK'])+1)
-            else:
-                sys.exit('The ID of this task could not be found...')
+            # Check the ID of the current mpi task using mpi4py
+            call = str(int(self.rank))
+            # if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
+            #     call = str(int(os.environ['OMPI_COMM_WORLD_RANK'])+1)
+            # elif 'PMI_RANK' in os.environ.keys():
+            #     call = str(int(os.environ['PMI_RANK'])+1)
+            # else:
+            #     sys.exit('The ID of this task could not be found...')
         elif self.parallel == 'mpc':
             # Running n parallel on a single (Windows) computer.
             # ID of the current computer core
@@ -192,63 +197,67 @@ class spot_setup(object):
                                np.nan).tolist()
         # print('path exec 2:',self.PATH_EXEC)
 
-        try:
-            # print('\n-----------------------------------------------')
-            # print('Parameter object:')
-            # print(self.parameters())
-            # print(x)
-            
-            # Create the inputs for ECH2O's run
-            # Here, x is the current set of sampled parameter values.
-            # It is ordered as in Opti.names etc., so it can be used as is
-            params.sim_inputs(self.opti, self.par, self.site,
-                              self.PATH_SPA, 0, mode='spotpy', paramcur=x)
+        # try:
+        # print('\n-----------------------------------------------')
+        # print('Parameter object:')
+        # print(self.parameters())
+        # print(x)
         
-            # print('\n-----------------------------------------------\n')
+        # Create the inputs for ECH2O's run
+        # Here, x is the current set of sampled parameter values.
+        # It is ordered as in Opti.names etc., so it can be used as is
+        if self.parallel == 'mpi':
+            it = self.rank
+        else:
+            it = 0
+        params.sim_inputs(self.opti, self.par, self.site,
+                          self.PATH_SPA, it, mode='spotpy', paramcur=x)
         
-            # Run ECH2O
-            print('|| running ECH2O...', end='\r')
-            start = time.time()
-            os.system(self.config.cmde_ech2o + ' ' + self.cfg_ech2o +
-                      ' > '+self.PATH_EXEC + '/ech2o.log')
-            if self.parallel in ['mpi', 'mpc']:
-                print('|| EcH2O run done for core ID#'+call+', using',
-                      str(self.config.ncpu), 'cpu(s). Run time:',
-                      np.round(time.time()-start, 3), 'seconds')
-            else:
-                print('|| EcH2O run done using',
-                      str(self.config.ncpu), 'cpu(s). Run time:',
-                      np.round(time.time()-start, 3), 'seconds')
-            # (limit at',self.config.tlimit, ')')
+        # print('\n-----------------------------------------------\n')
+        
+        # Run ECH2O
+        print('|| running ECH2O...', end='\r')
+        start = time.time()
+        os.system(self.config.cmde_ech2o + ' ' + self.cfg_ech2o +
+                  ' > '+self.PATH_EXEC + '/ech2o.log')
+        if self.parallel in ['mpi', 'mpc']:
+            print('|| EcH2O run done for core ID#'+call+', using',
+                  str(self.config.ncpu), 'cpu(s). Run time:',
+                  np.round(time.time()-start, 3), 'seconds')
+        else:
+            print('|| EcH2O run done using',
+                  str(self.config.ncpu), 'cpu(s). Run time:',
+                  np.round(time.time()-start, 3), 'seconds')
+        # (limit at',self.config.tlimit, ')')
 
-            # Store outputs: for now restricted to time series
-            os.chdir(self.PATH_EXEC)
+        # Store outputs: for now restricted to time series
+        os.chdir(self.PATH_EXEC)
         
-            if self.data.nobs == 1:
-                simulations = outputs.read_sim(self.config, self.data,
-                                               self.data.names[0]).tolist()
-                if(len(simulations) < self.data.lsimEff):
-                    print('sim length:',len(simulations),
+        if self.data.nobs == 1:
+            simulations = outputs.read_sim(self.config, self.data,
+                                           self.data.names[0]).tolist()
+            if(len(simulations) < self.data.lsimEff):
+                print('sim length:',len(simulations),
+                      ', expected:',self.data.lsimEff)
+                simulations = [np.nan] * self.data.lsimEff
+                # sys.exit('Error: simulation output shorter than specified '+
+                #          "in configuration, maybe check EcH2O's config file...")
+                # print(type(simulations))
+        else:
+            for i in range(self.data.nobs):
+                oname = self.data.names[i]
+                simulations[i][:] = outputs.read_sim(self.config,
+                                                     self.data,
+                                                     oname).tolist()
+                if(len(simulations[i]) < self.data.lsimEff):
+                    print('sim length:',len(simulations[i]),
                           ', expected:',self.data.lsimEff)
-                    simulations = [np.nan] * self.data.lsimEff
+                    simulations[i][:] = [np.nan] * self.data.lsimEff
                     # sys.exit('Error: simulation output shorter than specified '+
-                    #          "in configuration, maybe check EcH2O's config file...")
-                    # print(type(simulations))
-            else:
-                for i in range(self.data.nobs):
-                    oname = self.data.names[i]
-                    simulations[i][:] = outputs.read_sim(self.config,
-                                                         self.data,
-                                                         oname).tolist()
-                    if(len(simulations[i]) < self.data.lsimEff):
-                        print('sim length:',len(simulations[i]),
-                              ', expected:',self.data.lsimEff)
-                        simulations[i][:] = [np.nan] * self.data.lsimEff
-                        # sys.exit('Error: simulation output shorter than specified '+
-                        #         "in configuration, maybe check EcH2O's config file...")
+                    #         "in configuration, maybe check EcH2O's config file...")
 
-        except():  # 'Model has failed'):
-            print('Something went wrong, this run is useless')
+        # except():  # 'Model has failed'):
+        # print('Something went wrong, this run is useless')
             # simulations = [np.nan] * self.data.lsimEff
             # Report param config that failed
             # f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
@@ -265,6 +274,7 @@ class spot_setup(object):
             # os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
             #           Config.PATH_OUT + '/ech2o_'+it+'.log')
 
+        #sys.exit()
         os.chdir(self.curdir)
 
         # Clean up
