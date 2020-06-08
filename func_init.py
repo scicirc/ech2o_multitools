@@ -18,6 +18,8 @@ import os
 import sys
 import glob
 import copy
+import time
+import re
 from datetime import timedelta
 from datetime import datetime
 
@@ -68,7 +70,7 @@ def config(options):
 
     # -- Main mode
     if Config.mode not in ['calib_MCsampling', 'calib_MCruns',
-                           'calib_DREAM', 'forward_runs',
+                           'calib_SPOTPY', 'forward_runs',
                            'sensi_morris']:
         sys.exit("Please choose a valid script mode!")
 
@@ -148,10 +150,10 @@ def config(options):
 
     # Determine if a parallel computing mode is activated
     Opti.parallel = False
-    if Config.mode == 'calib_DREAM':
-        if Opti.DREAMpar is None:  # By default, sequential runs
-            Opti.DREAMpar = 'seq'
-        elif Opti.DREAMpar in ['mpc', 'mpi']:
+    if Config.mode == 'calib_SPOTPY':
+        if Opti.SPOTpar is None:  # By default, sequential runs
+            Opti.SPOTpar = 'seq'
+        elif Opti.SPOTpar in ['mpc', 'mpi']:
             Opti.parallel = True
             #     from mpi4py import MPI
             #     Config.MPIcomm = MPI.COMM_WORLD
@@ -166,17 +168,20 @@ def config(options):
             # Config.ncpu = max(1, mp.cpu_count() // Opti.nChains)
 
     # #
-    # if (Opti.DREAMpar == 'mpi' and options.mpi != 1) or \
-    #    (Opti.DREAMpar != 'mpi' and options.mpi == 1):
+    # if (Opti.SPOTpar == 'mpi' and options.mpi != 1) or \
+    #    (Opti.SPOTpar != 'mpi' and options.mpi == 1):
     #     sys.exit('Inconsitent MPI flags between Opti and options')
 
     # print(options.outdir)
     # -- Calibration: all parameter path (and datasets, if needed)
     if Config.mode in ['calib_MCsampling', 'calib_MCruns']:
-        Config.PATH_PAR = os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                                       'Calibration_Samples'))
+        if not hasattr(Config, 'PATH_PAR'):
+            print('Warning: path to parameter samples not specified, ' + \
+                  'set to default')
+            Config.PATH_PAR = os.path.abspath(os.path.join(Config.PATH_MAIN,
+                                                           'Calibration_Samples'))
         Config.FILE_PAR = Config.PATH_PAR+'/'+options.outdir.split('.')[0] + \
-            '_parameters.'
+                          '_parameters.'
         # -- Creation of output directory
         if len(glob.glob(Config.PATH_PAR)) == 0:
             mkpath(Config.PATH_PAR)
@@ -186,9 +191,12 @@ def config(options):
         print('')
 
     if Config.mode.split('_')[0] == 'calib':
-        # Observations (for now only needed in DREAM mode)
-        Config.PATH_OBS = os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                                       'Calibration_Datasets'))
+        if not hasattr(Config, 'PATH_OBS'):
+            print('Warning: path to calibration datasets not specified, ' + \
+                  'set to default')
+            # Observations (for now only needed in DREAM mode)
+            Config.PATH_OBS = os.path.abspath(os.path.join(Config.PATH_MAIN,
+                                                           'Calibration_Datasets'))
 
     # -- Sensitivity: all parameter path
     if Config.mode == 'sensi_morris':
@@ -273,7 +281,7 @@ def parameters(Config, Opti, Paras, Site, options):
                 Opti.min += list(np.repeat(np.nan, nr))
                 Opti.max += list(np.repeat(np.nan, nr))
             # In log sampling case with spotpy, log-transform boundaries too
-            if Config.mode == 'calib_DREAM' and Opti.log[ipar2] == 1:
+            if Config.mode == 'calib_SPOTPY' and Opti.log[ipar2] == 1:
                 Opti.min[ipar2:ipar2+nr+1] = \
                     np.log10(Opti.min[ipar2:ipar2+nr+1]).tolist()
                 Opti.max[ipar2:ipar2+nr+1] = \
@@ -436,15 +444,19 @@ def parameters(Config, Opti, Paras, Site, options):
 # ==================================================================================
 
 
-def runs(Config, Opti, Data, Paras, Site, options):
+def runs(Config, Opti, Data, Paras, Site, options, top_rank):
 
-    # -- Runs directories
+    # -- Directories for runs
     # Forcings and reference maps
-    Config.PATH_SPA_REF = \
-        os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                     'Input_Maps_' + Site.Resol))
-    Config.PATH_CLIM = \
-        os.path.abspath(os.path.join(Config.PATH_MAIN, 'Input_Climate'))
+    if not hasattr(Config, 'PATH_SPA_REF'):
+        print('Warning: path to EcH2O input maps not specified, ' + \
+              'set to default')
+        Config.PATH_SPA_REF = os.path.join(Config.PATH_MAIN, 'Input_Maps')
+
+    if not hasattr(Config, 'PATH_CLIM'):
+        print('Warning: path to EcH2O climate input not specified, ' + \
+              'set to default')
+        Config.PATH_CLIM = os.path.join(Config.PATH_MAIN, 'Input_Climate')
 
     # Creation of inputs directory (PATH_SPA will use parameter sampling)
     # (in case of parallel runs as in DREAM+mpc/mpi, it will serve as
@@ -455,7 +467,7 @@ def runs(Config, Opti, Data, Paras, Site, options):
                                                    'Spatial'))
     # else:
     #     # In parallel computing case, one PATH_SPA per task
-    #     if Opti.DREAMpar  == 'mpi':
+    #     if Opti.SPOTpar  == 'mpi':
     #         # Running n parallel on a unix system (open MPI type).
     #         # Check the ID of the current mpi task
     #         if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
@@ -464,7 +476,7 @@ def runs(Config, Opti, Data, Paras, Site, options):
     #             call = str(int(os.environ['PMI_RANK'])+1)
     #         else:
     #             sys.exit('The ID of this task could not be found...')
-    #     if Opti.DREAMpar == 'mpc':
+    #     if Opti.SPOTpar == 'mpc':
     #         # Running n parallel on a single (Windows) computer.
     #         # ID of the current computer core
     #         call = str(os.getpid())
@@ -497,7 +509,12 @@ def runs(Config, Opti, Data, Paras, Site, options):
             sys.exit('The user provided EXEC file was not found: ' +
                      Config.exe)
             print('The user provided EXEC file is: '+Config.exe)
-    
+    # Remove if existing (serves as marker for parallel process, see init.files)
+    if top_rank == 1:
+        try:
+            os.remove(os.path.join(Config.PATH_OUT, Config.exe))
+        except:
+            print("Could not delete", Config.exe, "(doesn't exist)")
     # try:
     #     os.system('rm -f '+os.path.join(Config.PATH_OUT, Config.exe))
     # except(FileNotFound):
@@ -541,7 +558,7 @@ def runs(Config, Opti, Data, Paras, Site, options):
     # # In parellel computing case, one execution folder per task
     # if Opti.parallel == True:
     #     # In parallel computing case, one PATH_SPA per task
-    #     if Opti.DREAMpar  == 'mpi':
+    #     if Opti.SPOTpar  == 'mpi':
     #         # Running n parallel on a unix system (open MPI type).
     #         # Check the ID of the current mpi task
     #         if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
@@ -550,7 +567,7 @@ def runs(Config, Opti, Data, Paras, Site, options):
     #             call = str(int(os.environ['PMI_RANK'])+1)
     #         else:
     #             sys.exit('The ID of this task could not be found...')
-    #     elif Opti.DREAMpar == 'mpc':
+    #     elif Opti.SPOTpar == 'mpc':
     #         # Running n parallel on a single (Windows) computer.
     #         # ID of the current computer core
     #         call = str(os.getpid())
@@ -560,12 +577,18 @@ def runs(Config, Opti, Data, Paras, Site, options):
 
     # -- Ech2O run config file
     # Path for EcH2O config file
-    Config.cfgdir = Config.PATH_MAIN+'Input_Configs/'
+    if not hasattr(Config, 'PATH_CFG'):
+        print('Warning: path to EcH2O configs not specified, set to default')
+        Config.PATH_CFG = os.path.join(Config.PATH_MAIN,'Input_Configs')
+
     if options.cfg is not None:
         Config.cfg_ech2o = options.cfg+'.ini'
-        if len(glob.glob(Config.cfgdir+Config.cfg_ech2o)) == 0:
+        # Full path
+        Config.FILE_CFG = os.path.join(Config.PATH_CFG, Config.cfg_ech2o) 
+        if len(glob.glob(Config.FILE_CFG)) == 0:
             sys.exit('The user provided CFG file was not found: ' +
-                     Config.cfg_ech2o)
+                     Config.FILE_CFG)
+        
     else:
         sys.exit('Error: the script need a template ech2o config file!')
 
@@ -581,16 +604,21 @@ def runs(Config, Opti, Data, Paras, Site, options):
         else:
             cfgTrck_ech2o = options.cfg.split('_')[0] + \
                 'Trck_'+options.cfg.split('_')[1]+'.ini'
-
-        if len(glob.glob(Config.cfgdir+cfgTrck_ech2o)) == 0:
+        # Full path
+        Config.FILE_CFGtrck = os.path.join(Config.PATH_CFG, Config.cfgTrck_ech2o) 
+        if len(glob.glob(Config.FILE_CFG)) == 0:
             sys.exit('The user provided CFGtrck file was not found: ' +
-                     cfgTrck_ech2o)
+                     Config.FILE_CFGtrck)
 
     # -- Forward runs: parameter sets to use
     if Config.mode == 'forward_runs':
         if options.inEns is not None:
-            Config.FILE_PAR = Config.PATH_MAIN+'Input_Params/' +\
-                options.inEns+'.txt'
+            if not hasattr(Config, 'PATH_PAR'):
+                print('Warning: path to ensemble parameters not ' + \
+                      'specified, set to default')
+                Config.PATH_PAR = os.path.join(Config.PATH_MAIN, 
+                                               'Input_Params')
+            Config.FILE_PAR = Config.PATH_PAR + '/' + options.inEns+'.txt'
             # Config.FILE_PAR = Config.PATH_MAIN+'Input_Params/'+\
             # options.inEns+'.'+
             # options.nEns+'bestParams.txt'
@@ -660,7 +688,7 @@ def observations(Config, Opti, Data):
     # Same thing in froward mode (needs to be merged...)
     Config.treal = [Data.simbeg+timedelta(days=x) for x in range(Config.trimL)]
 
-    if Config.mode == 'calib_DREAM':
+    if Config.mode == 'calib_SPOTPY':
 
         # print('Reading measured datasets for calibration...')
 
@@ -704,64 +732,112 @@ def observations(Config, Opti, Data):
 # ==========================================================================
 
 
-def files(Config, Opti, Paras, Site):
+def files(Config, Opti, Paras, Site, top_rank):
 
-    # Copying and editing directories and files.
+    # Verbose, copying and editing directories and files.
+    # Only do it once, in mpi mode the top_rank option is used to check that:
+    # it is set to one whenever in sequential mode or mpi + rank=0
 
-    # Main output directory: create if needed
-    mkpath(Config.PATH_OUT)
-    # copy definition file there
-    copy_file(Config.file, Config.PATH_OUT)
+    if top_rank == 1:
 
-    # Copy of reference input parameters
-    # remove_tree(Config.PATH_SPA)
-    mkpath(Config.PATH_SPA)
-    os.system('cp -f '+Config.PATH_SPA_REF+'/*.map '+ Config.PATH_SPA)
-    copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA)
-    
-    # EcH2O executable file: clean up / update old symlink
-    copy_file(os.path.join(Config.PATH_MAIN, Config.exe),
-              Config.PATH_OUT)
-
-    # EcH2O config file: copy from template and edit 
-    copy_file(os.path.join(Config.PATH_MAIN, Config.cfgdir, Config.cfg_ech2o),
-              os.path.join(Config.PATH_OUT, 'config.ini'))
-    with open(os.path.join(Config.PATH_OUT, 'config.ini'), 'a') as fw:
-        fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
-        fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM+'\n')
-        fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
-        fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
-        # Input maps directory defined here (unless you need parallel runs
-        # with DREAM, in which case the directory will change on the fly,
-        # see spot_setup.simulation)
+        # ==== Introductory verbose
+        # if Opti.parallel == False or \
+            #   (Opti.DREAMpar != 'mpi' or Config.MPIrank == 0):
+        print('')
+        print('******************************************************************')
+        print('The user provided definition file is:\n'+Config.file)
+        print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+        if Config.mode.split('_')[0] == 'calib':
+            print('CALIBRATION with EcH2O: \n')
+        elif Config.mode == 'forward_runs':
+            print('ENSEMBLE RUNS with EcH2O')
+        elif Config.mode == 'sensi_morris':
+            print('MORRIS SENSITIVITY with EcH2O: ')
+            print('- construction of the trajectories')
+            print('- forward runs')
+            print('- storage of outputs and info for posterior analysis : ' +
+                  'elementary effects, etc.')
+            print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+            print('')
+        print('')
+        print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
+        print('Climate data:\n', Config.PATH_CLIM)
+        if Config.mode == 'calib_SPOTPY':
+            print('Calibration datasets:\n', Config.PATH_OBS)
+        print('Final outputs:\n', Config.PATH_OUT)
         if Opti.parallel is False:
-            fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
-            fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')
-        # Further edit regarding tracking
-        if Site.isTrck == 1 :
-            fw.write('Tracking = 1\n')
-            fw.write('TrackingConfig = configTrck.ini\n')
-        else:
-            fw.write('Tracking = 0\n')
+            print('Maps & parameters:', Config.PATH_SPA)
+            print('Raw output from simulations:', Config.PATH_EXEC)
+        print('The user provided CFG file is: \n'+Config.FILE_CFG)
+        if Site.isTrck == 1:
+            print('The user provided CFGtrck file is:\n' + Config.FILE_CFGtrck)
+        print('-----------------------------------------')
+        # -- How many variables ?
+        print('Total number of parameters :', Opti.nvar)
+        print('')
 
-    # If tracking, copy template configTrck file for EcH2O
-    if Site.isTrck == 1:
-        copy_file(os.path.join(Config.PATH_MAIN, Config.cfgdir,cfgTrck_ech2o),
-                  os.path.join(Config.PATH_OUT, 'configTrck.ini'))
+        # Main output directory: create if needed
+        mkpath(Config.PATH_OUT)
+        # copy definition file there
+        copy_file(Config.file, Config.PATH_OUT)
+
+        # EcH2O config file: copy from template and edit
+        Config.FILE_CFGdest = os.path.join(Config.PATH_OUT, 'config.ini')
+        copy_file(Config.FILE_CFG, Config.FILE_CFGdest)
+       
+        with open(Config.FILE_CFGdest, 'a') as fw:
+            fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
+            fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM+'\n')
+            # fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
+            # fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
+            # Further edit regarding tracking
+            if Site.isTrck == 1 :
+                fw.write('Tracking = 1\n')
+                fw.write('TrackingConfig = configTrck.ini\n')
+            else:
+                fw.write('Tracking = 0\n')
+            # Input maps directory defined here (unless you need parallel runs
+            # with DREAM, in which case the directory will change on the fly,
+            # see spot_setup.simulation)
+            if Opti.parallel is False:
+                fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
+                fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')
+
+        # If tracking, copy template configTrck file for EcH2O
+        if Site.isTrck == 1:
+            copy_file(Config.FILE_CFGtrck, 
+                      os.path.join(Config.PATH_OUT, 'configTrck.ini'))
+
+        # Copy of reference input parameters
+        # remove_tree(Config.PATH_SPA)
+        mkpath(Config.PATH_SPA)
+        os.system('cp -f '+Config.PATH_SPA_REF+'/*.map '+ Config.PATH_SPA)
+        # Remove the default map files of calibrated param in the inputs directory
+        # --> helps checking early on if there is an improper map update
+        # for pname in Paras.names:
+        #     if Paras.ref[pname]['veg'] == 0:
+        #         os.remove(Config.PATH_SPA+'/' + Paras.ref[pname]['file']+'.map')
+        copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA)
+    
+        # Keep it as last action in this if !
+        # EcH2O executable file: clean up / update old symlink
+        copy_file(os.path.join(Config.PATH_MAIN, Config.exe),
+                  Config.PATH_OUT)
+
+    else:
+        # In MPI mode, make other processes wait until EcH2O has been copied
+        # which means the top_rank process finished all the preps
+        while len(glob.glob(os.path.join(Config.PATH_OUT, Config.exe))) == 0 :            
+            time.sleep(1)
 
 
-    # -- Preparing inputs maps/files for site geometry etc.
-
-    # Remove the default map files of calibrated param in the inputs directory
-    # --> helps checking early on if there is an improper map update
-    for pname in Paras.names:
-        if Paras.ref[pname]['veg'] == 0:
-            os.system('rm -f '+Config.PATH_SPA+'/' +
-                      Paras.ref[pname]['file']+'.map')
-    # Soils / units maps
+    # === Preparing inputs maps/files for site geometry etc.
+    # === (for all processes)
+   
+    # -- Soils / units maps
+    # Initialization by cloning base map
     Config.cloneMap = pcr.boolean(pcr.readmap(Config.PATH_SPA+'/base.map'))
     pcr.setclone(Config.PATH_SPA+'/base.map')
-
     Site.bmaps = {}
     for im in range(Site.ns):
         Site.bmaps[Site.soils[im]] = pcr.readmap(Config.PATH_SPA+'/' +
@@ -769,20 +845,25 @@ def files(Config, Opti, Paras, Site):
     Site.bmaps['unit'] = pcr.readmap(Config.PATH_SPA+'/unit.map')
     # Stream network
     Site.bmaps['chanmask'] = pcr.readmap(Config.PATH_SPA+'/chanmask.map')
-    Site.bmaps['chanmask_NaN'] = pcr.readmap(Config.PATH_SPA +
-                                             '/chanmask_NaN.map')
-    # Bare rock simulation
+    # Site.bmaps['chanmask_NaN'] = pcr.readmap(Config.PATH_SPA +
+    #                                          '/chanmask_NaN.map')
+    # Bare rock patches
     if Site.simRock is not None and Site.simRock == 1:
         # Site.bmaps['nolowK'] = readmap(Config.PATH_SPA+'/unit.nolowK.map')
         Site.bmaps['rock'] = pcr.readmap(Config.PATH_SPA+'/unit.rock.map')
 
-    # Reference dictionary for vegetation inputs file
+    # -- Vegetation inputs file: reference dictionary
     Opti.vref = {}
+    # Read template file
     with open(Config.PATH_SPA_REF+'/' + Site.vfile, 'r') as csvfile:
         paramread = list(csv.reader(csvfile, delimiter='\t'))
-    exit
     # "Head": number of species and of params
     Opti.vref['header'] = paramread[0][0:len(paramread[0])]
+    # Check that the number of species per params in def files matches
+    if Site.nv != len(paramread)-3:
+        sys.exit('ERROR: the number of species in def files (', Site.nv,
+                 ') differs from that in templace params file (',
+                 len(paramread)-3,')')
     # All parameters values (keep strings!)
     for iv in range(Site.nv):
         Opti.vref[iv] = paramread[iv+1][0:len(paramread[iv+1])]

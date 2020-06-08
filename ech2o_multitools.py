@@ -34,8 +34,10 @@ What do you want to do ? ==> Specified by the "mode" in Config (def file)
  'calib_MCsampling': generate brute force Monte Carlo ensemble
                    of parameters sets for calibration
  'calib_MCruns': runs the model for all MC-sampled parameters
- 'calib_DREAM': calibration using the Differential Evolution Adaptative
-                Metropolis (DREAM) algorithm, using the Spotpy package
+ 'calib_SPOTPY': calibration using one of the algorithms available in SPOTPY
+                 and adapted here (Opti.SPOTalgo in def file).
+                 For now, it's only the Differential Evolution Adaptative
+                 Metropolis (DREAM) algorithm
  'forward_runs': runs the model for an ensemble of runs,
                  (usually the best configurations from the calibration.
                  Allows to look at observations not used in calibration)
@@ -121,9 +123,20 @@ parser.add_option("--MSspace", dest="MSspace", metavar="MSspace",
 (options, args) = parser.parse_args()
 
 # For MPI
-# rank = -1
-# if options.mpi == '1':
-#     options.mpi = int(options.mpi)
+top_rank = 1
+if options.mpi == '1':
+    # Running n parallel on a unix system.
+    options.mpi = int(options.mpi)
+    # Check the ID of the current mpi using os
+    # (not mpi4py because it messes up later mpi use in spotpy routines...)
+    if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
+        rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
+    elif 'PMI_RANK' in os.environ.keys():
+        rank = int(os.environ['PMI_RANK'])
+    # For later use
+    if rank != 0:
+        top_rank = 0
+    # print('1 - rank:',rank)
 #     from mpi4py import MPI
 #     comm = MPI.COMM_WORLD
 #     rank = comm.Get_rank()
@@ -136,67 +149,30 @@ parser.add_option("--MSspace", dest="MSspace", metavar="MSspace",
 # Configuration --------------------------------
 (Config, Opti, Data, Paras, Site) = init.config(options)
 
-# Parameters: from definition to all values ------
-init.parameters(Config, Opti, Paras, Site, options)
-
 # Whenever there are EcH2O runs: a few others initializations
 if Config.runECH2O == 1:
     # Runs' properties etc.
-    init.runs(Config, Opti, Data, Paras, Site, options)
+    init.runs(Config, Opti, Data, Paras, Site, options, top_rank)
     # Initialize observation names
     # (and read datasets if in DREAM calibration mode)
     init.observations(Config, Opti, Data)
 
+# Parameters: from definition to all values ------
+init.parameters(Config, Opti, Paras, Site, options)
+
 # Files and verbose: only do it once
-if options.mpi != 1 or \
-       (options.mpi == 1):  # and rank == 0):
+# print(options.mpi+1)
+# print('rank', str(rank), 'in initialization routines')
+init.files(Config, Opti, Paras, Site, top_rank)
 
-    # print(options.mpi+1)
-    # print('rank', str(rank), 'in initialization routines')
-
-    # ==== Introductory verbose
-    # if Opti.parallel == False or \
-    #   (Opti.DREAMpar != 'mpi' or Config.MPIrank == 0):
-    print('')
-    print('******************************************************************')
-    print('The user provided definition file is: '+options.file)
-    print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-    if Config.mode.split('_')[0] == 'calib':
-        print('CALIBRATION with EcH2O: \n')
-    elif Config.mode == 'forward_runs':
-        print('ENSEMBLE RUNS with EcH2O')
-    elif Config.mode == 'sensi_morris':
-        print('MORRIS SENSITIVITY with EcH2O: ')
-        print('- construction of the trajectories')
-        print('- forward runs')
-        print('- storage of outputs and info for posterior analysis : ' +
-              'elementary effects, etc.')
-        print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-        print('')
-    print('')
-    print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
-    print('Climate data:\n', Config.PATH_CLIM)
-    print('Final outputs:\n', Config.PATH_OUT)
-    if Opti.parallel is False:
-        print('Maps & parameters:', Config.PATH_SPA)
-        print('Raw output from simulations:', Config.PATH_EXEC)
-    print('The user provided CFG file is: '+Config.cfg_ech2o)
-    if Site.isTrck == 1:
-        print('The user provided CFGtrck file is: ' + Config.cfgTrck_ech2o)
-    print('-----------------------------------------')
-    # -- How many variables ?
-    print('Total number of parameters :', Opti.nvar)
-    print('')
-
-    # Copy, edit directories / files
-    # In MPI parallel mode, care as to be taken to write only once
-    init.files(Config, Opti, Paras, Site)
-
+# if options.mpi == 1:
+#     print('2 - rank:',rank)
 #     if options.mpi == 1:  # i.e., rank == 0:
 #         for i in range(1,size):
 #             print('Rank 0: rank',i, ', wait for me!')
 #             req = comm.isend('waited for you, chillax...', dest=i, tag=1)
 #             req.wait()
+# sys.exit()
 
 # elif options.mpi == 1:  # i.e., rank > 0
 #     # sys.path.insert(0, cwd_tmp)
@@ -231,19 +207,23 @@ if Config.mode == 'calib_MCruns':
     # Calibration loop
     runs.calibMC_runs(Config, Opti, Data, Paras, Site)
 
-elif Config.mode == 'calib_DREAM':
+elif Config.mode == 'calib_SPOTPY':
 
-    # Initialize
-    spot_setup = \
-        spot_setup.spot_setup(Config, Opti, Paras,
-                              Data, Site,
-                              parallel=Opti.DREAMpar,
-                              _used_algorithm='dream',
-                              # file extension added automatically
-                              dbname=Config.PATH_OUT+'/DREAMech2o')
-    sampler = \
-        spotpy.algorithms.dream(spot_setup, parallel=Opti.DREAMpar,
-                                dbformat='custom')
+    if Opti.SPOTalgo in ['DREAM']:
+        # Initialize
+        spot_setup = spot_setup.spot_setup(Config, Opti, Paras,
+                                           Data, Site,
+                                           parallel=Opti.SPOTpar,
+                                           _used_algorithm = Opti.SPOTalgo.lower(),
+                                           # file extension added automatically
+                                           dbname=Config.PATH_OUT+'/' + \
+                                           Opti.SPOTalgo+'ech2o')
+        if Opti.SPOTalgo == 'DREAM':
+            sampler = spotpy.algorithms.dream(spot_setup, 
+                                              parallel=Opti.SPOTpar,
+                                              dbformat='custom')
+    else:
+        sys.exit('Error: other SPOTPY algorithms to be added to multitools...')
     # dbname=Config.PATH_OUT+'/DREAM_ech2o',
     # dbformat='csv')
 

@@ -14,6 +14,7 @@
 import pcraster as pcr
 import copy
 import numpy as np
+import re
 
 # ----------------------------------------------------------------------------
 # -- Write parameters values file
@@ -119,11 +120,8 @@ def sim_inputs(Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
             # No spatial/veg dependence, but channel stuff
             else:
                 # print 'Not dependent !!'
-                if Paras.ref[pname]['file'] in ['chanwidth', 'chanmanningn']:
+                if Paras.ref[pname]['file'] in ['chanwidth', 'chanmanningn', 'chanparam']:
                     outmap = Site.bmaps['chanmask']*Opti.x[Paras.ind[pname]]
-                elif Paras.ref[pname]['file'] == 'chanparam':
-                    outmap = \
-                        Site.bmaps['chanmask_NaN']*Opti.x[Paras.ind[pname]]
                 else:
                     outmap = Site.bmaps['unit']*Opti.x[Paras.ind[pname]]
 
@@ -148,59 +146,116 @@ def sim_inputs(Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
 
     # Initial soil water content: needs porosity profile and depth to have
     # consistent initial soil moisture for each layer
-    if 'Porosity0' in Paras.names:
-        poros = pcr.readmap(path_spa+'/' +
-                            Paras.ref['Porosity0']['file']+'.map')
-    elif 'Porosity' in Paras.names:
-        poros = pcr.readmap(path_spa+'/'+Paras.ref['Porosity']['file'] +
-                            '.map')
-    else:
-        poros = pcr.readmap(path_spa+'/poros0.map')
+    
+    # Check which porosity profile mode is on in config file
+    pattern = re.compile('Porosity_profile')
+    with open (Config.FILE_CFGdest, 'rt') as myfile:    
+        for line in myfile:
+            if pattern.search(line) != None:      # If a match is found 
+                poros_mode = int(line.strip('=')[1].strip())
+                break
+    print('Porosity profile:',poros_mode)
+    # Get base porosity
+    pattern = re.compile('Top-of-profile_Porosity')
+    with open (Config.FILE_CFGdest, 'rt') as myfile:    
+        for line in myfile:
+            if pattern.search(line) != None:      # If a match is found 
+                poros_file = line.strip('=')[1].strip()
+                break
+    print('Porosity (base) map file:',poros_file)
+    poros = pcr.readmap(path_spa+'/' + poros_file)
+    
+    # Depending on porosity profile mode, different ways to each layer's porosity
+    if poros_mode == 0:
+        # Constant profile
+        porosL1 = poros
+        porosL2 = poros
+        porosL3 = poros
 
-    if 'kPorosity' in Paras.names:
-
-        kporos = pcr.readmap(path_spa+'/' +
-                             Paras.ref['kPorosity']['file']+'.map')
-
-        if 'HLayer1' in Paras.names:
-            dL1 = pcr.readmap(path_spa+'/' +
-                              Paras.ref['HLayer1']['file']+'.map')
-        else:
-            dL1 = pcr.readmap(path_spa+'/soildepth.L1.map')
-        if 'HLayer2' in Paras.names:
-            dL2 = pcr.readmap(path_spa+'/' +
-                              Paras.ref['HLayer2']['file']+'.map')
-        else:
-            dL2 = pcr.readmap(path_spa+'/soildepth.L2.map')
-        if 'Depth' in Paras.names:
-            dTot = pcr.readmap(path_spa+'/' +
-                               Paras.ref['Depth']['file']+'.map')
-        else:
-            dTot = pcr.readmap(path_spa+'/soildepth.map')
-
+    elif poros_mode == 1:
+        # Exponential: profile coeff and depths are needed
+        pattern1 = re.compile('Porosity_Profile_coeff')
+        pattern2 = re.compile('Depth_soil_layer_1')
+        pattern3 = re.compile('Depth_soil_layer_2')
+        pattern4 = re.compile('Soil_depth')
+        count = 0 
+        with open (Config.FILE_CFGdest, 'rt') as myfile:    
+            for line in myfile:
+                if pattern1.search(line) != None:      # If a match is found 
+                    kporos_file = line.strip('=')[1].strip()
+                    count += 1
+                if pattern2.search(line) != None:      # If a match is found 
+                    dL1_file = line.strip('=')[1].strip()
+                    count += 1
+                if pattern3.search(line) != None:      # If a match is found 
+                    dL2_file = line.strip('=')[1].strip()
+                    count += 1
+                if pattern4.search(line) != None:      # If a match is found 
+                    dsoil_file = line.strip('=')[1].strip()
+                    count += 1
+                if count == 4:
+                    break
+        print('Porosity coeff map file:', kporos_file)
+        # Read maps
+        kporos = pcr.readmap(path_spa+'/' + kporos_file)
+        dL1 = pcr.readmap(path_spa+'/' + dL1_file)
+        dL2 = pcr.readmap(path_spa+'/' + dL2_file)
+        dsoil = pcr.readmap(path_spa+'/' + dsoil_file)
         # Layer-integrated values from profile
         porosL1 = kporos*poros*(1-pcr.exp(-dL1/kporos))/dL1
         porosL2 = kporos*poros*(pcr.exp(-dL1/kporos) -
                                 pcr.exp(-(dL1+dL2)/kporos))/dL2
         porosL3 = kporos*poros*(pcr.exp(-(dL1+dL2)/kporos) -
-                                pcr.exp(-dTot/kporos))/(dTot-dL1-dL2)
-
-    elif 'PorosL2' in Paras.names and 'PorosL3' in Paras.names:
+                                pcr.exp(-dsoil/kporos))/(dsoil-dL1-dL2)
+  
+    elif poros_mode == 2:
+        # Porosity map given for each layer
+        # L2
+        pattern1 = re.compile('Porosity_Layer2')
+        pattern2 = re.compile('Porosity_Layer3')
+        count = 0
+        with open (Config.FILE_CFGdest, 'rt') as myfile:    
+            for line in myfile:
+                if pattern1.search(line) != None:      # If a match is found 
+                    porosL2_file = line.strip('=')[1].strip()
+                    count += 1
+                if pattern2.search(line) != None:      # If a match is found 
+                    porosL3_file = line.strip('=')[1].strip()
+                    count += 1
+                if count == 2:
+                    break
+        # Assign
         porosL1 = poros
-        porosL2 = pcr.readmap(path_spa+'/poros.L2.map')
-        porosL3 = pcr.readmap(path_spa+'/poros.L3.map')
-
-    else:
-        porosL1 = poros
-        porosL2 = poros
-        porosL3 = poros
-
+        porosL2 = pcr.readmap(path_spa+'/' + porosL2_file)
+        porosL3 = pcr.readmap(path_spa+'/' + porosL3_file)
+    
     # -- Use a fraction of these porosities as initial soil moisture
-    pcr.report(porosL1*0.9, path_spa + '/Init_SWC.L1.map')
-    pcr.report(porosL2*0.9, path_spa + '/Init_SWC.L2.map')
-    pcr.report(porosL3*0.9, path_spa+'/Init_SWC.L3.map')
+    pattern1 = re.compile('Soil_moisture_1')
+    pattern2 = re.compile('Soil_moisture_2')
+    pattern3 = re.compile('Soil_moisture_3')
+    count = 0
+    with open (Config.FILE_CFGdest, 'rt') as myfile:    
+        for line in myfile:
+            if pattern1.search(line) != None:      # If a match is found 
+                initSWC1_file = line.strip('=')[1].strip()
+                print('key SWC1 found !')
+                count += 1
+            if pattern2.search(line) != None:      # If a match is found 
+                initSWC2_file = line.strip('=')[1].strip()
+                print('key SWC2 found !')
+                count += 1
+            if pattern3.search(line) != None:      # If a match is found 
+                initSWC3_file = line.strip('=')[1].strip()
+                print('key SWC3 found !')
+                count += 1
+            if count == 3:
+                break
+    # Write initial moisture maps
+    pcr.report(porosL1*0.9, path_spa + '/' + initSWC1_file)
+    pcr.report(porosL2*0.9, path_spa + '/' + initSWC2_file)
+    pcr.report(porosL3*0.9, path_spa + '/' + initSWC3_file)
 
-    # - Finalizing the vegetation parameterization
+    # - Updating the vegetation parameterization
     if Paras.isveg > 0:
         # Equalize leaf turnover and additional turnover due to water and/or
         # temperature stress
@@ -217,3 +272,5 @@ def sim_inputs(Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
         vegfile.write('\t'.join(Opti.vref['footer'])+'\n')
         vegfile.write('\t'.join(Opti.vref['name'])+'\n')
         vegfile.close()
+
+    sys.exit()
