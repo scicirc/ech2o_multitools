@@ -46,6 +46,7 @@ def read_sim(Config, Data, oname):
         # print(oname, len(tmp))
         if Data.lspin > 1:
             sim = tmp[Data.lspin-1:Data.lsim-1]
+        print(oname,'before trim:',len(tmp), 'after trim',len(sim))
         # print(sim.shape)
         # print(sim)
         # print(len(sim))

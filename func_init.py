@@ -19,7 +19,6 @@ import sys
 import glob
 import copy
 import time
-import re
 from datetime import timedelta
 from datetime import datetime
 
@@ -33,14 +32,13 @@ import csv
 # import multiprocessing as mp
 
 
-from distutils.dir_util import mkpath, copy_tree, remove_tree
+from distutils.dir_util import mkpath
 from distutils.file_util import copy_file
 
 # ----------------------------------------------------------------------------
 
 
 def config(options):
-
 
     # Current working directory (temporary, just to import the def file)
     cwd_tmp = os.getcwd()+'/'
@@ -160,7 +158,7 @@ def config(options):
             #     Config.MPIsize = comm.Get_size()
             #     Config.MPIrank = comm.Get_rank()
             # Determine with process we're on, to avoid multiple prints
-            
+
             # If in parallel mode, use as many CPUs as possible unless
             # the number of chains is larger
             # NOPE; not fit for cluster where cpu_count() doesn't work?
@@ -176,12 +174,12 @@ def config(options):
     # -- Calibration: all parameter path (and datasets, if needed)
     if Config.mode in ['calib_MCsampling', 'calib_MCruns']:
         if not hasattr(Config, 'PATH_PAR'):
-            print('Warning: path to parameter samples not specified, ' + \
+            print('Warning: path to parameter samples not specified, ' +
                   'set to default')
             Config.PATH_PAR = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                            'Calibration_Samples'))
         Config.FILE_PAR = Config.PATH_PAR+'/'+options.outdir.split('.')[0] + \
-                          '_parameters.'
+            '_parameters.'
         # -- Creation of output directory
         if len(glob.glob(Config.PATH_PAR)) == 0:
             mkpath(Config.PATH_PAR)
@@ -192,7 +190,7 @@ def config(options):
 
     if Config.mode.split('_')[0] == 'calib':
         if not hasattr(Config, 'PATH_OBS'):
-            print('Warning: path to calibration datasets not specified, ' + \
+            print('Warning: path to calibration datasets not specified, ' +
                   'set to default')
             # Observations (for now only needed in DREAM mode)
             Config.PATH_OBS = os.path.abspath(os.path.join(Config.PATH_MAIN,
@@ -213,7 +211,7 @@ def config(options):
         Config.FILE_TRAJ = Config.PATH_TRAJ+'/'+options.outdir.split('.')[0]
         # -- Creation of output directory
         if len(glob.glob(Config.PATH_TRAJ)) == 0:
-            mkdir(Config.PATH_TRAJ)
+            mkpath(Config.PATH_TRAJ)
 
         # -- Output of elementary effects
         # if(Config.MSinit == 0):
@@ -252,6 +250,8 @@ def parameters(Config, Opti, Paras, Site, options):
     if not hasattr(Opti, 'initSample'):
         Opti.initSample = 'uniform'
 
+    # -- Construct parameter-realted vectors used in calibration,
+    # sensitivity or ensemble runs
     for par in Paras.names:
 
         # Dimensions (soil or veg or 1)
@@ -441,6 +441,7 @@ def parameters(Config, Opti, Paras, Site, options):
         if(len(Opti.xpar[0]) != len(Opti.names)):
             sys.exit("The definition file and input parameter file ain't " +
                      "matching!")
+
 # ==================================================================================
 
 
@@ -449,12 +450,12 @@ def runs(Config, Opti, Data, Paras, Site, options, top_rank):
     # -- Directories for runs
     # Forcings and reference maps
     if not hasattr(Config, 'PATH_SPA_REF'):
-        print('Warning: path to EcH2O input maps not specified, ' + \
+        print('Warning: path to EcH2O input maps not specified, ' +
               'set to default')
         Config.PATH_SPA_REF = os.path.join(Config.PATH_MAIN, 'Input_Maps')
 
     if not hasattr(Config, 'PATH_CLIM'):
-        print('Warning: path to EcH2O climate input not specified, ' + \
+        print('Warning: path to EcH2O climate input not specified, ' +
               'set to default')
         Config.PATH_CLIM = os.path.join(Config.PATH_MAIN, 'Input_Climate')
 
@@ -480,7 +481,6 @@ def runs(Config, Opti, Data, Paras, Site, options, top_rank):
     #         # Running n parallel on a single (Windows) computer.
     #         # ID of the current computer core
     #         call = str(os.getpid())
-            
     #     Config.PATH_SPA = os.path.abspath(os.path.join(Config.PATH_OUT,
     #                                                    'Spatial_'+call))
 
@@ -520,7 +520,7 @@ def runs(Config, Opti, Data, Paras, Site, options, top_rank):
     # except(FileNotFound):
     #     print('No symlink found, no need to remove')
     # # Symbolic link to executable
-    # try:        
+    # try:
     #     os.symlink(os.path.join(Config.PATH_MAIN, Config.exe),
     #                os.path.join(Config.PATH_OUT, Config.exe))
     # except(FileExistsError):
@@ -579,16 +579,18 @@ def runs(Config, Opti, Data, Paras, Site, options, top_rank):
     # Path for EcH2O config file
     if not hasattr(Config, 'PATH_CFG'):
         print('Warning: path to EcH2O configs not specified, set to default')
-        Config.PATH_CFG = os.path.join(Config.PATH_MAIN,'Input_Configs')
+        Config.PATH_CFG = os.path.join(Config.PATH_MAIN, 'Input_Configs')
 
     if options.cfg is not None:
         Config.cfg_ech2o = options.cfg+'.ini'
         # Full path
-        Config.FILE_CFG = os.path.join(Config.PATH_CFG, Config.cfg_ech2o) 
+        Config.FILE_CFG = os.path.join(Config.PATH_CFG, Config.cfg_ech2o)
         if len(glob.glob(Config.FILE_CFG)) == 0:
             sys.exit('The user provided CFG file was not found: ' +
                      Config.FILE_CFG)
-        
+        # Where the config file will be (first) copied
+        Config.FILE_CFGdest = os.path.join(Config.PATH_OUT, 'config.ini')
+
     else:
         sys.exit('Error: the script need a template ech2o config file!')
 
@@ -600,12 +602,13 @@ def runs(Config, Opti, Data, Paras, Site, options, top_rank):
         Site.isTrck = 0
     if Site.isTrck == 1:
         if options.cfgTrck is not None:
-            cfgTrck_ech2o = options.cfgTrck+'.ini'
+            Config.cfgTrck_ech2o = options.cfgTrck+'.ini'
         else:
-            cfgTrck_ech2o = options.cfg.split('_')[0] + \
+            Config.cfgTrck_ech2o = options.cfg.split('_')[0] + \
                 'Trck_'+options.cfg.split('_')[1]+'.ini'
         # Full path
-        Config.FILE_CFGtrck = os.path.join(Config.PATH_CFG, Config.cfgTrck_ech2o) 
+        Config.FILE_CFGtrck = os.path.join(Config.PATH_CFG,
+                                           Config.cfgTrck_ech2o)
         if len(glob.glob(Config.FILE_CFG)) == 0:
             sys.exit('The user provided CFGtrck file was not found: ' +
                      Config.FILE_CFGtrck)
@@ -614,9 +617,9 @@ def runs(Config, Opti, Data, Paras, Site, options, top_rank):
     if Config.mode == 'forward_runs':
         if options.inEns is not None:
             if not hasattr(Config, 'PATH_PAR'):
-                print('Warning: path to ensemble parameters not ' + \
+                print('Warning: path to ensemble parameters not ' +
                       'specified, set to default')
-                Config.PATH_PAR = os.path.join(Config.PATH_MAIN, 
+                Config.PATH_PAR = os.path.join(Config.PATH_MAIN,
                                                'Input_Params')
             Config.FILE_PAR = Config.PATH_PAR + '/' + options.inEns+'.txt'
             # Config.FILE_PAR = Config.PATH_MAIN+'Input_Params/'+\
@@ -742,9 +745,9 @@ def files(Config, Opti, Paras, Site, top_rank):
 
         # ==== Introductory verbose
         # if Opti.parallel == False or \
-            #   (Opti.DREAMpar != 'mpi' or Config.MPIrank == 0):
+        # (Opti.DREAMpar != 'mpi' or Config.MPIrank == 0):
         print('')
-        print('******************************************************************')
+        print('**************************************************************')
         print('The user provided definition file is:\n'+Config.file)
         print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
         if Config.mode.split('_')[0] == 'calib':
@@ -757,7 +760,7 @@ def files(Config, Opti, Paras, Site, top_rank):
             print('- forward runs')
             print('- storage of outputs and info for posterior analysis : ' +
                   'elementary effects, etc.')
-            print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+            print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
             print('')
         print('')
         print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
@@ -782,16 +785,15 @@ def files(Config, Opti, Paras, Site, top_rank):
         copy_file(Config.file, Config.PATH_OUT)
 
         # EcH2O config file: copy from template and edit
-        Config.FILE_CFGdest = os.path.join(Config.PATH_OUT, 'config.ini')
         copy_file(Config.FILE_CFG, Config.FILE_CFGdest)
-       
+
         with open(Config.FILE_CFGdest, 'a') as fw:
             fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
             fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM+'\n')
             # fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
             # fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
             # Further edit regarding tracking
-            if Site.isTrck == 1 :
+            if Site.isTrck == 1:
                 fw.write('Tracking = 1\n')
                 fw.write('TrackingConfig = configTrck.ini\n')
             else:
@@ -805,20 +807,20 @@ def files(Config, Opti, Paras, Site, top_rank):
 
         # If tracking, copy template configTrck file for EcH2O
         if Site.isTrck == 1:
-            copy_file(Config.FILE_CFGtrck, 
+            copy_file(Config.FILE_CFGtrck,
                       os.path.join(Config.PATH_OUT, 'configTrck.ini'))
 
         # Copy of reference input parameters
         # remove_tree(Config.PATH_SPA)
         mkpath(Config.PATH_SPA)
-        os.system('cp -f '+Config.PATH_SPA_REF+'/*.map '+ Config.PATH_SPA)
-        # Remove the default map files of calibrated param in the inputs directory
+        os.system('cp -f '+Config.PATH_SPA_REF+'/*.map ' + Config.PATH_SPA)
+        # Remove the default map files of calibrated param in the inputs dir.
         # --> helps checking early on if there is an improper map update
         # for pname in Paras.names:
         #     if Paras.ref[pname]['veg'] == 0:
-        #         os.remove(Config.PATH_SPA+'/' + Paras.ref[pname]['file']+'.map')
+        #     os.remove(Config.PATH_SPA+'/' + Paras.ref[pname]['file']+'.map')
         copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA)
-    
+
         # Keep it as last action in this if !
         # EcH2O executable file: clean up / update old symlink
         copy_file(os.path.join(Config.PATH_MAIN, Config.exe),
@@ -827,13 +829,12 @@ def files(Config, Opti, Paras, Site, top_rank):
     else:
         # In MPI mode, make other processes wait until EcH2O has been copied
         # which means the top_rank process finished all the preps
-        while len(glob.glob(os.path.join(Config.PATH_OUT, Config.exe))) == 0 :            
+        while len(glob.glob(os.path.join(Config.PATH_OUT, Config.exe))) == 0:
             time.sleep(1)
-
 
     # === Preparing inputs maps/files for site geometry etc.
     # === (for all processes)
-   
+
     # -- Soils / units maps
     # Initialization by cloning base map
     Config.cloneMap = pcr.boolean(pcr.readmap(Config.PATH_SPA+'/base.map'))
@@ -852,6 +853,67 @@ def files(Config, Opti, Paras, Site, top_rank):
         # Site.bmaps['nolowK'] = readmap(Config.PATH_SPA+'/unit.nolowK.map')
         Site.bmaps['rock'] = pcr.readmap(Config.PATH_SPA+'/unit.rock.map')
 
+    # -- For initial soil moisture maps generation at each run of EcH2O,
+    # get the value of keyword in config file (porosity profile type and
+    # name of maps)
+    # print('initial conditions 1')
+    # print(Config.FILE_CFGdest)
+    with open(Config.FILE_CFGdest, 'r') as f:
+        datafile = f.readlines()
+
+    # Search and destroy, er, get the values
+    for line in datafile:
+        # Check which porosity profile mode is on in config file
+        if 'Porosity_profile =' in line:
+            # print('Found porosity mode')
+            Site.poros_mode = int(line.split('=')[1].strip())
+        # Files names needed in any case
+        if 'Top-of-profile_Porosity =' in line:
+            # print('Found porosity mode')
+            Site.f_poros = line.split('=')[1].strip()
+        if 'Soil_moisture_1' in line:
+            Site.f_initSWC1 = line.split('=')[1].strip()
+        if 'Soil_moisture_2' in line:
+            Site.f_initSWC2 = line.split('=')[1].strip()
+        if 'Soil_moisture_3' in line:
+            Site.f_initSWC3 = line.split('=')[1].strip()
+    if not any(s in Site.__dict__.keys() for s in
+               ['poros_mode', 'f_poros',
+                'f_initSWC1', 'f_initSWC2', 'f_initSWC3']):
+        sys.exit('Error: file names for poros and init SWC not found')
+
+    if Site.poros_mode == 1:
+        # Exponential: profile coeff and depths file names are needed
+        for line in datafile:
+            if 'Porosity_Profile_coeff =' in line:
+                print('Found porosity profile coeff')
+                Site.f_kporos = line.split('=')[1].strip()
+            if 'Depth_soil_layer_1 =' in line:
+                print('Depth layer 1 found')
+                Site.f_dL1 = line.split('=')[1].strip()
+            if 'Depth_soil_layer_2 =' in line:
+                print('Depth layer 2 found')
+                Site.f_dL2 = line.split('=')[1].strip()
+            if 'Soil_depth =' in line:
+                print('Soil depth found')
+                Site.f_dTot = line.split('=')[1].strip()
+        if not any(s in Site.__dict__.keys() for s in
+                   ['f_kporos', 'f_dL1', 'f_dL2', 'f_dTot']):
+            sys.exit('Error: file names for poros profile and depths not found')
+
+    elif Site.poros_mode == 2:
+        # Porosity map given for each layer
+        for line in datafile:
+            if 'Porosity_Layer2 =' in line:
+                print('Porosity layer 2 found')
+                Site.f_porosL2 = line.split('=')[1].strip()
+            if 'Porosity_Layer3 =' in line:
+                print('Porosity layer 3 found')
+                Site.f_porosL3 = line.split('=')[1].strip()
+        if not any(s in Site.__dict__.keys() for s in
+                   ['f_porosL2', 'f_porosL3']):
+            sys.exit('Error: files names for L2 & L3 poros not found')
+
     # -- Vegetation inputs file: reference dictionary
     Opti.vref = {}
     # Read template file
@@ -863,7 +925,7 @@ def files(Config, Opti, Paras, Site, top_rank):
     if Site.nv != len(paramread)-3:
         sys.exit('ERROR: the number of species in def files (', Site.nv,
                  ') differs from that in templace params file (',
-                 len(paramread)-3,')')
+                 len(paramread)-3, ')')
     # All parameters values (keep strings!)
     for iv in range(Site.nv):
         Opti.vref[iv] = paramread[iv+1][0:len(paramread[iv+1])]

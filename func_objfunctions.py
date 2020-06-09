@@ -13,6 +13,7 @@ Created on 05/2020
 '''
 
 import numpy as np
+import os
 import pandas as pd
 # import math
 import sys
@@ -27,10 +28,20 @@ def MultiObj(obs, sim, Data, Opti, w=False):
     like = 0
     Ltot = []
 
-    if sim is None:
-        sys.exit('Problem: the simulations outputs is empty!')
-    print('simulation dims', np.array(sim).shape)
+    if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
+        rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
+    elif 'PMI_RANK' in os.environ.keys():
+        rank = int(os.environ['PMI_RANK'])
 
+    # if sim is None and rank != 0:
+    #     sys.exit('Problem: non-master process (rank ' + str(rank) +
+    #              ') has the simulations outputs is empty!')
+    # else:
+    #     print('Rank', rank, 'has a non-empty simulations outputs...')
+    #     print('simulation dims', np.array(sim).shape)
+
+    # print(sim)
+    
     for i in range(Data.nobs):
 
         oname = Data.names[i]

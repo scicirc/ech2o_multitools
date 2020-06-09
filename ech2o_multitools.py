@@ -12,7 +12,9 @@ Created on 10/2016
 -------------------------------------------------
 '''
 
-import os, sys, glob
+import os
+import sys
+# import glob
 from optparse import OptionParser
 # from itertools import chain
 
@@ -179,9 +181,8 @@ init.files(Config, Opti, Paras, Site, top_rank)
 #     req = comm.irecv(source=0, tag=1)
 #     data = req.wait()
 #     print('rank', str(rank), data)
-    
 
-    # -- Import classes and setup from the def file
+# -- Import classes and setup from the def file
 #     Config = None #__import__(file_py).Config
 #     Opti = None #__import__(file_py).Opti
 #     Data = None #__import__(file_py).Data
@@ -214,12 +215,12 @@ elif Config.mode == 'calib_SPOTPY':
         spot_setup = spot_setup.spot_setup(Config, Opti, Paras,
                                            Data, Site,
                                            parallel=Opti.SPOTpar,
-                                           _used_algorithm = Opti.SPOTalgo.lower(),
+                                           _used_algorithm=Opti.SPOTalgo.lower(),
                                            # file extension added automatically
                                            dbname=Config.PATH_OUT+'/' + \
                                            Opti.SPOTalgo+'ech2o')
         if Opti.SPOTalgo == 'DREAM':
-            sampler = spotpy.algorithms.dream(spot_setup, 
+            sampler = spotpy.algorithms.dream(spot_setup,
                                               parallel=Opti.SPOTpar,
                                               dbformat='custom')
     else:

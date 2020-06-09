@@ -435,12 +435,12 @@ class _algorithm(object):
         # we need a layer to fetch returned data from a threaded process into a queue.
         def model_layer(q,all_params):
             # Call self.model with a namedtuple instead of another sequence
-            print('run ech2o ?')
             q.put(self.setup.simulation(self.partype(*all_params)))
 
         # starting a queue, where in python2.7 this is a multiprocessing class and can cause errors because of
         # incompability which the main thread. Therefore only for older Python version a workaround follows
         que = Queue()
+        print(id, que.empty())
         sim_thread = threading.Thread(target=model_layer, args=(que, all_params))
         sim_thread.daemon = True
         sim_thread.start()
@@ -453,6 +453,7 @@ class _algorithm(object):
         # If no result from the thread is given, i.e. the thread was killed from the watcher the default result is
         # '[nan]' and will not be saved. Otherwise get the result from the thread
         model_result = None
+        print(id, que.empty())
         if not que.empty():
             model_result = que.get()
         return id, params, model_result

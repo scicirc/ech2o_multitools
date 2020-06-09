@@ -22,6 +22,7 @@ import func_outputs as outputs
 import func_params as params
 # import func_likelihoods as likelihoods
 import func_objfunctions as objfunc
+import multiprocessing
 
 from distutils.dir_util import copy_tree, remove_tree, mkpath
 from distutils.file_util import copy_file
@@ -44,6 +45,7 @@ class spot_setup(object):
         self.site = Site
         self.data = Data
 
+        print(self.config.__dict__.keys())
         # Initial parameters sampling
         # In case of logarithmic sampling, min/max/guess/sd are
         # are already "converted", and are de-logged during Ech2O's
@@ -196,68 +198,76 @@ class spot_setup(object):
         simulations = np.full((self.data.nobs, self.data.lsimEff),
                               np.nan).tolist()
         # print('path exec 2:',self.PATH_EXEC)
-
-        # try:
-        # print('\n-----------------------------------------------')
-        # print('Parameter object:')
-        # print(self.parameters())
-        # print(x)
-
-        # Create the inputs for ECH2O's run
-        # Here, x is the current set of sampled parameter values.
-        # It is ordered as in Opti.names etc., so it can be used as is
-        if self.parallel == 'mpi':
-            it = int(call)  # self.rank
-        else:
-            it = 0
-        params.sim_inputs(self.opti, self.par, self.site,
-                          self.PATH_SPA, it, mode='spotpy', paramcur=x)
         
-        # print('\n-----------------------------------------------\n')
-        
-        # Run ECH2O
-        print('|| running ECH2O...', end='\r')
-        start = time.time()
-        os.system(self.config.cmde_ech2o + ' ' + self.cfg_ech2o +
-                  ' > '+self.PATH_EXEC + '/ech2o.log')
-        if self.parallel in ['mpi', 'mpc']:
-            print('|| EcH2O run done for core ID#'+call+', using',
-                  str(self.config.ncpu), 'cpu(s). Run time:',
-                  np.round(time.time()-start, 3), 'seconds')
-        else:
-            print('|| EcH2O run done using',
-                  str(self.config.ncpu), 'cpu(s). Run time:',
-                  np.round(time.time()-start, 3), 'seconds')
-        # (limit at',self.config.tlimit, ')')
+        try:
+            # print('\n-----------------------------------------------')
+            # print('Parameter object:')
+            # print(self.parameters())
+            # print(x)
 
-        # Store outputs: for now restricted to time series
-        os.chdir(self.PATH_EXEC)
+            # Create the inputs for ECH2O's run
+            # Here, x is the current set of sampled parameter values.
+            # It is ordered as in Opti.names etc., so it can be used as is
+            if self.parallel == 'mpi':
+                it = int(call)  # self.rank
+            else:
+                it = 0
+            # print('prout')
+            # print('rank', call, ': generating maps & veg params...')
+            params.sim_inputs(self.config, self.opti, self.par, self.site,
+                              self.PATH_SPA, it, mode='spotpy', paramcur=x)
+            # print('...rank', call, 'done.')
+            # print('\n-----------------------------------------------\n')
         
-        if self.data.nobs == 1:
-            simulations = outputs.read_sim(self.config, self.data,
-                                           self.data.names[0]).tolist()
-            if(len(simulations) < self.data.lsimEff):
-                print('sim length:',len(simulations),
-                      ', expected:',self.data.lsimEff)
-                simulations = [np.nan] * self.data.lsimEff
-                # sys.exit('Error: simulation output shorter than specified '+
-                #          "in configuration, maybe check EcH2O's config file...")
-                # print(type(simulations))
-        else:
-            for i in range(self.data.nobs):
-                oname = self.data.names[i]
-                simulations[i][:] = outputs.read_sim(self.config,
-                                                     self.data,
-                                                     oname).tolist()
-                if(len(simulations[i]) < self.data.lsimEff):
-                    print('sim length:',len(simulations[i]),
-                          ', expected:',self.data.lsimEff)
-                    simulations[i][:] = [np.nan] * self.data.lsimEff
+            # Run ECH2O
+            print('|| running ECH2O...', end='\r')
+            start = time.time()
+            os.system(self.config.cmde_ech2o + ' ' + self.cfg_ech2o +
+                      ' > '+self.PATH_EXEC + '/ech2o.log')
+            if self.parallel in ['mpi', 'mpc']:
+                print('|| EcH2O run done for core ID#'+call+', using',
+                      str(self.config.ncpu), 'cpu(s). Run time:',
+                      np.round(time.time()-start, 3), 'seconds')
+            else:
+                print('|| EcH2O run done using',
+                      str(self.config.ncpu), 'cpu(s). Run time:',
+                      np.round(time.time()-start, 3), 'seconds')
+            # (limit at',self.config.tlimit, ')')
+
+            # Store outputs: for now restricted to time series
+            os.chdir(self.PATH_EXEC)
+        
+            if self.data.nobs == 1:
+                simulations = outputs.read_sim(self.config, self.data,
+                                               self.data.names[0]).tolist()
+                if(len(simulations) < self.data.lsimEff):
+                    print('sim length:', len(simulations),
+                          ', expected:', self.data.lsimEff)
+                    simulations = [np.nan] * self.data.lsimEff
                     # sys.exit('Error: simulation output shorter than specified '+
-                    #         "in configuration, maybe check EcH2O's config file...")
+                    #          "in configuration, maybe check EcH2O's config file...")
+                    # print(type(simulations))
+            else:
+                for i in range(self.data.nobs):
+                    oname = self.data.names[i]
+                    simulations[i][:] = outputs.read_sim(self.config,
+                                                         self.data,
+                                                         oname).tolist()
+                    if(len(simulations[i]) < self.data.lsimEff):
+                        print('sim length:', len(simulations[i]),
+                              ', expected:', self.data.lsimEff)
+                        simulations[i][:] = [np.nan] * self.data.lsimEff
+                        # sys.exit('Error: simulation output shorter than specified '+
+                        #         "in configuration, maybe check EcH2O's config file...")
 
-        # except():  # 'Model has failed'):
-        # print('Something went wrong, this run is useless')
+        except:
+            'Model has failed'
+            #    template = "An exception of type {0} occurred. Arguments:\n{1!r}"
+            # message = template.format(type(ex).__name__, ex.args)
+            # a = 1 #raise e
+
+        #    print('Something went wrong, this run is useless')
+        #    sys.exit()
             # simulations = [np.nan] * self.data.lsimEff
             # Report param config that failed
             # f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
@@ -274,7 +284,7 @@ class spot_setup(object):
             # os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
             #           Config.PATH_OUT + '/ech2o_'+it+'.log')
 
-        #sys.exit()
+        # sys.exit()
         os.chdir(self.curdir)
 
         # Clean up
