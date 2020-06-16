@@ -28,8 +28,6 @@ from distutils.dir_util import copy_tree, remove_tree, mkpath
 from distutils.file_util import copy_file
 from contextlib import ExitStack
 
-# from mpi4py import MPI
-
 # ==============================================================================
 
 
@@ -45,7 +43,6 @@ class spot_setup(object):
         self.site = Site
         self.data = Data
 
-        print(self.config.__dict__.keys())
         # Initial parameters sampling
         # In case of logarithmic sampling, min/max/guess/sd are
         # are already "converted", and are de-logged during Ech2O's
@@ -78,21 +75,20 @@ class spot_setup(object):
         self.curdir = copy.copy(Config.PATH_OUT)
         self.owd = copy.copy(Config.PATH_EXEC)
         self.parallel = copy.copy(parallel)
-        # if self.parallel == 'mpi':
-        #    comm = MPI.COMM_WORLD
-        #    self.rank = comm.Get_rank()
+
         # Initialize custom database output.
         # More than one simulation type: save all likelihood
         # (DREAM only use the first one, i.e here the multi-objective)
         # chain, and use explicit simulations name in header
         if dbname is not None:
+            ## -- Likelihood, parameters and time series
             # If multi-objecive calibration, we'll write one file per
             # simulation type containing "individual" likelihood and
             # times series, plus a "general" file with parameters
             # and likelihoods
             if self.data.nobs > 1:
                 self.dbheaders = {}
-                self.filenames = [dbname+'_general.txt'] + \
+                self.filenames = [dbname+'_LikeParGeneral.txt'] + \
                     [dbname+'.'+a+'.txt' for a in self.data.names]
                 self.outnames = ['general'] + self.data.names
                 # General file
@@ -127,7 +123,7 @@ class spot_setup(object):
             else:
                 # Only one calibration datasets: some tweaks from the
                 # standard .csv style database
-                self.filenames = dbname+'.txt'
+                self.filename = dbname+'.txt'
                 self.dbheaders = ['Iteration']
                 self.dbheaders.append('Likelihood')
                 self.dbheaders.extend(['par.{0}'.format(x) for x in
@@ -136,8 +132,23 @@ class spot_setup(object):
                     self.dbheaders.extend(['sim' + '.t' + str(i)])
                 self.dbheaders.append('chain')
                 # Write
-                self.database = open(dbname, 'w')
+                self.database = open(self.filename, 'w')
                 self.database.write(",".join(self.dbheaders) + "\n")
+
+            ## -- Diagnostics from the calibration algorithm (for now
+            # mostly suited for DREAM)
+            if self.opti.SPOTalgo == 'DREAM':
+                self.f_diagnostics = dbname + '_Diagnostics.txt'
+                headers = ['Iteration','BestLike']
+                headers.extend(['PctAccept.ch'+str(c) for c in 
+                                range(1,self.opti.nChains+1)])
+                headers.extend(['ConvRates.{0}'.format(x) for x in self.opti.names])
+                with open(self.f_diagnostics, 'w') as f:
+                    f.write(','.join(headers)+'\n')
+            else:
+                print('Diagnostics for algorithm progression: file output',
+                      'under construction...')
+            
 
     # Retrieve parameters
     def parameters(self):
@@ -154,6 +165,7 @@ class spot_setup(object):
         # self.PATH_SPA = copy.copy(self.config.PATH_SPA)
         # self.PATH_EXEC = copy.copy(self.config.PATH_EXEC)
 
+        print(self.parallel)
         # mkpath(self.config.PATH_EXEC)
 
         if self.parallel == 'seq':
@@ -185,7 +197,10 @@ class spot_setup(object):
             copy_tree(self.config.PATH_SPA, self.PATH_SPA)
             # An execution directory next to the "template" one
             self.PATH_EXEC = self.config.PATH_EXEC+call
-            mkpath(self.PATH_EXEC)
+            os.makedirs(self.PATH_EXEC, exist_ok=True)
+            # REmove ech2o log file if it exists
+            if os.path.isfile(self.PATH_EXEC+'/ech2o.log'):
+                os.remove(self.PATH_EXEC+'/ech2o.log')
             # Copy ech2o config file define input maps directory
             self.cfg_ech2o = self.PATH_EXEC+'/config.ini'
             copy_file(self.curdir+'/config.ini', self.cfg_ech2o)
@@ -194,36 +209,28 @@ class spot_setup(object):
                 fw.write('Maps_Folder = '+self.PATH_SPA+'\n')
                 fw.write('Output_Folder = '+self.PATH_EXEC+'\n')
 
-        # To store simulations (will remain np.nan if simulation fails)
-        simulations = np.full((self.data.nobs, self.data.lsimEff),
-                              np.nan).tolist()
-        # print('path exec 2:',self.PATH_EXEC)
-        
-        try:
-            # print('\n-----------------------------------------------')
-            # print('Parameter object:')
-            # print(self.parameters())
-            # print(x)
+        # Create the inputs for ECH2O's run
+        # Here, x is the current set of sampled parameter values.
+        # It is ordered as in Opti.names etc., so it can be used as is            
+        # print('rank', call, ': generating maps & veg params...')
+        params.sim_inputs(self.config, self.opti, self.par, self.site,
+                          self.PATH_SPA, 0, mode='spotpy', paramcur=x)
 
-            # Create the inputs for ECH2O's run
-            # Here, x is the current set of sampled parameter values.
-            # It is ordered as in Opti.names etc., so it can be used as is
-            if self.parallel == 'mpi':
-                it = int(call)  # self.rank
-            else:
-                it = 0
-            # print('prout')
-            # print('rank', call, ': generating maps & veg params...')
-            params.sim_inputs(self.config, self.opti, self.par, self.site,
-                              self.PATH_SPA, it, mode='spotpy', paramcur=x)
-            # print('...rank', call, 'done.')
-            # print('\n-----------------------------------------------\n')
-        
-            # Run ECH2O
-            print('|| running ECH2O...', end='\r')
-            start = time.time()
+        # nan values so that simulations can be returned even if the run fails
+        if self.data.nobs > 1:
+            simulations = np.full((self.data.nobs, self.data.lsimEff),
+                                  np.nan).tolist()
+        else:
+            simulation = [np.nan] * self.data.lsimEff
+
+        # Run EcH2O
+        print('|| running ECH2O...', end='\r')
+        start = time.time()
+
+        try:
             os.system(self.config.cmde_ech2o + ' ' + self.cfg_ech2o +
                       ' > '+self.PATH_EXEC + '/ech2o.log')
+
             if self.parallel in ['mpi', 'mpc']:
                 print('|| EcH2O run done for core ID#'+call+', using',
                       str(self.config.ncpu), 'cpu(s). Run time:',
@@ -232,7 +239,6 @@ class spot_setup(object):
                 print('|| EcH2O run done using',
                       str(self.config.ncpu), 'cpu(s). Run time:',
                       np.round(time.time()-start, 3), 'seconds')
-            # (limit at',self.config.tlimit, ')')
 
             # Store outputs: for now restricted to time series
             os.chdir(self.PATH_EXEC)
@@ -244,10 +250,10 @@ class spot_setup(object):
                     print('sim length:', len(simulations),
                           ', expected:', self.data.lsimEff)
                     simulations = [np.nan] * self.data.lsimEff
-                    # sys.exit('Error: simulation output shorter than specified '+
-                    #          "in configuration, maybe check EcH2O's config file...")
-                    # print(type(simulations))
             else:
+                # To store simulations
+                simulations = np.full((self.data.nobs, self.data.lsimEff),
+                                      np.nan).tolist()
                 for i in range(self.data.nobs):
                     oname = self.data.names[i]
                     simulations[i][:] = outputs.read_sim(self.config,
@@ -257,17 +263,10 @@ class spot_setup(object):
                         print('sim length:', len(simulations[i]),
                               ', expected:', self.data.lsimEff)
                         simulations[i][:] = [np.nan] * self.data.lsimEff
-                        # sys.exit('Error: simulation output shorter than specified '+
-                        #         "in configuration, maybe check EcH2O's config file...")
-
+               
         except:
-            'Model has failed'
-            #    template = "An exception of type {0} occurred. Arguments:\n{1!r}"
-            # message = template.format(type(ex).__name__, ex.args)
-            # a = 1 #raise e
-
-        #    print('Something went wrong, this run is useless')
-        #    sys.exit()
+            #'Model has failed'
+            print('Something went wrong, this run is useless')        
             # simulations = [np.nan] * self.data.lsimEff
             # Report param config that failed
             # f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
@@ -303,6 +302,12 @@ class spot_setup(object):
 
         # Use multi-objective function
         like = objfunc.MultiObj(evaluation, simulation, self.data, self.opti)
+        # Check if there was any issue with the simulation outputs
+        if np.isnan(like).any():
+            self.runFail = True
+        else:
+            self.runFail = False
+
         return like
 
     # Custom txt-formatted database (see __init__)
@@ -331,3 +336,18 @@ class spot_setup(object):
             sim_str = ",".join([str(s) for s in simulations])
             self.database.write(",".join([str(rep+1), objfuncs, param_str,
                                           str(int(chains+1)), sim_str]) + '\n')
+
+    # Custom txt-formatted database (see __init__)
+    def save_diagnostics(self, it, objfunc_ref, accepted, conv_rates):
+
+        ## -- Diagnostics from the calibration algorithm (for now
+        # mostly suited for DREAM)
+        if self.opti.SPOTalgo == 'DREAM':
+            line = ','.join([str(it), str(np.round(objfunc_ref,2)),
+                             ','.join([str(s) for s in np.round(accepted,2)]),
+                             ','.join([str(s) for s in np.round(conv_rates,4)])])
+            # print(line)
+            print('')
+            with open(self.f_diagnostics, 'a') as f:
+                f.write(line+ '\n')
+     

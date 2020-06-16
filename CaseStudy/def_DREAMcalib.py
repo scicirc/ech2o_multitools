@@ -20,12 +20,17 @@ class Config:
     # the script is launched
     PATH_MAIN = os.getcwd()+'/'
     # Script mode
-    mode = 'calib_DREAM'
+    mode = 'calib_SPOTPY'
     # EcH2O exectuable name
     exe = 'ech2o_iso'
+    # path to input/output directories
+    PATH_CLIM = PATH_MAIN+'/Input_Climate'  # Clim inputs
+    PATH_CFG = PATH_MAIN+'/Input_Configs'  # Ech2O's configs template dir
+    PATH_SPA_REF = PATH_MAIN+'/Input_Maps_90m'  # Inputs maps / veg param
+    PATH_OBS = PATH_MAIN+'/Calibration_Datasets'  # Observation for calib
     # Number of CPUs used (=1 if not specified)
-    ncpu = 2
-    # EcH2O's Config files
+    ncpu = 8
+    # EcH2O's Config files (not used for now, still specified in job file)
     # cfg = 'config_90m_nospin_Ts.ini'  # Main one
     # cfgTrck = 'configTrck_Ts.ini'     # Tracking one
     # outdir = 'Calib_90m_nospin'   # Output directory
@@ -38,6 +43,7 @@ class Config:
 
 class Opti:
 
+    SPOTalgo = 'DREAM'
     # Parameters for DREAM calibration
     rep = 2000  # Maximum number of repetitions
     nChains = 6  # Number of chains
@@ -48,6 +54,11 @@ class Opti:
     # Sampling sequence: 'seq' (default)-> normal iterations
     # 'mpc': multiprocessing on a single windows pc
     # 'mpi': parallel computing for unix (mac/linux/HPC)
+
+    # Initial parameter sampling
+    # if uniform, min and max have to be given
+    # if normal, guess is needed, and stddev (taken as 0.1*(max-min) otherwise)
+    initSample = 'uniform'
 
 # ==========================================================================
 # Site conceptualization
@@ -89,7 +100,7 @@ class Data:
     # (TODO: merge those)
 
     # Starting date after spinup
-    simbeg = datetime(2006, 1, 1)
+    simbeg = datetime(2006, 1, 1) # going until 2011-12-31
 
     # -- Observations used
     # Number of obsrvations points
@@ -103,8 +114,8 @@ class Data:
     obs['Streamflow'] = {'sim_file': 'Streamflow.tab', 'sim_pts': 5,
                          'sim_conv': 1,
                          'obs_file': 'Discharge_grouped_daily.csv',
-                         'fit_beg': datetime(2006, 1, 1),
-                         'fit_end': datetime(2006, 12, 31),
+                         #'fit_beg': datetime(2006, 1, 1),
+                         #'fit_end': datetime(2006, 12, 31),
                          'obs_col': 2, 'obs_conv': 1,
                          'type': 'Ts'}
     # Groundwater level

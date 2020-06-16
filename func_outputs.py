@@ -36,21 +36,18 @@ def read_sim(Config, Data, oname):
         tmp = pd.read_table(Data.obs[oname]['sim_file'],
                             skiprows=hskip, header=None).iloc[:, idx] * \
             Data.obs[oname]['sim_conv']
-        tmp = np.genfromtxt(Data.obs[oname]['sim_file'],
-                            delimiter='\t', skip_header=hskip,
-                            unpack=True)[idx] * \
-            Data.obs[oname]['sim_conv']
+        # tmp = np.genfromtxt(Data.obs[oname]['sim_file'],
+        #                     delimiter='\t', skip_header=hskip,
+        #                     unpack=True)[idx] * \
+        #     Data.obs[oname]['sim_conv']
         # Shave off the transient part
         # if Config.trimB > 1:
         #    sim = tmp[Config.trimB-1:Config.trimB-1+Config.trimL]
         # print(oname, len(tmp))
         if Data.lspin > 1:
             sim = tmp[Data.lspin-1:Data.lsim-1]
-        print(oname,'before trim:',len(tmp), 'after trim',len(sim))
-        # print(sim.shape)
-        # print(sim)
-        # print(len(sim))
-
+        # print(oname,'before trim:',len(tmp), 'after trim',len(sim))
+      
     # Integrated variables (in BasinSummary.txt) -----------------
     if Data.obs[oname]['type'] == 'Total':
         idx = Data.obs[oname]['sim_pts']-1

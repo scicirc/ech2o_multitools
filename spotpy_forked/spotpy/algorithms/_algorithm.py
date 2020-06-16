@@ -14,7 +14,7 @@ from .. import parameter
 import numpy as np
 import time
 import threading
-
+import os
 
 try:
     from queue import Queue
@@ -392,6 +392,7 @@ class _algorithm(object):
     def postprocessing(self, rep, params, simulation, chains=1, save_run=True, negativlike=False, block_print=False): # TODO: rep not necessaray
     
         params = self.update_params(params)
+        # print(params)
         if negativlike is True:
             like = -self.getfitness(simulation=simulation, params=params)
         else:
@@ -402,7 +403,25 @@ class _algorithm(object):
         # before they actually save the run in a database (e.g. sce-ua)
 
         self.status(like,params,block_print=block_print)
-        
+
+        # If there was any problem with the run, save the ech2o log
+        if self.setup.runFail:
+            print(self.setup.__dict__.keys())
+            if 'PATH_EXEC' in self.setup.__dict__.keys():
+            # if hasattr(self.setup, 'PATH_EXEC'):
+                if os.path.isfile(self.setup.PATH_EXEC+'/ech2o.log'):
+                    os.rename(self.setup.PATH_EXEC+'/ech2o.log', 
+                              self.setup.config.PATH_OUT+'/ech2o_'+self.iter+'.log')
+                    print('Warning: run at iteration',self.iter,'(chain',chains,
+                          ') failed, ech2o log was saved')
+
+                else:
+                    print('...Warning: run at iteration',self.iter,'(chain',chains,
+                          ') failed but there is no ech2o log available to investigate...')
+            else:
+                print('...Warning: run at iteration',self.iter,'(chain',chains,
+                      ') failed but spot_setup class has no PATH_EXEC?!')
+
         if save_run is True and simulation is not None:
             self.save(like, params, simulations=simulation, chains=chains, rep=rep)
         if type(like)==type([]):
@@ -417,11 +436,14 @@ class _algorithm(object):
         """
         try:
             #print('Using parameters in fitness function')
-            return self.setup.objectivefunction(evaluation=self.evaluation, simulation=simulation, params = (params,self.parnames))
+            fit = self.setup.objectivefunction(evaluation=self.evaluation, simulation=simulation, params = (params,self.parnames))
 
         except TypeError: # Happens if the user does not allow to pass parameter in the spot_setup.objectivefunction
             #print('Not using parameters in fitness function')            
-            return self.setup.objectivefunction(evaluation=self.evaluation, simulation=simulation)
+            fit = self.setup.objectivefunction(evaluation=self.evaluation, simulation=simulation)
+
+        return fit
+
     
     def simulate(self, id_params_tuple):
         """This is a simple wrapper of the model, returning the result together with
@@ -440,7 +462,7 @@ class _algorithm(object):
         # starting a queue, where in python2.7 this is a multiprocessing class and can cause errors because of
         # incompability which the main thread. Therefore only for older Python version a workaround follows
         que = Queue()
-        print(id, que.empty())
+        # print(id, que.empty())  # FOR DEBUGGING
         sim_thread = threading.Thread(target=model_layer, args=(que, all_params))
         sim_thread.daemon = True
         sim_thread.start()
@@ -453,7 +475,7 @@ class _algorithm(object):
         # If no result from the thread is given, i.e. the thread was killed from the watcher the default result is
         # '[nan]' and will not be saved. Otherwise get the result from the thread
         model_result = None
-        print(id, que.empty())
+        # print(id, que.empty())  # FOR DEBUGGING
         if not que.empty():
             model_result = que.get()
         return id, params, model_result

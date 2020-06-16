@@ -198,7 +198,7 @@ class dream(_algorithm):
             whichW_UNIIsNull = W_uni == 0.0
             W_uni[whichW_UNIIsNull] = np.random.uniform(0.1,1,1)
 
-            print('n', n, 'sig2',sigma2, 'Wuni', W_uni, 'd', d)
+            # print('n', n, 'sig2',sigma2, 'Wuni', W_uni, 'd', d)
             R_stat = np.sqrt((n + 1) / n * (np.divide(sigma2, W_uni)) - (d - 1) / (n * d))
             
             
@@ -243,8 +243,8 @@ class dream(_algorithm):
         self.bestsim=[[np.nan]]*self.nChains
         self.accepted=np.zeros(self.nChains)
         self.nChainruns=[0]*self.nChains
-        self.min_bound, self.max_bound = self.parameter(
-        )['minbound'], self.parameter()['maxbound']
+        self.min_bound, self.max_bound = self.parameter()['minbound'], \
+                                         self.parameter()['maxbound']
         
         #firstcall = True
         
@@ -328,7 +328,7 @@ class dream(_algorithm):
                 
                 if self.status.stop:
                     self.iter = self.repetitions
-                    print('Stopping samplig')
+                    print('Stopping sampling')
                     break
                 self.iter+=1
                 self.nChainruns[cChain] +=1
@@ -339,10 +339,27 @@ class dream(_algorithm):
             # Refresh progressbar every two seconds
             acttime = time.time()
             if acttime - intervaltime >= 2 and self.iter >=2 and self.nChainruns[-1] >=3:
-                text = "Acceptance rates [%] =" +str(np.around((self.accepted)/float(((self.iter-self.burnIn)/self.nChains)),decimals=4)*100).strip('array([])')
-                print(text)
-                text = "Convergence rates =" +str(np.around((r_hat),decimals=4)).strip('array([])')
-                print(text)
+
+                pc_accepted = np.around((self.accepted)/float(((self.iter-self.burnIn)/
+                                                               self.nChains)),
+                                        decimals=4)*100
+                conv_rates = np.around((r_hat),decimals=4)
+                
+                # Log output
+                print("Acceptance rates [%] =" + str(pc_accepted).strip('array([])'))
+                print("Convergence rates =" + str(conv_rates).strip('array([])'))
+                # Summary file (only in custom output mode)
+                if self.dbformat == 'custom' and \
+                   self.optimization_direction == 'minimize':
+                    self.setup.save_diagnostics(self.status.rep, 
+                                                self.status.objectivefunction_min,
+                                                pc_accepted, conv_rates)
+                if self.dbformat == 'custom' and \
+                   self.optimization_direction == 'maximize':
+                    self.setup.save_diagnostics(self.status.rep, 
+                                                self.status.objectivefunction_max,
+                                                pc_accepted, conv_rates)
+
                 intervaltime = time.time()
 
             if not convergence:

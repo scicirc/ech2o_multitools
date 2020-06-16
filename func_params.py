@@ -53,8 +53,9 @@ def store(Opti, Config, it):
 def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                paramcur=None):
 
-    # Small switch not to read the vegetation params file every time
-    # readveg = 1
+    # Small switch not to write the vegetation params file if
+    # there is no need 
+    sw_veg = 0
 
     # -- Get the parameter values
     if mode == 'spotpy':
@@ -62,8 +63,6 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
         # values are read directly from the spot_setup class
         # In addition, parameter with log10 variation should be "de-log10ned"
         # here!
-        # print('Parameter value:')
-
         Opti.x = []
         for i in range(Opti.nvar):
             if Opti.log[i] == 1:
@@ -75,7 +74,7 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
 
             # print('|',Opti.names[i],':',Opti.x[i],end='\r')
     else:
-        # Therwise, just get the samples of the current iteration
+        # Otherwise, just get the samples of the current iteration
         Opti.x = Opti.xpar[it]
 
     for pname in Paras.names:
@@ -83,7 +82,7 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
         # print pname
 
         # - Mapped parameters
-        if Paras.ref[pname]['veg'] == 0:
+        if Paras.ref[pname]['map'] == 1:
 
             # Soil unit dependence
             if Paras.ref[pname]['soil'] == 1:
@@ -94,57 +93,84 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                     outmap += \
                         Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im]]
 
-                if Site.simRock == 1:
-                    # Taking into account rock/scree: micro-topsoil, low poros
-                    # and fixed anisotropy
-                    if pname == 'HLayer1':
-                        outmap = \
-                            outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
-                            Site.bmaps['rock']*0.001
-                    # if pname=='Porosity':
-                    #    outmap = \
-                        # outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
-                        # Site.bmaps['rock']*0.25
-                    if pname == 'Khoriz':
-                        outmap = \
-                            outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
-                            Site.bmaps['rock']*0.000001
-                    if pname == 'Anisotropy':
-                        outmap = \
-                            outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
-                            Site.bmaps['rock']*0.1
+                # if Site.simRock == 1:
+                #     # Taking into account rock/scree: micro-topsoil, low poros
+                #     # and fixed anisotropy
+                #     if pname == 'HLayer1':
+                #         outmap = \
+                #             outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
+                #             Site.bmaps['rock']*0.001
+                #     # if pname=='Porosity':
+                #     #    outmap = \
+                #         # outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
+                #         # Site.bmaps['rock']*0.25
+                #     if pname == 'Khoriz':
+                #         outmap = \
+                #             outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
+                #             Site.bmaps['rock']*0.000001
+                #     if pname == 'Anisotropy':
+                #         outmap = \
+                #             outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
+                #             Site.bmaps['rock']*0.1
 
-                pcr.report(outmap,
-                           path_spa+'/'+Paras.ref[pname]['file']+'.map')
-
-            # No spatial/veg dependence, but channel stuff
+            # No spatial
             else:
                 # print 'Not dependent !!'
+                # Channel stuff (redundant?)
                 if Paras.ref[pname]['file'] in \
                    ['chanwidth', 'chanmanningn', 'chanparam']:
-                    outmap = Site.bmaps['chanmask']*Opti.x[Paras.ind[pname]]
+                    outmap = Site.bmaps['chanmask']*Opti.x[Paras.ind[pname][0]]
                 else:
-                    outmap = Site.bmaps['unit']*Opti.x[Paras.ind[pname]]
+                    outmap = Site.bmaps['unit']*Opti.x[Paras.ind[pname][0]]
 
-                pcr.report(outmap,
-                           path_spa+'/'+Paras.ref[pname]['file']+'.map')
+            # Create map
+            pcr.report(outmap,
+                       path_spa+'/'+Paras.ref[pname]['file']+'.map')
 
-            print('rank', it, ': map of',pname,
-                  'in', path_spa+'/'+Paras.ref[pname]['file']+'.map')
+            # print('rank', it, ': map of',pname,
+            #       'in', path_spa+'/'+Paras.ref[pname]['file']+'.map')
+
         # - Vegetation parameters
-        else:
-            # Change the value based on param name correspondance
+        elif Paras.ref[pname]['veg'] != 0:
+            sw_veg = 1
+            # Load reference dictionary with lines etc.
             vegnew = copy.copy(Opti.vref)
+            # Change the value based on param name correspondance
             # print Opti.vref
-            for iv in range(Site.nv):
+            iv2 = 0
+            # Only pick the calibrated veg species
+            for iv in Paras.comp[pname]:
                 vegnew[iv][vegnew['name'].index(pname)] = \
-                    str(Opti.x[Paras.ind[pname][iv]])
+                        str(Opti.x[Paras.ind[pname][iv2]])
+                iv2 += 1
+
+        else:
+            sys.exit('Error: invalid soil/veg flags to update parameter '+pname)
+
+    # - Write the vegetation parameterization
+    if sw_veg == 1:
+        # Equalize leaf turnover and additional turnover due to water and/or
+        # temperature stress
+        # for iv in range(Site.nv):
+        #    vegnew[iv][vegnew['name'].index('TurnovL_MWS')] = \
+        # copy.copy(vegnew[iv][vegnew['name'].index('TurnovL')])
+        #    vegnew[iv][vegnew['name'].index('TurnovL_MTS')] = \
+        # copy.copy(vegnew[iv][vegnew['name'].index('TurnovL')])
+        # Write the vegetation params file (if there's at least one veg param)
+        vegfile = open(path_spa+'/'+Site.vfile, 'w')
+        vegfile.write('\t'.join(Opti.vref['header'])+'\n')
+        for iv in range(Site.nv):
+            vegfile.write('\t'.join(vegnew[iv])+'\n')
+        vegfile.write('\t'.join(Opti.vref['footer'])+'\n')
+        vegfile.write('\t'.join(Opti.vref['name'])+'\n')
+        vegfile.close()
+    # sys.exit()
 
     # ------------------------------------------------------------------------------
     # Finalizing the preps....    
+   
     # Initial soil water content: needs porosity profile and depth to have
     # consistent initial soil moisture for each layer
-    print('initial conditions 1')
 
     # In any case, get base porosity
     poros = pcr.readmap(path_spa+'/' + Site.f_poros)
@@ -175,22 +201,3 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
     pcr.report(porosL1*0.9, path_spa + '/' + Site.f_initSWC1)
     pcr.report(porosL2*0.9, path_spa + '/' + Site.f_initSWC2)
     pcr.report(porosL3*0.9, path_spa + '/' + Site.f_initSWC3)
-
-    # - Updating the vegetation parameterization
-    if Paras.isveg > 0:
-        # Equalize leaf turnover and additional turnover due to water and/or
-        # temperature stress
-        # for iv in range(Site.nv):
-        #    vegnew[iv][vegnew['name'].index('TurnovL_MWS')] = \
-        # copy.copy(vegnew[iv][vegnew['name'].index('TurnovL')])
-        #    vegnew[iv][vegnew['name'].index('TurnovL_MTS')] = \
-        # copy.copy(vegnew[iv][vegnew['name'].index('TurnovL')])
-        # Write the vegetation params file (if there's at least one veg param)
-        vegfile = open(path_spa+'/'+Site.vfile, 'w')
-        vegfile.write('\t'.join(Opti.vref['header'])+'\n')
-        for iv in range(Site.nv):
-            vegfile.write('\t'.join(vegnew[iv])+'\n')
-        vegfile.write('\t'.join(Opti.vref['footer'])+'\n')
-        vegfile.write('\t'.join(Opti.vref['name'])+'\n')
-        vegfile.close()
-    # sys.exit()

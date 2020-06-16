@@ -124,27 +124,6 @@ parser.add_option("--MSspace", dest="MSspace", metavar="MSspace",
 # Read the options
 (options, args) = parser.parse_args()
 
-# For MPI
-top_rank = 1
-if options.mpi == '1':
-    # Running n parallel on a unix system.
-    options.mpi = int(options.mpi)
-    # Check the ID of the current mpi using os
-    # (not mpi4py because it messes up later mpi use in spotpy routines...)
-    if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
-        rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
-    elif 'PMI_RANK' in os.environ.keys():
-        rank = int(os.environ['PMI_RANK'])
-    # For later use
-    if rank != 0:
-        top_rank = 0
-    # print('1 - rank:',rank)
-#     from mpi4py import MPI
-#     comm = MPI.COMM_WORLD
-#     rank = comm.Get_rank()
-#     size = comm.Get_size()
-#     print('rank/size', rank,'/', size, 'before initialiation routines')
-
 # =============================================================================
 # == Initialization
 
@@ -154,7 +133,7 @@ if options.mpi == '1':
 # Whenever there are EcH2O runs: a few others initializations
 if Config.runECH2O == 1:
     # Runs' properties etc.
-    init.runs(Config, Opti, Data, Paras, Site, options, top_rank)
+    init.runs(Config, Opti, Data, Paras, Site, options)
     # Initialize observation names
     # (and read datasets if in DREAM calibration mode)
     init.observations(Config, Opti, Data)
@@ -165,7 +144,7 @@ init.parameters(Config, Opti, Paras, Site, options)
 # Files and verbose: only do it once
 # print(options.mpi+1)
 # print('rank', str(rank), 'in initialization routines')
-init.files(Config, Opti, Paras, Site, top_rank)
+init.files(Config, Opti, Paras, Site)
 
 # if options.mpi == 1:
 #     print('2 - rank:',rank)
@@ -217,16 +196,15 @@ elif Config.mode == 'calib_SPOTPY':
                                            parallel=Opti.SPOTpar,
                                            _used_algorithm=Opti.SPOTalgo.lower(),
                                            # file extension added automatically
-                                           dbname=Config.PATH_OUT+'/' + \
-                                           Opti.SPOTalgo+'ech2o')
+                                           dbname= Opti.dbname)
         if Opti.SPOTalgo == 'DREAM':
             sampler = spotpy.algorithms.dream(spot_setup,
                                               parallel=Opti.SPOTpar,
-                                              dbformat='custom')
+                                              dbname=Opti.dbname2,
+                                              dbformat=Opti.dbformat)
     else:
-        sys.exit('Error: other SPOTPY algorithms to be added to multitools...')
-    # dbname=Config.PATH_OUT+'/DREAM_ech2o',
-    # dbformat='csv')
+        sys.exit('Error: other SPOTPY algorithms are to be integrated in' +
+                 'ech2o_multitools...')
 
     # Run DREAM
     r_hat = sampler.sample(Opti.rep, nChains=Opti.nChains,

@@ -28,80 +28,83 @@ def MultiObj(obs, sim, Data, Opti, w=False):
     like = 0
     Ltot = []
 
-    if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
-        rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
-    elif 'PMI_RANK' in os.environ.keys():
-        rank = int(os.environ['PMI_RANK'])
-
-    # if sim is None and rank != 0:
-    #     sys.exit('Problem: non-master process (rank ' + str(rank) +
-    #              ') has the simulations outputs is empty!')
-    # else:
-    #     print('Rank', rank, 'has a non-empty simulations outputs...')
-    #     print('simulation dims', np.array(sim).shape)
-
-    # print(sim)
-    
-    for i in range(Data.nobs):
-
-        oname = Data.names[i]
-
-        # Have obervation and simulations matching the same time period
-        # obs: already pre-processed
-        tobs = pd.to_datetime(obs[oname]['Date'].values)
-        o = np.asanyarray(obs[oname]['value'].values)
-        # sim: trim sim to obs timespan
-        # + only keep dates with obs (even if nan)
-        # print(sim)
-        # print(sim.shape)
-        if Data.nobs == 1:
-            s = np.asanyarray([sim[j] for j in range(Data.lsimEff) if
-                               Data.simt[j] in tobs])
+    # Sanity check: did the simulation run?
+    # (necessary to avoid error in the subsequent postprocessing)
+    if sim is None:
+        if Data.nobs > 1:
+            like = [np.nan for i in range(Data.nobs+1)]
+            # Data.nobs+1 because of total objfunc + indiv ones
         else:
-            s = np.asanyarray([sim[i][j] for j in range(Data.lsimEff) if
-                               Data.simt[j] in tobs])
+            like = np.nan
 
-        # Remove nan
-        tmp = s*o
-        s = np.asanyarray([s[k] for k in range(len(tmp)) if not
-                           np.isnan(tmp[k])])
-        o = np.asanyarray([o[j] for j in range(len(tmp)) if not
-                           np.isnan(tmp[j])])
+    else:    
+        for i in range(Data.nobs):
 
-        # Now use your favorite likelihood estimator for each obs type
-        
-        # First check if there is actual data/sim left after nan screening!
-        if s.__len__() == 0 or o.__len__() == 0:
-            L = np.nan
-        else:
-            # For GWD, we center using mean
-            if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
-                # print(oname, 'remove mean')
-                # s -= np.mean(s)
-                # o -= np.mean(o)
-                # Use RMSE for water table
-                # L = - spotpy.objectivefunctions.rmse(o, s) / np.mean(o)
-                # LogLikehood as used in Vrugt et al. (2016)
-                # o_err = np.repeat(0.3, len(o)).tolist()
-                # L = spotpy.likelihoods.logLikelihood(o, s,
-                #                                     measerror=o_err)
-                # Log Gaussian likelihood without error (temporary)
-                L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
+            oname = Data.names[i]
+
+            # Have obervation and simulations matching the same time period
+            # obs: already pre-processed
+            tobs = pd.to_datetime(obs[oname]['Date'].values)
+            o = np.asanyarray(obs[oname]['value'].values)
+            
+            # First step for sim: trim sim to obs timespan
+            # + only keep dates with obs (even if nan)
+            # print(sim)
+            # print(sim.shape)
+            if Data.nobs == 1:
+                s = np.asanyarray([sim[j] for j in range(Data.lsimEff) if
+                                   Data.simt[j] in tobs])
             else:
-                # MAE for streamflow
-                # L = - spotpy.objectivefunctions.mae(o, s) / np.mean(o)
-                # LogL gaussian likehood as used in Vrugt et al. (2016)
-                # L = spotpy.likelihoods.logLikelihood(o, s)
-                # Log Gaussian likelihood without error (temporary)
-                L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
+                s = np.asanyarray([sim[i][j] for j in range(Data.lsimEff) if
+                                   Data.simt[j] in tobs])
 
-        Ltot += [L]  # list of all likelihoods
-        like += L  # "final" likelihood
+            # Second step (both o and s): remove nan due to gaps in obs
+            tmp = s*o
+            s = np.asanyarray([s[k] for k in range(len(tmp)) if not
+                               np.isnan(tmp[k])])
+            o = np.asanyarray([o[j] for j in range(len(tmp)) if not
+                               np.isnan(tmp[j])])
+        
+            # Another sanity check: if there any data/sim left after nan screening?
+            if s.__len__() == 0 or o.__len__() == 0:
+                L = np.nan
 
-    # Several datasets: list multi-objective function and individual ones
-    # Only the first (multi-obj) one will be used by DREAM
-    if Data.nobs > 1:
-        like = [like] + Ltot
+            else:
+                # Now use your favorite likelihood estimator for each obs type
+
+                # Specific treatment for different obs types?
+                if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
+                    # print(oname, 'remove mean')
+                    # s -= np.mean(s)
+                    # o -= np.mean(o)
+                    # Log Gaussian likelihood without error (temporary)
+                    # L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
+                    #     1 / (o.__len__() * np.mean(o))
+                    # Log Gaussian with error set using std
+                    # LogLikehood as used in Vrugt et al. (2016)
+                    # Using standard deviation as indicator of error
+                    o_err = np.repeat(np.std(o)*0.25, o.__len__())
+                    L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
+                else:
+                    # Log Gaussian likelihood without error (temporary)
+                    # L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
+                    #    1 / (o.__len__() * np.mean(o))
+                    # Log Gaussian with error set using std
+                    # LogLikehood as used in Vrugt et al. (2016)
+                    # Using standard deviation as indicator of error...
+                    o_err = np.std(o) + 0.1*o
+                    L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
+                
+                # Normalize by data length
+                L /= o.__len__()
+
+            Ltot += [L]  # list of all likelihoods
+            like += L  # "main" likelihood (used by algorithm)
+
+        # Several datasets: list multi-objective function and individual ones
+        # Only the first (multi-obj) one will be used by the algorithm
+        if Data.nobs > 1:
+            like = [like] + Ltot
 
     # print(np.round(like, 2))
 

@@ -73,7 +73,7 @@ def config(options):
         sys.exit("Please choose a valid script mode!")
 
     # Working directory specified in the def file
-    if Config.PATH_MAIN is None:
+    if not hasattr(Config, 'PATH_MAIN'):
         Config.PATH_MAIN = cwd_tmp
 
     # -- Output directory
@@ -117,8 +117,8 @@ def config(options):
             sys.exit('Wrong value for restart')
 
     # -- Resolution (default 50m, used with reference Spatial folder)
-    if Site.Resol is None:
-        Site.Resol = '50m'
+    # if not hasattr(Site.Resol):
+    #     Site.Resol = '50m'
 
     # -- MS init: many things don't happen if it is the case
     if Config.mode == 'sensi_morris':
@@ -148,27 +148,34 @@ def config(options):
 
     # Determine if a parallel computing mode is activated
     Opti.parallel = False
-    if Config.mode == 'calib_SPOTPY':
-        if Opti.SPOTpar is None:  # By default, sequential runs
-            Opti.SPOTpar = 'seq'
-        elif Opti.SPOTpar in ['mpc', 'mpi']:
-            Opti.parallel = True
-            #     from mpi4py import MPI
-            #     Config.MPIcomm = MPI.COMM_WORLD
-            #     Config.MPIsize = comm.Get_size()
-            #     Config.MPIrank = comm.Get_rank()
-            # Determine with process we're on, to avoid multiple prints
-
-            # If in parallel mode, use as many CPUs as possible unless
-            # the number of chains is larger
-            # NOPE; not fit for cluster where cpu_count() doesn't work?
-            # just choose cpus wisely in def + job files
-            # Config.ncpu = max(1, mp.cpu_count() // Opti.nChains)
-
-    # #
-    # if (Opti.SPOTpar == 'mpi' and options.mpi != 1) or \
-    #    (Opti.SPOTpar != 'mpi' and options.mpi == 1):
-    #     sys.exit('Inconsitent MPI flags between Opti and options')
+    if not hasattr(Opti, 'SPOTpar'):
+        # Even outside SPOTpy mode
+        Opti.SPOTpar = 'seq'  # By default, sequential runs
+    elif Opti.SPOTpar in ['mpc', 'mpi']:
+        Opti.parallel = True
+        # Determine with process we're on, to avoid multiple print/file 
+        # edits later on
+        if Opti.SPOTpar == 'mpi':
+            if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
+                Opti.rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
+            elif 'PMI_RANK' in os.environ.keys():
+                Opti.rank = int(os.environ['PMI_RANK'])
+            
+    # Database output for SPOTPY
+    if hasattr(Opti, 'SPOTdb'):
+        # - Custom case, format txt with separate files per obs, one general
+        # file and a algo diagnostic file
+        # Used by spot_setup 
+        Opti.dbname = Config.PATH_OUT + '/' + Opti.SPOTalgo + 'ech2o' 
+        Opti.dbformat = 'custom'
+        # Used by sampler.sample
+        Opti.dbname2 = None
+    else:
+        # - Default case, format csv and db call in sampler.sample
+        Opti.dbname = None  # Used by spot_setup 
+        Opti.dbformat = 'csv'
+        # Used by sampler.sample
+        Opti.dbname2 = Config.PATH_OUT + '/' + Opti.SPOTalgo + 'ech2o'
 
     # print(options.outdir)
     # -- Calibration: all parameter path (and datasets, if needed)
@@ -240,7 +247,7 @@ def parameters(Config, Opti, Paras, Site, options):
     Opti.log = []
     Opti.names = []
     Opti.ind = []
-    Opti.comp = []
+    Paras.comp = {}
     Paras.ind = {}
     ipar = 0
     ipar2 = 0
@@ -254,9 +261,55 @@ def parameters(Config, Opti, Paras, Site, options):
     # sensitivity or ensemble runs
     for par in Paras.names:
 
-        # Dimensions (soil or veg or 1)
-        nr = Paras.ref[par]['soil']*(Site.ns-1)+Paras.ref[par]['veg'] *\
-            (Site.nv-1)+1
+        # Default
+        if 'soil' not in Paras.ref[par].keys():
+            Paras.ref[par]['soil'] = 0
+        if 'veg' not in Paras.ref[par].keys():
+            Paras.ref[par]['veg'] = 0
+
+        # Number of components for this parameters : depends on soil or 
+        # veg dependence (veg can be not all species present), default 1
+        # Opti.names: unique name using par + component (none, soil/veg type)
+        # Opti.comp: which of the component are calibrated? (none, all, some)
+        if Paras.ref[par]['soil']*Paras.ref[par]['veg'] == 0:
+            nr = 1
+            Opti.names = Opti.names + [par]
+            Paras.comp[par] = 0
+            Paras.ref[par]['map'] = 1
+        elif Paras.ref[par]['soil'] == 1:
+            nr = Site.ns
+            Opti.names = Opti.names + [par + '_' + s for s in Site.soils]
+            Paras.comp[par] = range(Site.ns)
+            Paras.ref[par]['map'] = 1
+        elif Paras.ref[par]['veg'] != 0:
+            Paras.ref[par]['map'] = 0
+            Paras.isveg += 1
+            if Paras.ref[par]['veg'] == 1:
+                nr = Site.nv
+                Opti.names = Opti.names + [par + '_' + s for s in Site.vegs]
+                Paras.comp[par] = range(Site.nv)
+            elif type(Paras.ref[par]['veg']) == list:
+                if len(Paras.ref[par]['veg']) != Site.nv:
+                    sys.exit('Invalid veg dependence for parameter '+par)
+                nr = sum(i==1 for i in Paras.ref[par]['veg'])
+                Opti.names = Opti.names + [par + '_' + Site.vegs[i] for 
+                                           i in range(Site.nv) if 
+                                           Paras.ref[par]['veg'][i]==1] 
+                Paras.comp[par] = [i for i in range(Site.nv) if 
+                                   Paras.ref[par]['veg'][i]==1]
+            else:
+                sys.exit('Invalid veg dependence for parameter '+par)
+        else:
+            sys.exit('Invalid soil/veg dependence for parameter '+par)
+
+        # Link between Paras and Opti indices:
+        # 1. Which paras entry is covered in each Opti.* position?
+        Opti.ind += list(np.repeat(ipar, nr))
+        # Vice versa: which Opti.* indice(s) correspond to a given par?
+        if nr > 1:
+            Paras.ind[par] = list(np.arange(ipar2, ipar2+nr, 1))
+        if nr == 1:
+            Paras.ind[par] = [ipar2]
 
         # Build vectors used in the optimisation
         if Config.mode != 'forward_runs':
@@ -313,30 +366,10 @@ def parameters(Config, Opti, Paras, Site, options):
                     # (Log sampling case taken into account above)
                     Opti.std += [sdmult*(Opti.max[ipar2+j]-Opti.min[ipar2+j])]
 
-        # Link betwen params and all variables
-        Opti.ind += list(np.repeat(ipar, nr))
+        # Increment indices
         ipar += 1
-        if nr > 1:
-            Paras.ind[par] = list(np.arange(ipar2, ipar2+nr, 1))
-        if nr == 1:
-            Paras.ind[par] = ipar2
         ipar2 += nr
-        # For outputs
-        if 'soil' not in Paras.ref[par].keys():
-            Paras.ref[par]['soil'] = 0
-        if 'veg' not in Paras.ref[par].keys():
-            Paras.ref[par]['veg'] = 0
 
-        if Paras.ref[par]['soil'] == 1:
-            Opti.names = Opti.names + [par + '_' + s for s in Site.soils]
-            Opti.comp = Opti.comp + [i for i in range(Site.ns)]
-        elif Paras.ref[par]['veg'] == 1:
-            Opti.names = Opti.names + [par + '_' + s for s in Site.vegs]
-            Opti.comp = Opti.comp + [i for i in range(Site.nv)]
-            Paras.isveg += 1
-        else:
-            Opti.names = Opti.names + [par]
-            Opti.comp = Opti.comp + [0]
 
     # Total number of variables
     Opti.nvar = len(Opti.names)
@@ -445,7 +478,7 @@ def parameters(Config, Opti, Paras, Site, options):
 # ==================================================================================
 
 
-def runs(Config, Opti, Data, Paras, Site, options, top_rank):
+def runs(Config, Opti, Data, Paras, Site, options):
 
     # -- Directories for runs
     # Forcings and reference maps
@@ -504,13 +537,16 @@ def runs(Config, Opti, Data, Paras, Site, options, top_rank):
 
     # -- About running EcH2O
     # Executable
-    if Config.exe is not None:
+    if hasattr(Config, 'exe'):
         if len(glob.glob(Config.exe)) == 0:
             sys.exit('The user provided EXEC file was not found: ' +
                      Config.exe)
             print('The user provided EXEC file is: '+Config.exe)
+    elif Config.runECH2O == 1:
+        sys.exit('The EcH2O EXEC file needs to be specified')
+
     # Remove if existing (serves as marker for parallel process, see init.files)
-    if top_rank == 1:
+    if not (Opti.SPOTpar == 'mpi' and Opti.rank !=0):
         try:
             os.remove(os.path.join(Config.PATH_OUT, Config.exe))
         except:
@@ -598,7 +634,7 @@ def runs(Config, Opti, Data, Paras, Site, options, top_rank):
     Config.numsim = options.outdir.split('.')[::-1][0]
 
     # -- Tracking age and/or tracers?
-    if Site.isTrck is None:
+    if not hasattr(Site, 'isTrck'):
         Site.isTrck = 0
     if Site.isTrck == 1:
         if options.cfgTrck is not None:
@@ -735,13 +771,11 @@ def observations(Config, Opti, Data):
 # ==========================================================================
 
 
-def files(Config, Opti, Paras, Site, top_rank):
+def files(Config, Opti, Paras, Site):
 
     # Verbose, copying and editing directories and files.
-    # Only do it once, in mpi mode the top_rank option is used to check that:
-    # it is set to one whenever in sequential mode or mpi + rank=0
-
-    if top_rank == 1:
+    # Only do it once, in mpi mode the Opti.rank variable variable is used
+    if not (Opti.SPOTpar == 'mpi' and Opti.rank !=0):
 
         # ==== Introductory verbose
         # if Opti.parallel == False or \
@@ -828,7 +862,7 @@ def files(Config, Opti, Paras, Site, top_rank):
 
     else:
         # In MPI mode, make other processes wait until EcH2O has been copied
-        # which means the top_rank process finished all the preps
+        # which means the rank=0 process finished all the preps
         while len(glob.glob(os.path.join(Config.PATH_OUT, Config.exe))) == 0:
             time.sleep(1)
 
@@ -849,9 +883,10 @@ def files(Config, Opti, Paras, Site, top_rank):
     # Site.bmaps['chanmask_NaN'] = pcr.readmap(Config.PATH_SPA +
     #                                          '/chanmask_NaN.map')
     # Bare rock patches
-    if Site.simRock is not None and Site.simRock == 1:
-        # Site.bmaps['nolowK'] = readmap(Config.PATH_SPA+'/unit.nolowK.map')
-        Site.bmaps['rock'] = pcr.readmap(Config.PATH_SPA+'/unit.rock.map')
+    if hasattr(Site, 'simRock'):
+        if Site.simRock == 1:
+            # Site.bmaps['nolowK'] = readmap(Config.PATH_SPA+'/unit.nolowK.map')
+            Site.bmaps['rock'] = pcr.readmap(Config.PATH_SPA+'/unit.rock.map')
 
     # -- For initial soil moisture maps generation at each run of EcH2O,
     # get the value of keyword in config file (porosity profile type and
@@ -865,11 +900,9 @@ def files(Config, Opti, Paras, Site, top_rank):
     for line in datafile:
         # Check which porosity profile mode is on in config file
         if 'Porosity_profile =' in line:
-            # print('Found porosity mode')
             Site.poros_mode = int(line.split('=')[1].strip())
         # Files names needed in any case
         if 'Top-of-profile_Porosity =' in line:
-            # print('Found porosity mode')
             Site.f_poros = line.split('=')[1].strip()
         if 'Soil_moisture_1' in line:
             Site.f_initSWC1 = line.split('=')[1].strip()
@@ -886,16 +919,12 @@ def files(Config, Opti, Paras, Site, top_rank):
         # Exponential: profile coeff and depths file names are needed
         for line in datafile:
             if 'Porosity_Profile_coeff =' in line:
-                print('Found porosity profile coeff')
                 Site.f_kporos = line.split('=')[1].strip()
             if 'Depth_soil_layer_1 =' in line:
-                print('Depth layer 1 found')
                 Site.f_dL1 = line.split('=')[1].strip()
             if 'Depth_soil_layer_2 =' in line:
-                print('Depth layer 2 found')
                 Site.f_dL2 = line.split('=')[1].strip()
             if 'Soil_depth =' in line:
-                print('Soil depth found')
                 Site.f_dTot = line.split('=')[1].strip()
         if not any(s in Site.__dict__.keys() for s in
                    ['f_kporos', 'f_dL1', 'f_dL2', 'f_dTot']):
@@ -905,10 +934,8 @@ def files(Config, Opti, Paras, Site, top_rank):
         # Porosity map given for each layer
         for line in datafile:
             if 'Porosity_Layer2 =' in line:
-                print('Porosity layer 2 found')
                 Site.f_porosL2 = line.split('=')[1].strip()
             if 'Porosity_Layer3 =' in line:
-                print('Porosity layer 3 found')
                 Site.f_porosL3 = line.split('=')[1].strip()
         if not any(s in Site.__dict__.keys() for s in
                    ['f_porosL2', 'f_porosL3']):
