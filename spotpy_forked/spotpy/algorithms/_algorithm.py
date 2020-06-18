@@ -406,9 +406,9 @@ class _algorithm(object):
 
         # If there was any problem with the run, save the ech2o log
         if self.setup.runFail:
-            print(self.setup.__dict__.keys())
-            if 'PATH_EXEC' in self.setup.__dict__.keys():
-            # if hasattr(self.setup, 'PATH_EXEC'):
+            # print(self.setup.__dict__.keys())
+            if 'PATH_EXEC' in self.setup.__dict__.keys() and \
+               not hasattr(self.setup, 'PATH_EXEC'):
                 if os.path.isfile(self.setup.PATH_EXEC+'/ech2o.log'):
                     os.rename(self.setup.PATH_EXEC+'/ech2o.log', 
                               self.setup.config.PATH_OUT+'/ech2o_'+self.iter+'.log')

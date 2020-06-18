@@ -24,119 +24,124 @@ import pandas as pd
 # -- Read a given simulation output (time series only)
 
 
-def read_sim(Config, Data, oname):
+def read_sim(Config, Obs, oname):
 
     # Point-scale time series -------------------------------------
-    if Data.obs[oname]['type'] == 'Ts':
+    if Obs.obs[oname]['type'] == 'Ts':
         # HEader in EcH2O files
-        hskip = Data.nts+3
-        idx = np.argsort(np.array(Data.sim_order))[Data.obs[oname]
+        hskip = Obs.nts+3
+        idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]
                                                    ['sim_pts']-1]+1
         # Read
-        tmp = pd.read_table(Data.obs[oname]['sim_file'],
+        sim = pd.read_table(Obs.obs[oname]['sim_file'],
                             skiprows=hskip, header=None).iloc[:, idx] * \
-            Data.obs[oname]['sim_conv']
-        # tmp = np.genfromtxt(Data.obs[oname]['sim_file'],
-        #                     delimiter='\t', skip_header=hskip,
-        #                     unpack=True)[idx] * \
-        #     Data.obs[oname]['sim_conv']
-        # Shave off the transient part
-        # if Config.trimB > 1:
-        #    sim = tmp[Config.trimB-1:Config.trimB-1+Config.trimL]
-        # print(oname, len(tmp))
-        if Data.lspin > 1:
-            sim = tmp[Data.lspin-1:Data.lsim-1]
-        # print(oname,'before trim:',len(tmp), 'after trim',len(sim))
+            Obs.obs[oname]['sim_conv']
       
     # Integrated variables (in BasinSummary.txt) -----------------
-    if Data.obs[oname]['type'] == 'Total':
-        idx = Data.obs[oname]['sim_pts']-1
-        tmp = np.genfromtxt(Data.obs[oname]['sim_file'],
+    if Obs.obs[oname]['type'] == 'Total':
+        idx = Obs.obs[oname]['sim_pts']-1
+        # Read
+        sim = np.genfromtxt(Obs.obs[oname]['sim_file'],
                             delimiter='\t', skip_header=1,
-                            unpack=True)[idx] * \
-            Data.obs[oname]['sim_conv']
-        # Shave off the transient part
-        # if Config.trimB > 1:
-        #     sim = tmp[Config.trimB-1:Config.trimB-1+Config.trimL]
-        if Data.lspin > 1:
-            sim = tmp[Data.lspin-1:Data.lsim-1]
+                            unpack=True)[idx] * Obs.obs[oname]['sim_conv']
+
+    # If required, trim (spinup, transient state, etc.)
+    if Obs.saveB > 1 or Obs.saveL < Obs.lsim:
+        sim = sim[Obs.saveB-1:Obs.saveB+Obs.saveL-2]
 
     return sim
 # ----------------------------------------------------------------------------
 # -- Store in files for later use
 
 
-def store_sim(Data, Opti, Config, it):
+def store_sim(Obs, Opti, Config, it):
 
     # -- Report the full BasinSummary.txt files?
-    # if Config.repBS == 1:
-    #    os.system('mv '+Config.PATH_EXEC+'/BasinSummary.txt '+
-    # Config.PATH_OUT+'/BasinSummary_run'+str(it+1)+'.txt')
+    if Obs.repBS == 1 and Config.mode != 'calib_MCruns':    
+        os.system('mv '+Config.PATH_EXEC+'/BasinSummary.txt ' +
+                  Config.PATH_OUT+'/BasinSummary_run'+str(it+1)+'.txt')
+
+        if Config.isTrck == 1:
+            # deuterium summary
+            if len(glob.glob(Config.PATH_EXEC+'/Basind2HSummary.txt')) != 0:
+                os.system('mv '+Config.PATH_EXEC + '/Basind2HSummary.txt ' +
+                          Config.PATH_OUT+'/Basind2HSummary_run' +
+                          str(it+1)+'.txt')
+            # oxygen 18 summary
+            if len(glob.glob(Config.PATH_EXEC+'/Basind18OSummary.txt')) != 0:
+                os.system('mv '+Config.PATH_EXEC + '/Basind18OSummary.txt ' +
+                          Config.PATH_OUT+'/Basind18OSummary_run' +
+                          str(it+1)+'.txt')
+            # age summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinAgeSummary.txt')) != 0:
+                os.system('mv '+Config.PATH_EXEC + '/BasinAgeSummary.txt ' +
+                          Config.PATH_OUT+'/BasinAgeSummary_run' +
+                          str(it+1)+'.txt')
 
     # -- Group the output files in one across simulations,
     #    separating by observations points and veg type where it applies
-    for oname in Data.names:
-        if Data.obs[oname]['type'] != 'map' and \
-           Data.obs[oname]['type'] != 'mapTs' and (it == 0 or
+    for oname in Obs.names:
+        if Obs.obs[oname]['type'] != 'map' and \
+           Obs.obs[oname]['type'] != 'mapTs' and (it == 0 or
                                                    Opti.begfail == 1):
             # Historic time series file names
-            Data.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
+            Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
             # Header of files
-            with open(Data.obs[oname]['sim_hist'], 'w') as f_out:
+            with open(Obs.obs[oname]['sim_hist'], 'w') as f_out:
                 f_out.write('Sample,'+','.join([str(i+1) for i in
-                                                range(Config.trimL)])+'\n')
+                                                range(Obs.saveL)])+'\n')
 
     # Reinit begfail (otherwise will never write all!)
     Opti.begfail = 0
 
     # Save current run outputs (and delete the file to relieve Maxwell...)
-    for oname in Data.names:
+    for oname in Obs.names:
         # print(oname)
 
         # Integrated variables (in BasinSummary.txt) --------------------------
-        if Data.obs[oname]['type'] == 'Total':
-            idx = Data.obs[oname]['sim_pts']-1
+        if Obs.obs[oname]['type'] == 'Total':
+            idx = Obs.obs[oname]['sim_pts']-1
 
-            tmp = np.genfromtxt(Data.obs[oname]['sim_file'], delimiter='\t',
+            tmp = np.genfromtxt(Obs.obs[oname]['sim_file'], delimiter='\t',
                                 skip_header=1,
-                                unpack=True)[idx]*Data.obs[oname]['sim_conv']
+                                unpack=True)[idx]*Obs.obs[oname]['sim_conv']
 
             # Shave off the transient part (if any)
-            if Config.trimB > 1:
-                tmp = tmp[Config.trimB-1:Config.trimB-1+Config.trimL]
-                if len(tmp) != Config.trimL:
+            if Obs.saveB > 1:
+                tmp = tmp[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
+                if len(tmp) != Obs.saveL:
                     sys.exit("ERROR -> Problem with output trim: we've got" +
-                             str(len(tmp)) + ' instead of '+str(Config.trimL))
+                             str(len(tmp)) + ' instead of '+str(Obs.saveL))
 
-            with open(Data.obs[oname]['sim_hist'], 'a') as f_out:
+            with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
                 f_out.write(str(it+1)+','+','.join([str(j) for j in
                                                     list(tmp)])+'\n')
 
         # Time series ---------------------------------------------------------
-        if Data.obs[oname]['type'] == 'Ts':
-            hskip = Data.nts+3
-            idx = np.argsort(np.array(Data.sim_order))[Data.obs[oname]
+        if Obs.obs[oname]['type'] == 'Ts':
+            hskip = Obs.nts+3
+            idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]
                                                        ['sim_pts']-1]+1
 
             tmp = np.genfromtxt(
-                Data.obs[oname]['sim_file'], delimiter='\t',
-                skip_header=hskip, unpack=True)[idx]*Data.obs[oname]['sim_conv']
+                Obs.obs[oname]['sim_file'], delimiter='\t',
+                skip_header=hskip, unpack=True)[idx]*Obs.obs[oname]['sim_conv']
 
             # Shave off the transient part (if any)
-            if Config.trimB > 1:
-                tmp = tmp[Config.trimB-1:Config.trimB-1+Config.trimL]
+            if Obs.saveB > 1:
+                tmp = tmp[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
 
-            with open(Data.obs[oname]['sim_hist'], 'a') as f_out:
+            with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
                 f_out.write(str(it+1)+','+','.join([str(j) for j in
                                                     list(tmp)])+'\n')
 
         # Fixed-value (initial-value) maps ------------------------------------
-        if Data.obs[oname]['type'] == 'map':
+        if Obs.obs[oname]['type'] == 'map':
 
             # Missing vaue for PCraster to numpy conversion
             MV = -9999.
 
-            f_m = Config.PATH_EXEC+'/'+Data.obs[oname]['sim_file']+'.map'
+            f_m = Config.PATH_EXEC+'/'+Obs.obs[oname]['sim_file']+'.map'
             if(len(glob.glob(f_m)) == 0):
                 print("Warning: the map " + f_m +
                       " seems to be missing from the EcH2O outputs...")
@@ -144,7 +149,7 @@ def store_sim(Data, Opti, Config, it):
 
             # Now that we have what we need, read the PCraster map...
             var_val = \
-                pcr.pcr2numpy(pcr.readmap(f_m), MV)*Data.obs[oname]['sim_conv']
+                pcr.pcr2numpy(pcr.readmap(f_m), MV)*Obs.obs[oname]['sim_conv']
 
             # Write output NCDF file
             ncFile = Config.PATH_OUT+'/'+oname+'_all.nc'
@@ -199,23 +204,23 @@ def store_sim(Data, Opti, Config, it):
             rootgrp.close()
 
         # Time-varying maps ---------------------------------------------------
-        if Data.obs[oname]['type'] == 'mapTs':
+        if Obs.obs[oname]['type'] == 'mapTs':
 
             # print(oname)
 
             # Missing vaue for PCraster to numpy conversion
             MV = -9999.
-            lensuf = 8 - len(Data.obs[oname]['sim_file'])
+            lensuf = 8 - len(Obs.obs[oname]['sim_file'])
 
             MapNames = []
             itOK = []
             itNotOK = []
 
-            for it2 in range(1, Data.lsim+1):
+            for it2 in range(1, Obs.lsim+1):
 
                 # Only save files beyond the spinup/transient period (if any)
-                if it2 >= Config.trimBmap and \
-                   it2 < Config.trimBmap+Config.trimL:
+                if it2 >= Obs.saveBmap and \
+                   it2 < Obs.saveBmap+Obs.saveL:
 
                     # The basic format of maps outputs is XXXXXXXX.xxx
                     # where xxx is the iteration number below 1000.
@@ -249,16 +254,16 @@ def store_sim(Data, Opti, Config, it):
                     # If the length of iteration number conflicts with the
                     # space taken by the "base" name of the map, then the
                     # latter is "eaten" in EcH2O outputting
-                    if len(Data.obs[oname]['sim_file'])+len(suf) > 12:
-                        excess = len(Data.obs[oname]['sim_file'])+len(suf) - 12
+                    if len(Obs.obs[oname]['sim_file'])+len(suf) > 12:
+                        excess = len(Obs.obs[oname]['sim_file'])+len(suf) - 12
                         if len(suf) > 12:
                             print("Warning: the time step is too high to " +
                                   "sort the maps!")
                         f_m = Config.PATH_EXEC+'/' +\
-                            Data.obs[oname]['sim_file'][:-excess]+suf
+                            Obs.obs[oname]['sim_file'][:-excess]+suf
                     else:
                         f_m = Config.PATH_EXEC+'/' +\
-                            Data.obs[oname]['sim_file'] + suf
+                            Obs.obs[oname]['sim_file'] + suf
 
                     if len(glob.glob(f_m)) == 0:
                         itNotOK += [it2]
@@ -268,13 +273,13 @@ def store_sim(Data, Opti, Config, it):
                         # print(f_m)
 
             # Time values for netCDF output
-            var_t = np.array([(Config.treal[x-Config.trimBmap] -
+            var_t = np.array([(Config.treal[x-Obs.saveBmap] -
                                datetime(1901, 1, 1, 0, 0)).days for x in itOK])
 
             if(len(itOK) == 0):
                 print("Nothing to be read from the "+oname+" maps...")
                 print("it could be due to an incorrect template map name, or" +
-                      "a trimBmap value beyond the last simulation timestep?")
+                      "a saveBmap value beyond the last simulation timestep?")
                 continue
 
             if(len(itNotOK) > 0):
@@ -282,7 +287,7 @@ def store_sim(Data, Opti, Config, it):
                     print("Warning: some of the demanded "+oname +
                           " maps are missing, before t=", itOK[0])
                     print("(that's normal if maps output does not start " +
-                          "at t=trimBmap in EcH2O config file)")
+                          "at t=saveBmap in EcH2O config file)")
                 else:
                     print("Warning: all of the demanded "+oname +
                           " maps are missing!")
@@ -295,7 +300,7 @@ def store_sim(Data, Opti, Config, it):
                 if(it2 == 0):
                     var_val = pcr.pcr2numpy(
                         pcr.readmap(MapNames[it2]),
-                        MV)[None, ...]*Data.obs[oname]['sim_conv']
+                        MV)[None, ...]*Obs.obs[oname]['sim_conv']
                 # Read subsequent map, same procedure and then append
                 else:
                     var_val = \

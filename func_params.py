@@ -14,21 +14,42 @@
 import pcraster as pcr
 import copy
 import numpy as np
-import re
+import pandas as pd
 import sys
 
 # ----------------------------------------------------------------------------
 # -- Write parameters values file
 
 
-def get(Opti, Config):
+def get(Opti, Config, options):
 
-    # Open one file for all samples
-    f_in = Config.FILE_PAR+Config.numsim+'.txt'
-    print(f_in)
-    Opti.xpar = np.genfromtxt(f_in, delimiter=',', unpack=True)[1::]
-    print(Opti.xpar.shape)
+    if Config.mode == 'calib_MCruns':
 
+        # Read parameters sample for this instance of array task
+        # Open one file for all samples
+        Opti.xpar = np.genfromtxt(Config.FILE_PAR+Config.numsim+'.txt',
+                                  delimiter=',', unpack=True)[1::]
+        #print(Opti.xpar.shape)
+
+    # -- Forward ensemble runs: read directly the params from "best params"
+    #    file
+    elif Config.mode == 'forward_runs':
+
+        # Sanity check
+        tmp = list(pd.read_csv(Config.FILE_PAR, header=None).loc[:, 0])
+        if tmp != Opti.names:
+            print(Opti.names)
+            print(tmp)
+            sys.exit("The definition file and input parameter file ain't " +
+                     "matching!")
+
+        if(options.OMP_it is None):
+            Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',
+                                      unpack=True)[1::]
+        else:
+            Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',
+                                      unpack=True)[1::][None,
+                                                        Config.OMP_it-1, :]
 # ----------------------------------------------------------------------------
 # -- Write parameters values file
 

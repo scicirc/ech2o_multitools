@@ -139,20 +139,20 @@ def trajs(Config, Opti):
 # (in theory just uncomment previous code, but testing would be necessary)
 
 
-def ee(Config, Data, Opti):
+def ee(Config, Obs, Opti):
 
     firstObs = 0
     numObs = 0
     outObs = []
 
-    for oname in Data.names:
+    for oname in Obs.names:
 
         # Only look into time series
-        if Data.obs[oname]['type'] != 'map' and \
-           Data.obs[oname]['type'] != 'mapTs':
+        if Obs.obs[oname]['type'] != 'map' and \
+           Obs.obs[oname]['type'] != 'mapTs':
 
             # Read file
-            f_in = Data.obs[oname]['sim_hist']
+            f_in = Obs.obs[oname]['sim_hist']
             # df_sim = pd.read_csv(f_in,skiprows=1)
 
             # # Diff between two sims
@@ -173,8 +173,8 @@ def ee(Config, Data, Opti):
                                 unpack=True)[1:Config.trimL+1, :]
 
             # Take into account accumulated fluxes
-            if Data.obs[oname]['type'] == 'Total' and \
-               Data.obs[oname]['sim_pts'] in [1, 11, 12, 13, 14, 15, 16,
+            if Obs.obs[oname]['type'] == 'Total' and \
+               Obs.obs[oname]['sim_pts'] in [1, 11, 12, 13, 14, 15, 16,
                                               17, 18, 19, 20]:
                 sim = np.diff(sim, axis=0)
 

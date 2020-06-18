@@ -56,7 +56,7 @@ def config(options):
     sys.path.insert(0, cwd_tmp)
     Config = __import__(file_py).Config
     Opti = __import__(file_py).Opti
-    Data = __import__(file_py).Data
+    Obs = __import__(file_py).Obs
     Paras = __import__(file_py).Paras
     Site = __import__(file_py).Site
 
@@ -162,20 +162,21 @@ def config(options):
                 Opti.rank = int(os.environ['PMI_RANK'])
             
     # Database output for SPOTPY
-    if hasattr(Opti, 'SPOTdb'):
-        # - Custom case, format txt with separate files per obs, one general
-        # file and a algo diagnostic file
-        # Used by spot_setup 
-        Opti.dbname = Config.PATH_OUT + '/' + Opti.SPOTalgo + 'ech2o' 
-        Opti.dbformat = 'custom'
-        # Used by sampler.sample
-        Opti.dbname2 = None
-    else:
-        # - Default case, format csv and db call in sampler.sample
-        Opti.dbname = None  # Used by spot_setup 
-        Opti.dbformat = 'csv'
-        # Used by sampler.sample
-        Opti.dbname2 = Config.PATH_OUT + '/' + Opti.SPOTalgo + 'ech2o'
+    if Config.mode == 'calib_SPOTPY':
+        if hasattr(Opti, 'SPOTdb'):
+            # - Custom case, format txt with separate files per obs, one general
+            # file and a algo diagnostic file
+            # Used by spot_setup 
+            Opti.dbname = Config.PATH_OUT + '/' + Opti.SPOTalgo + 'ech2o' 
+            Opti.dbformat = 'custom'
+            # Used by sampler.sample
+            Opti.dbname2 = None
+        else:
+            # - Default case, format csv and db call in sampler.sample
+            Opti.dbname = None  # Used by spot_setup 
+            Opti.dbformat = 'csv'
+            # Used by sampler.sample
+            Opti.dbname2 = Config.PATH_OUT + '/' + Opti.SPOTalgo + 'ech2o'
 
     # print(options.outdir)
     # -- Calibration: all parameter path (and datasets, if needed)
@@ -231,7 +232,7 @@ def config(options):
 
     # ---------------------------------------------------------------------------
     # Return the classes read in the definition file
-    return (Config, Opti, Data, Paras, Site)
+    return (Config, Opti, Obs, Paras, Site)
 # ==================================================================================
 
 
@@ -271,7 +272,7 @@ def parameters(Config, Opti, Paras, Site, options):
         # veg dependence (veg can be not all species present), default 1
         # Opti.names: unique name using par + component (none, soil/veg type)
         # Opti.comp: which of the component are calibrated? (none, all, some)
-        if Paras.ref[par]['soil']*Paras.ref[par]['veg'] == 0:
+        if Paras.ref[par]['soil'] == 0 and Paras.ref[par]['veg'] == 0:
             nr = 1
             Opti.names = Opti.names + [par]
             Paras.comp[par] = 0
@@ -393,37 +394,11 @@ def parameters(Config, Opti, Paras, Site, options):
         # Done
         print('Parameters sample generation done.')
 
-    # -- Calibration runs: retrieve previously generated samples
-    if Config.mode == 'calib_MCruns':
-        print('Get parameters samples for this job...')
-        # Read parameters sample for this instance of array task
-        params.get(Opti, Config)
-
-    # -- Forward ensemble runs: read directly the params from "best params"
-    #    file
-    if Config.mode == 'forward_runs':
-
-        print('Get parameter set for these ensemble runs...')
-        # tmp = list(np.genfromtxt(Config.FILE_PAR,delimiter=',',dtype= '|S30',
-        # unpack=True)[0])
-        tmp = list(pd.read_csv(Config.FILE_PAR, header=None).loc[:, 0])
-
-        if tmp != Opti.names:
-            print(Opti.names)
-            print(tmp)
-            sys.exit("The definition file and input parameter file ain't " +
-                     "matching!")
-
-        # pnames = ','.join([str(tmp[id.x]) for idx in range(Opti.nvar)])
-        # print(tmp#pnames
-        # print(Opti.names
-        if(options.OMP_it is None):
-            Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',
-                                      unpack=True)[1::]
-        else:
-            Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',
-                                      unpack=True)[1::][None,
-                                                        Config.OMP_it-1, :]
+    # -- MC calibration or ensemble runs: retrieve previously stored
+    # -- samples or ensemble
+    if Config.mode in ['calib_MCruns', 'forward_runs']:
+        # print('Get parameters samples for this job...')
+        params.get(Opti, Config, options)
 
     # -- Sensitivity analysis: generate morris trajectories
     if Config.mode == 'sensi_morris':
@@ -478,7 +453,7 @@ def parameters(Config, Opti, Paras, Site, options):
 # ==================================================================================
 
 
-def runs(Config, Opti, Data, Paras, Site, options):
+def runs(Config, Opti, Obs, Paras, Site, options):
 
     # -- Directories for runs
     # Forcings and reference maps
@@ -664,9 +639,6 @@ def runs(Config, Opti, Data, Paras, Site, options):
             if len(glob.glob(Config.FILE_PAR)) == 0:
                 sys.exit('The param file (ensemble set) was not found: ' +
                          Config.FILE_PAR)
-
-            print('')
-            print('The ensemble param file is : '+Config.FILE_PAR)
         else:
             sys.exit('The param file (ensemble set) needs to be ' +
                      'specified (--inEns)')
@@ -677,23 +649,6 @@ def runs(Config, Opti, Data, Paras, Site, options):
             Config.nEns = min(int(options.nEns), nv)
         else:
             Config.nEns = nv
-
-    # --- Reporting stuff
-    # Trim: only saves the time steps within the trim
-    if not hasattr(Config, 'trimB'):
-        Config.trimB = 1
-
-    # Initial cutoff for map reporting
-    if not hasattr(Config, 'trimBmap'):
-        Config.trimBmap = 1
-
-    # Length of saved outputs
-    if not hasattr(Config, 'trimL'):
-        Config.trimL = Data.lsim - Config.trimB + 1
-    else:
-        if Config.trimL > Data.lsim - Config.trimB+1:
-            sys.exit('Error: the specified output slicing start+length ' +
-                     'goes beyond simulation time!')
 
     # Maps averaging
     if options.MapAv is not None:
@@ -706,63 +661,73 @@ def runs(Config, Opti, Data, Paras, Site, options):
     else:
         Config.MapAv = 0
 
-    # Report BasinSummary.txt
-    if hasattr(Config, 'repBS'):
-        Config.repBS = 0
-
 # ==================================================================================
 # -- Read measurements for calibration
 
 
-def observations(Config, Opti, Data):
+def observations(Config, Opti, Obs):
 
     # Set the observations types collected from runs (sim outputs)
     # (and compared to measurements if there is calibration)
-    Data.names = sorted(Data.obs.keys())
+    Obs.names = sorted(Obs.obs.keys())
 
+    # --- Reporting stuff
+    # Trim: only saves the time steps within the trim
+    if not hasattr(Obs, 'saveB'):
+        Obs.saveB = 1  # Initial time step to report time series
+    if not hasattr(Obs, 'saveBmap'):
+        Obs.saveBmap = 1  # Initial time step to report maps
+    # Length of saved outputs
+    if not hasattr(Obs, 'saveL'):
+        Obs.saveL = Obs.lsim - Obs.saveB + 1
+    else:
+        if Obs.saveL > Obs.lsim - Obs.saveB + 1:
+            sys.exit('Error: the specified output slicing start+length ' +
+                     'goes beyond simulation time!')
+    # Report BasinSummary.txt
+    if hasattr(Obs, 'repBS'):
+        Obs.repBS = 0
     # Date of the simulations (used for calibration periods, mostly)
-    Data.lsimEff = Data.lsim - Data.lspin
-    Data.simt = [Data.simbeg + timedelta(days=x)
-                 for x in range(Data.lsimEff)]
+    Obs.simt = [Obs.simbeg + timedelta(days=x) for x in range(Obs.saveL)]
     # Same thing in froward mode (needs to be merged...)
-    Config.treal = [Data.simbeg+timedelta(days=x) for x in range(Config.trimL)]
+    Config.treal = [Obs.simbeg+timedelta(days=x) for x in range(Obs.saveL)]
 
     if Config.mode == 'calib_SPOTPY':
 
         # print('Reading measured datasets for calibration...')
 
-        Opti.obs = {}  # np.full((Data.nobs, Config.trimL), np.nan)
+        Opti.obs = {}  # np.full((Obs.nobs, Obs.saveL), np.nan)
 
-        for oname in Data.names:
+        for oname in Obs.names:
 
             # print(oname)
             # -- Get the obs
-            f_obs = Config.PATH_OBS + '/' + Data.obs[oname]['obs_file']
+            f_obs = Config.PATH_OBS + '/' + Obs.obs[oname]['obs_file']
 
             # Read the file, keeping only the data and relevant TS columns
             tmp = pd.read_csv(f_obs, sep=';').iloc[
-                :, [0, Data.obs[oname]['obs_col']-1]]
+                :, [0, Obs.obs[oname]['obs_col']-1]]
             tmp.columns.values[:] = ['Date', 'value']
             # Convert date column to datetime
             tmp['Date'] = pd.to_datetime(tmp['Date'], format='%Y-%m-%d')
             # Convert date column to datetime
-            tmp['value'] = tmp['value'] * Data.obs[oname]['obs_conv']
+            tmp['value'] = tmp['value'] * Obs.obs[oname]['obs_conv']
 
             # Calibration period:
             # Check if specified, otherwise use the whole simulation
             # in any case, remove the spinup (it will be removed from
             # simulation outputs in post-processing)
-            if 'fit_beg' not in Data.obs[oname].keys() or \
-               type(Data.obs[oname]['fit_beg']) is not datetime.date:
-                fitbeg = Data.simt[0]
+            if 'fit_beg' not in Obs.obs[oname].keys() or \
+               type(Obs.obs[oname]['fit_beg']) is not datetime.date:
+                fitbeg = Obs.simt[0]
             else:
-                fitbeg = max(Data.obs[oname]['fit_beg'], Data.simt[0])
-            if 'fit_end' not in Data.obs[oname].keys() or \
-               type(Data.obs[oname]['fit_end']) is not datetime.date:
-                fitend = Data.simt[Data.lsimEff-1]
+                fitbeg = max(Obs.obs[oname]['fit_beg'], Obs.simt[0])
+            if 'fit_end' not in Obs.obs[oname].keys() or \
+               type(Obs.obs[oname]['fit_end']) is not datetime.date:
+                fitend = Obs.simt[Obs.saveL-1]
             else:
-                fitend = min(Data.obs[oname]['fit_end'],
-                             Data.simt[Data.lsimEff - 1])
+                fitend = min(Obs.obs[oname]['fit_end'],
+                             Obs.simt[Obs.saveL-1])
 
             # Crop obs between desired time frame
             tmp = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
@@ -788,6 +753,7 @@ def files(Config, Opti, Paras, Site):
             print('CALIBRATION with EcH2O: \n')
         elif Config.mode == 'forward_runs':
             print('ENSEMBLE RUNS with EcH2O')
+            print('The ensemble param file is:', Config.FILE_PAR)
         elif Config.mode == 'sensi_morris':
             print('MORRIS SENSITIVITY with EcH2O: ')
             print('- construction of the trajectories')

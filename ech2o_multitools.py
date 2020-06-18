@@ -128,15 +128,15 @@ parser.add_option("--MSspace", dest="MSspace", metavar="MSspace",
 # == Initialization
 
 # Configuration --------------------------------
-(Config, Opti, Data, Paras, Site) = init.config(options)
+(Config, Opti, Obs, Paras, Site) = init.config(options)
 
 # Whenever there are EcH2O runs: a few others initializations
 if Config.runECH2O == 1:
     # Runs' properties etc.
-    init.runs(Config, Opti, Data, Paras, Site, options)
+    init.runs(Config, Opti, Obs, Paras, Site, options)
     # Initialize observation names
     # (and read datasets if in DREAM calibration mode)
-    init.observations(Config, Opti, Data)
+    init.observations(Config, Opti, Obs)
 
 # Parameters: from definition to all values ------
 init.parameters(Config, Opti, Paras, Site, options)
@@ -146,53 +146,18 @@ init.parameters(Config, Opti, Paras, Site, options)
 # print('rank', str(rank), 'in initialization routines')
 init.files(Config, Opti, Paras, Site)
 
-# if options.mpi == 1:
-#     print('2 - rank:',rank)
-#     if options.mpi == 1:  # i.e., rank == 0:
-#         for i in range(1,size):
-#             print('Rank 0: rank',i, ', wait for me!')
-#             req = comm.isend('waited for you, chillax...', dest=i, tag=1)
-#             req.wait()
-# sys.exit()
-
-# elif options.mpi == 1:  # i.e., rank > 0
-#     # sys.path.insert(0, cwd_tmp)
-#     req = comm.irecv(source=0, tag=1)
-#     data = req.wait()
-#     print('rank', str(rank), data)
-
-# -- Import classes and setup from the def file
-#     Config = None #__import__(file_py).Config
-#     Opti = None #__import__(file_py).Opti
-#     Data = None #__import__(file_py).Data
-#     Paras = None # __import__(file_py).Paras
-#     Site = None # __import__(file_py).Site
-
-# #print(Config.__dict__.keys())
-# #if options.mpi == 1:
-#     # In MPI mode, broadcast the class to all processes
-#     # Config = comm.bcast(Config, root=0)
-#     Opti = comm.bcast(Opti, root=0)
-#     Data = comm.bcast(Data, root=0)
-#     Paras = comm.bcast(Paras, root=0)
-#     Site = comm.bcast(Site, root=0)
-
-# print(Config.__dict__.keys())
-
-# sys.exit()
-
 # === Runs ========================================
 # -------------------
 if Config.mode == 'calib_MCruns':
     # Calibration loop
-    runs.calibMC_runs(Config, Opti, Data, Paras, Site)
+    runs.calibMC_runs(Config, Opti, Obs, Paras, Site)
 
 elif Config.mode == 'calib_SPOTPY':
 
     if Opti.SPOTalgo in ['DREAM']:
         # Initialize
         spot_setup = spot_setup.spot_setup(Config, Opti, Paras,
-                                           Data, Site,
+                                           Obs, Site,
                                            parallel=Opti.SPOTpar,
                                            _used_algorithm=Opti.SPOTalgo.lower(),
                                            # file extension added automatically
@@ -212,16 +177,16 @@ elif Config.mode == 'calib_SPOTPY':
                            runs_after_convergence=Opti.runs_after_conv)
 
     # Close the created txt file (if nobs=1, otherwise it's automatic)
-    if Data.nobs == 1:
+    if Obs.nobs == 1:
         spot_setup.database.close()
 
 elif Config.mode == 'forward_runs':
     # Ensemble "forward" runs
-    runs.forward_runs(Config, Opti, Data, Paras, Site, options)
+    runs.forward_runs(Config, Opti, Obs, Paras, Site, options)
 
 elif Config.mode == 'sensi_morris' and Config.MSinit == 0:
     # Simulations when varying the parameters, Morris's one-at-a-time
-    runs.morris_runs(Config, Opti, Data, Paras, Site)
+    runs.morris_runs(Config, Opti, Obs, Paras, Site)
 
 
 # END MAIN

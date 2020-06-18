@@ -23,7 +23,7 @@ import spotpy_forked.spotpy as spotpy
 # -- Multi-objective function(s)
 
 
-def MultiObj(obs, sim, Data, Opti, w=False):
+def MultiObj(obs, sim, Obs, Opti, w=False):
 
     like = 0
     Ltot = []
@@ -31,16 +31,16 @@ def MultiObj(obs, sim, Data, Opti, w=False):
     # Sanity check: did the simulation run?
     # (necessary to avoid error in the subsequent postprocessing)
     if sim is None:
-        if Data.nobs > 1:
-            like = [np.nan for i in range(Data.nobs+1)]
-            # Data.nobs+1 because of total objfunc + indiv ones
+        if Obs.nobs > 1:
+            like = [np.nan for i in range(Obs.nobs+1)]
+            # Obs.nobs+1 because of total objfunc + indiv ones
         else:
             like = np.nan
 
     else:    
-        for i in range(Data.nobs):
+        for i in range(Obs.nobs):
 
-            oname = Data.names[i]
+            oname = Obs.names[i]
 
             # Have obervation and simulations matching the same time period
             # obs: already pre-processed
@@ -51,12 +51,12 @@ def MultiObj(obs, sim, Data, Opti, w=False):
             # + only keep dates with obs (even if nan)
             # print(sim)
             # print(sim.shape)
-            if Data.nobs == 1:
-                s = np.asanyarray([sim[j] for j in range(Data.lsimEff) if
-                                   Data.simt[j] in tobs])
+            if Obs.nobs == 1:
+                s = np.asanyarray([sim[j] for j in range(Obs.saveL) if
+                                   Obs.simt[j] in tobs])
             else:
-                s = np.asanyarray([sim[i][j] for j in range(Data.lsimEff) if
-                                   Data.simt[j] in tobs])
+                s = np.asanyarray([sim[i][j] for j in range(Obs.saveL) if
+                                   Obs.simt[j] in tobs])
 
             # Second step (both o and s): remove nan due to gaps in obs
             tmp = s*o
@@ -75,8 +75,8 @@ def MultiObj(obs, sim, Data, Opti, w=False):
                 # Specific treatment for different obs types?
                 if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
                     # print(oname, 'remove mean')
-                    # s -= np.mean(s)
-                    # o -= np.mean(o)
+                    s -= np.mean(s)
+                    o -= np.mean(o)
                     # Log Gaussian likelihood without error (temporary)
                     # L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
                     #     1 / (o.__len__() * np.mean(o))
@@ -92,7 +92,7 @@ def MultiObj(obs, sim, Data, Opti, w=False):
                     # Log Gaussian with error set using std
                     # LogLikehood as used in Vrugt et al. (2016)
                     # Using standard deviation as indicator of error...
-                    o_err = np.std(o) + 0.1*o
+                    o_err = np.std(o) + 0.25*o
                     L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
                 
                 # Normalize by data length
@@ -103,7 +103,7 @@ def MultiObj(obs, sim, Data, Opti, w=False):
 
         # Several datasets: list multi-objective function and individual ones
         # Only the first (multi-obj) one will be used by the algorithm
-        if Data.nobs > 1:
+        if Obs.nobs > 1:
             like = [like] + Ltot
 
     # print(np.round(like, 2))

@@ -33,7 +33,7 @@ from contextlib import ExitStack
 
 class spot_setup(object):
 
-    def __init__(self, Config, Opti, Paras, Data, Site, parallel='seq',
+    def __init__(self, Config, Opti, Paras, Obs, Site, parallel='seq',
                  _used_algorithm='default', dbname=None):
 
         # Pass on classes
@@ -41,7 +41,7 @@ class spot_setup(object):
         self.opti = Opti
         self.par = Paras
         self.site = Site
-        self.data = Data
+        self.obs = Obs
 
         # Initial parameters sampling
         # In case of logarithmic sampling, min/max/guess/sd are
@@ -72,8 +72,6 @@ class spot_setup(object):
         # Evaluation data
         self.evals = copy.copy(Opti.obs)
 
-        self.curdir = copy.copy(Config.PATH_OUT)
-        self.owd = copy.copy(Config.PATH_EXEC)
         self.parallel = copy.copy(parallel)
 
         # Initialize custom database output.
@@ -86,26 +84,26 @@ class spot_setup(object):
             # simulation type containing "individual" likelihood and
             # times series, plus a "general" file with parameters
             # and likelihoods
-            if self.data.nobs > 1:
+            if self.obs.nobs > 1:
                 self.dbheaders = {}
                 self.filenames = [dbname+'_LikeParGeneral.txt'] + \
-                    [dbname+'.'+a+'.txt' for a in self.data.names]
-                self.outnames = ['general'] + self.data.names
+                    [dbname+'.'+a+'.txt' for a in self.obs.names]
+                self.outnames = ['general'] + self.obs.names
                 # General file
                 self.dbheaders['general'] = ['Iteration']
                 self.dbheaders['general'].append('Likelihood')
                 self.dbheaders['general'].extend(['like.' + a
-                                                  for a in self.data.names])
+                                                  for a in self.obs.names])
                 self.dbheaders['general'].extend(['par.{0}'.format(x) for x in
                                                   self.opti.names])
                 self.dbheaders['general'].append('chain')
                 # Simulation-specific files
-                for oname in self.data.names:
+                for oname in self.obs.names:
                     self.dbheaders[oname] = ['Iteration']
                     self.dbheaders[oname].append('like.'+oname)
                     self.dbheaders[oname].extend(['par.{0}'.format(x) for x in
                                                  self.opti.names])
-                    for j in range(self.data.lsimEff):
+                    for j in range(self.obs.saveL):
                         self.dbheaders[oname].extend(['sim.t'+str(j+1)])
                     self.dbheaders[oname].append('chain')
                 # Write headers
@@ -116,7 +114,7 @@ class spot_setup(object):
                     # All opened files will automatically be closed at the end
                     # ofthe with statement, even if attempts to open files
                     # later in the list raise an exception
-                    for i in range(self.data.nobs+1):
+                    for i in range(self.obs.nobs+1):
                         self.database[i].write(",".
                                                join(self.dbheaders[
                                                    self.outnames[i]])+"\n")
@@ -128,7 +126,7 @@ class spot_setup(object):
                 self.dbheaders.append('Likelihood')
                 self.dbheaders.extend(['par.{0}'.format(x) for x in
                                        self.opti.names])
-                for i in range(self.data.lsimEff):
+                for i in range(self.obs.saveL):
                     self.dbheaders.extend(['sim' + '.t' + str(i)])
                 self.dbheaders.append('chain')
                 # Write
@@ -159,16 +157,10 @@ class spot_setup(object):
     # and read the model discharge output data:
     def simulation(self, x):
 
-        os.chdir(self.curdir)
-
-        # Folder have been specified in init.runs
-        # self.PATH_SPA = copy.copy(self.config.PATH_SPA)
-        # self.PATH_EXEC = copy.copy(self.config.PATH_EXEC)
-
-        print(self.parallel)
-        # mkpath(self.config.PATH_EXEC)
+        os.chdir(self.config.PATH_OUT)
 
         if self.parallel == 'seq':
+            # Sequential
             self.PATH_SPA = copy.copy(self.config.PATH_SPA)
             self.PATH_EXEC = copy.copy(self.config.PATH_EXEC)
             self.cfg_ech2o = 'config.ini'
@@ -203,7 +195,7 @@ class spot_setup(object):
                 os.remove(self.PATH_EXEC+'/ech2o.log')
             # Copy ech2o config file define input maps directory
             self.cfg_ech2o = self.PATH_EXEC+'/config.ini'
-            copy_file(self.curdir+'/config.ini', self.cfg_ech2o)
+            copy_file(self.config.FILE_CFGdest, self.cfg_ech2o)
             # Update the "new" config file with output and map locations
             with open(self.cfg_ech2o, 'a') as fw:
                 fw.write('Maps_Folder = '+self.PATH_SPA+'\n')
@@ -217,11 +209,11 @@ class spot_setup(object):
                           self.PATH_SPA, 0, mode='spotpy', paramcur=x)
 
         # nan values so that simulations can be returned even if the run fails
-        if self.data.nobs > 1:
-            simulations = np.full((self.data.nobs, self.data.lsimEff),
+        if self.obs.nobs > 1:
+            simulations = np.full((self.obs.nobs, self.obs.saveL),
                                   np.nan).tolist()
         else:
-            simulation = [np.nan] * self.data.lsimEff
+            simulation = [np.nan] * self.obs.saveL
 
         # Run EcH2O
         print('|| running ECH2O...', end='\r')
@@ -243,31 +235,31 @@ class spot_setup(object):
             # Store outputs: for now restricted to time series
             os.chdir(self.PATH_EXEC)
         
-            if self.data.nobs == 1:
-                simulations = outputs.read_sim(self.config, self.data,
-                                               self.data.names[0]).tolist()
-                if(len(simulations) < self.data.lsimEff):
+            if self.obs.nobs == 1:
+                simulations = outputs.read_sim(self.config, self.obs,
+                                               self.obs.names[0]).tolist()
+                if(len(simulations) < self.obs.saveL):
                     print('sim length:', len(simulations),
-                          ', expected:', self.data.lsimEff)
-                    simulations = [np.nan] * self.data.lsimEff
+                          ', expected:', self.obs.saveL)
+                    simulations = [np.nan] * self.obs.saveL
             else:
                 # To store simulations
-                simulations = np.full((self.data.nobs, self.data.lsimEff),
+                simulations = np.full((self.obs.nobs, self.obs.saveL),
                                       np.nan).tolist()
-                for i in range(self.data.nobs):
-                    oname = self.data.names[i]
+                for i in range(self.obs.nobs):
+                    oname = self.obs.names[i]
                     simulations[i][:] = outputs.read_sim(self.config,
-                                                         self.data,
+                                                         self.obs,
                                                          oname).tolist()
-                    if(len(simulations[i]) < self.data.lsimEff):
+                    if(len(simulations[i]) < self.obs.saveL):
                         print('sim length:', len(simulations[i]),
-                              ', expected:', self.data.lsimEff)
-                        simulations[i][:] = [np.nan] * self.data.lsimEff
+                              ', expected:', self.obs.saveL)
+                        simulations[i][:] = [np.nan] * self.obs.saveL
                
         except:
             #'Model has failed'
             print('Something went wrong, this run is useless')        
-            # simulations = [np.nan] * self.data.lsimEff
+            # simulations = [np.nan] * self.obs.saveL
             # Report param config that failed
             # f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
             # if len(glob.glob(f_failpar)) == 0:
@@ -284,7 +276,7 @@ class spot_setup(object):
             #           Config.PATH_OUT + '/ech2o_'+it+'.log')
 
         # sys.exit()
-        os.chdir(self.curdir)
+        os.chdir(self.config.PATH_OUT)
 
         # Clean up
         # if self.parallel in ['mpc', 'mpi']:
@@ -301,7 +293,7 @@ class spot_setup(object):
     def objectivefunction(self, simulation, evaluation, params=None):
 
         # Use multi-objective function
-        like = objfunc.MultiObj(evaluation, simulation, self.data, self.opti)
+        like = objfunc.MultiObj(evaluation, simulation, self.obs, self.opti)
         # Check if there was any issue with the simulation outputs
         if np.isnan(like).any():
             self.runFail = True
@@ -316,7 +308,7 @@ class spot_setup(object):
 
         param_str = ",".join([str(p) for p in parameter])
 
-        if self.data.nobs > 1:
+        if self.obs.nobs > 1:
             with ExitStack() as stack:
                 # Open all files for append-writing
                 self.database = [stack.enter_context(open(fname, 'a')) for
@@ -326,7 +318,7 @@ class spot_setup(object):
                 self.database[0].write(",".join([str(rep+1), like_str, param_str,
                                                  str(int(chains+1))])+'\n')
                 # Sim-specific files
-                for i in range(self.data.nobs):
+                for i in range(self.obs.nobs):
                     sim_str = ','.join([str(s) for s in simulations[i]])
                     line = ','.join([str(rep+1), str(objfuncs[i+1]), param_str, 
                                      sim_str, str(int(chains+1))]) + '\n'

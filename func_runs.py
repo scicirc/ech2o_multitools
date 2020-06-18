@@ -23,14 +23,14 @@ import func_morris as morris
 # ----------------------------------------------------------------------------
 
 
-def calibMC_runs(Config, Opti, Data, Paras, Site):
+def calibMC_runs(Config, Opti, Obs, Paras, Site):
 
     # Calibration runs
     # -------------------
 
     print('Number of iterations      :', Opti.nit)
     if Config.restart == 1:
-        restart(Config, Opti, Data)
+        restart(Config, Opti, Obs)
         print('...but directly restarting from iter. ', Config.itres)
     print('')
     print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
@@ -59,7 +59,7 @@ def calibMC_runs(Config, Opti, Data, Paras, Site):
             os.system('rm -f '+Config.PATH_EXEC+'/*')
 
         # Create the inputs for ECH2O
-        params.sim_inputs(Opti, Paras, Site, Config.PATH_SPA, it)
+        params.sim_inputs(Config, Opti, Paras, Site, Config.PATH_SPA, it=it)
         # Run ECH2O
         os.chdir(Config.PATH_OUT)
         print('|| running ECH2O...', end='\r')
@@ -71,7 +71,7 @@ def calibMC_runs(Config, Opti, Data, Paras, Site):
 
         # Check if it ran properly
         os.chdir(Config.PATH_EXEC)
-        if runOK(Data, Opti, Config) == 0:
+        if runOK(Obs, Opti, Config) == 0:
             # If the run fails, let's give it one more chance!
             os.chdir(Config.PATH_OUT)
             os.system('rm -f '+Config.PATH_EXEC+'/*')
@@ -83,7 +83,7 @@ def calibMC_runs(Config, Opti, Data, Paras, Site):
                   'seconds (limit at '+Config.tlimit+')')
             os.chdir(Config.PATH_EXEC)
             # Still not running properly? Report and move on
-            if runOK(Data, Opti, Config) == 0:
+            if runOK(Obs, Opti, Config) == 0:
                 f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
                 if len(glob.glob(f_failpar)) == 0:
                     with open(f_failpar, 'w') as f_in:
@@ -102,11 +102,11 @@ def calibMC_runs(Config, Opti, Data, Paras, Site):
                     Opti.begfail = 1
 
         # If it worked...
-        if runOK(Data, Opti, Config) == 1:
+        if runOK(Obs, Opti, Config) == 1:
             # Write parameters values for this sequence
             params.store(Opti, Config, it)
             # Group sampling outputs
-            outputs.store_sim(Data, Opti, Config, it)
+            outputs.store_sim(Obs, Opti, Config, it)
 
         os.chdir(Config.PATH_OUT)
         # sys.exit()
@@ -115,7 +115,7 @@ def calibMC_runs(Config, Opti, Data, Paras, Site):
 # ============================================================================
 
 
-def forward_runs(Config, Opti, Data, Paras, Site, options):
+def forward_runs(Config, Opti, Obs, Paras, Site, options):
 
     # Non-calibration runs
     # -------------------
@@ -141,7 +141,7 @@ def forward_runs(Config, Opti, Data, Paras, Site, options):
             os.system('rm -f '+Config.PATH_EXEC+'/*')
 
         # Create the inputs for ECH2O
-        params.sim_inputs(Opti, Paras, Site, Config.PATH_SPA, it)
+        params.sim_inputs(Config, Opti, Paras, Site, Config.PATH_SPA, it=it)
         # Run ECH2O
         os.chdir(Config.PATH_OUT)
         print('|| running ECH2O...', end='\r')
@@ -152,46 +152,17 @@ def forward_runs(Config, Opti, Data, Paras, Site, options):
               'seconds (limit at', Config.tlimit, ')')
         # Check if it ran properly
         os.chdir(Config.PATH_EXEC)
-        if runOK(Data, Opti, Config) == 1:
+        if runOK(Obs, Opti, Config) == 1:
 
             # Group outputs
-            outputs.store_sim(Data, Opti, Config, it)
-
-            # -- Report the full BasinSummary.txt files?
-            if Config.repBS == 1:
-
-                os.system('mv '+Config.PATH_EXEC+'/BasinSummary.txt ' +
-                          Config.PATH_OUT+'/BasinSummary_run'+str(it+1)+'.txt')
-
-                if Config.isTrck == 1:
-                    # deuterium summary
-                    if len(glob.glob(Config.PATH_EXEC +
-                                     '/Basind2HSummary.txt')) != 0:
-                        os.system('mv '+Config.PATH_EXEC +
-                                  '/Basind2HSummary.txt ' +
-                                  Config.PATH_OUT+'/Basind2HSummary_run' +
-                                  str(it+1)+'.txt')
-                    # oxygen 18 summary
-                    if len(glob.glob(Config.PATH_EXEC +
-                                     '/Basind18OSummary.txt')) != 0:
-                        os.system('mv '+Config.PATH_EXEC +
-                                  '/Basind18OSummary.txt ' +
-                                  Config.PATH_OUT+'/Basind18OSummary_run' +
-                                  str(it+1)+'.txt')
-                    # age summary
-                    if len(glob.glob(Config.PATH_EXEC +
-                                     '/BasinAgeSummary.txt')) != 0:
-                        os.system('mv '+Config.PATH_EXEC +
-                                  '/BasinAgeSummary.txt ' +
-                                  Config.PATH_OUT+'/BasinAgeSummary_run' +
-                                  str(it+1)+'.txt')
+            outputs.store_sim(Obs, Opti, Config, it)
 
             # Clean up
             os.system('rm -f '+Config.PATH_EXEC+'/*')
 # ===========================================================================
 
 
-def morris_runs(Config, Opti, Data, Paras, Site):
+def morris_runs(Config, Opti, Obs, Paras, Site):
 
     # Simulations when varying the parameters, Morris's one-at-a-time
     # ---------------------------------------------------------------
@@ -226,7 +197,7 @@ def morris_runs(Config, Opti, Data, Paras, Site):
         # print('|- Creating parameter maps / table for this run...'
 
         # Create the inputs for ECH2O
-        params.sim_inputs(Opti, Paras, Site, Config.PATH_SPA, irun)
+        params.sim_inputs(Config, Opti, Paras, Site, Config.PATH_SPA, it=irun)
 
         # Run ECH2O
         os.chdir(Config.PATH_OUT)
@@ -239,14 +210,9 @@ def morris_runs(Config, Opti, Data, Paras, Site):
 
         # Check if it ran properly
         os.chdir(Config.PATH_EXEC)
-        if runOK(Data, Opti, Config) == 1:
+        if runOK(Obs, Opti, Config) == 1:
             # Group outputs
-            outputs.store_sim(Data, Opti, Config, irun)
-            # -- Report the full BasinSummary.txt files?
-            if Config.repBS == 1:
-                os.system('mv '+Config.PATH_EXEC+'/BasinSummary.txt ' +
-                          Config.PATH_OUT+'/BasinSummary_run'+str(irun+1) +
-                          '.txt')
+            outputs.store_sim(Obs, Opti, Config, irun)
                 # os.system('rm -f *.tab')
         # Not running properly? Report
         else:
@@ -270,19 +236,19 @@ def morris_runs(Config, Opti, Data, Paras, Site):
         # Clean up
         os.system('rm -f '+Config.PATH_EXEC+'/*')
 
-    # print(Data.obs)
+    # print(Obs.obs)
     # Only for debugging ------------------------------------------------------
-    for oname in Data.names:
-        if Data.obs[oname]['type'] != 'map':
-            Data.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
+    for oname in Obs.names:
+        if Obs.obs[oname]['type'] != 'map':
+            Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
     # ----------------------------------------------------------------------------
 
     # Calculate and output the elementary effects
-    morris.ee(Config, Data, Opti)
+    morris.ee(Config, Obs, Opti)
 # ===========================================================================
 
 
-def runOK(Data, Opti, Config):
+def runOK(Obs, Opti, Config):
     # -- Check if ECH2O ran properly
 
     isOK = 1
@@ -294,14 +260,14 @@ def runOK(Data, Opti, Config):
         isOK = 0
 
     else:
-        for oname in Data.names:
+        for oname in Obs.names:
             # print oname
-            if Data.obs[oname]['type'] != 'mapTs':
-                if Data.obs[oname]['type'] != 'map':
-                    f_test = Config.PATH_EXEC+'/'+Data.obs[oname]['sim_file']
+            if Obs.obs[oname]['type'] != 'mapTs':
+                if Obs.obs[oname]['type'] != 'map':
+                    f_test = Config.PATH_EXEC+'/'+Obs.obs[oname]['sim_file']
                 else:
                     f_test = Config.PATH_EXEC+'/' + \
-                        Data.obs[oname]['sim_file'] + '.map'
+                        Obs.obs[oname]['sim_file'] + '.map'
 
                 if len(glob.glob(f_test)) == 0:
                     print("Something went wrong, no output for "+oname+" !!")
@@ -317,36 +283,36 @@ def runOK(Data, Opti, Config):
             isOK = 0
         else:
             # print str(len(tmp2))
-            # print str(Data.lsim)
+            # print str(Obs.lsim)
             if type(tmp) == float or type(tmp) == np.float64 or \
                type(tmp) == np.float32:
                 isOK = 0
                 print("Something went wrong, output of length 1 !")
-            elif len(tmp) != Data.lsim:
-                # & len(tmp2)==Data.lsim:
+            elif len(tmp) != Obs.lsim:
+                # & len(tmp2)==Obs.lsim:
                 # print 'It ran until the end !'
                 isOK = 0
                 print("Something went wrong, output does not match the " +
                       "supposed sim length!")
                 print('Output: '+str(len(tmp))+' , supposed to be: ' +
-                      str(Data.lsim))
+                      str(Obs.lsim))
 
     return isOK
 # ==================================================================================
 
 
-def restart(Config, Opti, Data):
+def restart(Config, Opti, Obs):
     # Restart: trim outputs files to match the specified restart iteration
 
     # -- Get the last iteration that worked
 
     # File names for grouped simulations
-    for oname in Data.names:
-        Data.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
+    for oname in Obs.names:
+        Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
 
     # Read one and get the last iteration written (take one before,
     # just to be sure writing was not ongoing there when it stopped)
-    idx = np.genfromtxt(Data.obs[Data.names[0]]['sim_hist'],
+    idx = np.genfromtxt(Obs.obs[Obs.names[0]]['sim_hist'],
                         delimiter=',', skip_header=1, unpack=True, usecols=(0))
 
     Config.itres = int(idx[::-1][0])
@@ -361,9 +327,9 @@ def restart(Config, Opti, Data):
     # print mxRow
 
     # Some cleaning of the outputs
-    for oname in Data.names:
+    for oname in Obs.names:
         # -- Read grouped simulations
-        tmp = np.genfromtxt(Data.obs[oname]['sim_hist'], delimiter=',',
+        tmp = np.genfromtxt(Obs.obs[oname]['sim_hist'], delimiter=',',
                             skip_header=1, max_rows=mxRow)[::, 1::]
         # print tmp.shape
         # -- Take out the iterations from/beyond restarting point
@@ -374,11 +340,11 @@ def restart(Config, Opti, Data):
         # print tmp.shape
         # -- Overwrite
         # Header
-        with open(Data.obs[oname]['sim_hist'], 'w') as f_out:
+        with open(Obs.obs[oname]['sim_hist'], 'w') as f_out:
             f_out.write('Sample,'+','.join([str(i+1) for i in
                                             range(len(tmp[0]))])+'\n')
         # Iterations before starting point
-        with open(Data.obs[oname]['sim_hist'], 'a') as f_out:
+        with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
             for i in range(mxRow):
                 f_out.write(str(idx[i])+','+','.join([str(j) for j in
                                                       list(tmp[i])]) + '\n')
