@@ -47,7 +47,7 @@ def read_sim(Config, Obs, oname):
 
     # If required, trim (spinup, transient state, etc.)
     if Obs.saveB > 1 or Obs.saveL < Obs.lsim:
-        sim = sim[Obs.saveB-1:Obs.saveB+Obs.saveL-2]
+        sim = sim[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
 
     return sim
 # ----------------------------------------------------------------------------

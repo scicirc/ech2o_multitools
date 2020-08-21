@@ -389,7 +389,8 @@ class _algorithm(object):
         return self.all_params
             
     
-    def postprocessing(self, rep, params, simulation, chains=1, save_run=True, negativlike=False, block_print=False): # TODO: rep not necessaray
+    def postprocessing(self, rep, params, simulation, chains=1, save_run=True, 
+                       negativlike=False, block_print=False): # TODO: rep not necessary
     
         params = self.update_params(params)
         # print(params)
@@ -407,8 +408,8 @@ class _algorithm(object):
         # If there was any problem with the run, save the ech2o log
         if self.setup.runFail:
             # print(self.setup.__dict__.keys())
-            if 'PATH_EXEC' in self.setup.__dict__.keys() and \
-               not hasattr(self.setup, 'PATH_EXEC'):
+            if 'PATH_EXEC' in self.setup.__dict__.keys() or \
+               hasattr(self.setup, 'PATH_EXEC'):
                 if os.path.isfile(self.setup.PATH_EXEC+'/ech2o.log'):
                     os.rename(self.setup.PATH_EXEC+'/ech2o.log', 
                               self.setup.config.PATH_OUT+'/ech2o_'+self.iter+'.log')
@@ -423,7 +424,8 @@ class _algorithm(object):
                       ') failed but spot_setup class has no PATH_EXEC?!')
 
         if save_run is True and simulation is not None:
-            self.save(like, params, simulations=simulation, chains=chains, rep=rep)
+            self.save(like, params, simulations=simulation, chains=chains, 
+                      rep=self.status.rep)
         if type(like)==type([]):
             return like[0]
         else:        

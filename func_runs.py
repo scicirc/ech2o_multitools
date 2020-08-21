@@ -166,9 +166,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
 
     # Simulations when varying the parameters, Morris's one-at-a-time
     # ---------------------------------------------------------------
-    if Config.mode == 'sensi_morris' and Config.MSinit == 0:
-
-        print('Total Number of iterations : '+Opti.nruns)
+    print('Total Number of iterations : '+Opti.nruns)
     print('')
     print('-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
     print('')
@@ -176,75 +174,80 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
     Config.initobs = 0
     Opti.begfail = 0
 
-    print('')
-    print('======================================')
-    print('## Runs along trajectory #'+Config.numsim)
-    print('--------------------------------------')
 
-    # There are npara+1 runs for each trajectory
-    for irun in range(Opti.nvar+1):
+    for itraj in range(Config.ntraj):
 
-        # runnb = '%02i' % int(irun+1)
-        print('Run '+str(irun+1)+' out of '+str('%02i' % int(Opti.nvar+1)))
+        print('======================================')
+        print('## Runs along trajectory #'+Config.numsim)
+        print('--------------------------------------')
 
-        # Create / clean up the run outputs directory
-        if len(glob.glob(Config.PATH_EXEC)) == 0:
-            os.system('mkdir '+Config.PATH_EXEC)
-        else:
+        # Array of parameters for this trajectory
+        Opti.xpar = np.transpose(Opti.Bstar[:, :, itraj]) 
+
+        # There are npara+1 runs for each trajectory
+        for irun in range(Opti.nvar+1):
+
+            # runnb = '%02i' % int(irun+1)
+            print('Run '+str(irun+1)+' out of '+str('%02i' % int(Opti.nvar+1)))
+
+            # Create / clean up the run outputs directory
+            if len(glob.glob(Config.PATH_EXEC)) == 0:
+                os.system('mkdir '+Config.PATH_EXEC)
+            else:
+                os.system('rm -f '+Config.PATH_EXEC+'/*')
+
+            # print
+            # print('|- Creating parameter maps / table for this run...'
+
+            # Create the inputs for ECH2O
+            params.sim_inputs(Config, Opti, Paras, Site, Config.PATH_SPA, it=irun)
+
+            # Run ECH2O
+            os.chdir(Config.PATH_OUT)
+            print('|| running ECH2O...')
+            start = time.time()
+            os.system(Config.cmde_ech2o+' config.ini > ' +
+                      Config.PATH_EXEC+'/ech2o.log')
+            print('run time:', time.time() - start,
+                  'seconds (limit at ', Config.tlimit, ')')
+
+            # Check if it ran properly
+            os.chdir(Config.PATH_EXEC)
+            if runOK(Obs, Opti, Config) == 1:
+                # Group outputs
+                outputs.store_sim(Obs, Opti, Config, irun)
+                # os.system('rm -f *.tab')
+                
+            else:  # Not running properly? Report
+                f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
+                if len(glob.glob(f_failpar)) == 0:
+                    with open(f_failpar, 'w') as f_in:
+                        f_in.write('Sample,'+','.join(Opti.names)+'\n')
+                        f_in.write(str(irun+1)+','+','.join([str(x) for x in
+                                                             Opti.x])+'\n')
+                else:
+                    with open(f_failpar, 'a') as f_in:
+                        f_in.write(str(irun+1)+','+','.join([str(x) for x in
+                                                             Opti.x])+'\n')
+                # If it is the very first iteration, record it for later storage
+                if irun == 0:
+                    Opti.begfail = 1
+
+                os.system('mv '+Config.PATH_EXEC+'/ech2o.log '+Config.PATH_OUT +
+                          '/ech2o_traj'+str(itraj+1)+'_run'+str(irun+1)+'.log')
+
+            # Clean up
             os.system('rm -f '+Config.PATH_EXEC+'/*')
 
-        # print
-        # print('|- Creating parameter maps / table for this run...'
+        # print(Obs.obs)
+        # Only for debugging ------------------------------------------------------
+        for oname in Obs.names:
+            if Obs.obs[oname]['type'] != 'map':
+                Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
+        # ----------------------------------------------------------------------------
 
-        # Create the inputs for ECH2O
-        params.sim_inputs(Config, Opti, Paras, Site, Config.PATH_SPA, it=irun)
-
-        # Run ECH2O
-        os.chdir(Config.PATH_OUT)
-        print('|| running ECH2O...')
-        start = time.time()
-        os.system(Config.cmde_ech2o+' config.ini > ' +
-                  Config.PATH_EXEC+'/ech2o.log')
-        print('run time:', time.time() - start,
-              'seconds (limit at ', Config.tlimit, ')')
-
-        # Check if it ran properly
-        os.chdir(Config.PATH_EXEC)
-        if runOK(Obs, Opti, Config) == 1:
-            # Group outputs
-            outputs.store_sim(Obs, Opti, Config, irun)
-                # os.system('rm -f *.tab')
-        # Not running properly? Report
-        else:
-            f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
-            if len(glob.glob(f_failpar)) == 0:
-                with open(f_failpar, 'w') as f_in:
-                    f_in.write('Sample,'+','.join(Opti.names)+'\n')
-                    f_in.write(str(irun+1)+','+','.join([str(x) for x in
-                                                         Opti.x])+'\n')
-            else:
-                with open(f_failpar, 'a') as f_in:
-                    f_in.write(str(irun+1)+','+','.join([str(x) for x in
-                                                         Opti.x])+'\n')
-            # If it is the very first iteration, record it for later storage
-            if irun == 0:
-                Opti.begfail = 1
-
-            os.system('mv '+Config.PATH_EXEC+'/ech2o.log '+Config.PATH_OUT +
-                      '/ech2o_'+str(irun+1)+'.log')
-
-        # Clean up
-        os.system('rm -f '+Config.PATH_EXEC+'/*')
-
-    # print(Obs.obs)
-    # Only for debugging ------------------------------------------------------
-    for oname in Obs.names:
-        if Obs.obs[oname]['type'] != 'map':
-            Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
-    # ----------------------------------------------------------------------------
-
-    # Calculate and output the elementary effects
-    morris.ee(Config, Obs, Opti)
+        # Calculate and output the elementary effects
+        morris.ee(Config, Obs, Opti, itraj)
 # ===========================================================================
 
 

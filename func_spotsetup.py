@@ -103,9 +103,10 @@ class spot_setup(object):
                     self.dbheaders[oname].append('like.'+oname)
                     self.dbheaders[oname].extend(['par.{0}'.format(x) for x in
                                                  self.opti.names])
+                    self.dbheaders[oname].append('chain')
                     for j in range(self.obs.saveL):
                         self.dbheaders[oname].extend(['sim.t'+str(j+1)])
-                    self.dbheaders[oname].append('chain')
+
                 # Write headers
                 with ExitStack() as stack:
                     # Open all files
@@ -126,9 +127,9 @@ class spot_setup(object):
                 self.dbheaders.append('Likelihood')
                 self.dbheaders.extend(['par.{0}'.format(x) for x in
                                        self.opti.names])
+                self.dbheaders.append('chain')
                 for i in range(self.obs.saveL):
                     self.dbheaders.extend(['sim' + '.t' + str(i)])
-                self.dbheaders.append('chain')
                 # Write
                 self.database = open(self.filename, 'w')
                 self.database.write(",".join(self.dbheaders) + "\n")
@@ -321,12 +322,12 @@ class spot_setup(object):
                 for i in range(self.obs.nobs):
                     sim_str = ','.join([str(s) for s in simulations[i]])
                     line = ','.join([str(rep+1), str(objfuncs[i+1]), param_str, 
-                                     sim_str, str(int(chains+1))]) + '\n'
+                                     str(int(chains+1)), sim_str]) + '\n'
                     self.database[i+1].write(line)
         else:
             # One calibration datasets: one file
             sim_str = ",".join([str(s) for s in simulations])
-            self.database.write(",".join([str(rep+1), objfuncs, param_str,
+            self.database.write(",".join([str(rep+1), str(objfuncs), param_str,
                                           str(int(chains+1)), sim_str]) + '\n')
 
     # Custom txt-formatted database (see __init__)

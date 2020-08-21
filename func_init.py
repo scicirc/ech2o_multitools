@@ -127,11 +127,14 @@ def config(options):
         #     sys.exit("Please state if you're initializating the MS sampling")
         # else:
         #     Config.MSinit = int(options.MSinit)
-
-        if options.MSspace is None:
-            Config.MSspace = 'trajectory'
-        else:
-            Config.MSspace = copy.copy(options.MSspace)
+        if not hasattr(Opti, 'MSspace'):
+            Opti.MSspace = 'trajectory'
+        elif not Opti.MSspace in ['trajctroy','radial']:
+            sys.exit('Wrong specification of morris walking mode in the'+ 
+                     "parameter space ('trajectory' or 'radial')")
+        # Number of trajectories -> even number determined form ncpu
+        if not hasattr(Opti, 'nr'):
+            Opti.nr = 10
 
     # -- Run ECH2O?
     Config.runECH2O = 1
@@ -205,28 +208,28 @@ def config(options):
                                                            'Calibration_Datasets'))
 
     # -- Sensitivity: all parameter path
-    if Config.mode == 'sensi_morris':
-        print('')
-        if(Config.MSspace == 'trajectory'):
-            Config.PATH_TRAJ = os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                                            'Trajectories'))
-            print("Trajectories directory:          ", Config.PATH_TRAJ)
-        if(Config.MSspace == 'radial'):
-            Config.PATH_TRAJ = os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                                            'RadialPoints'))
-            print("Radial points directory:         ", Config.PATH_TRAJ)
+    # if Config.mode == 'sensi_morris':
+        # print('')
+        # if(Opti.MSspace == 'trajectory'):
+        #     Config.PATH_TRAJ = os.path.abspath(os.path.join(Config.PATH_MAIN,
+        #                                                     'Trajectories'))
+        #     print("Trajectories directory:          ", Config.PATH_TRAJ)
+        # if(Opti.MSspace == 'radial'):
+        #     Config.PATH_TRAJ = os.path.abspath(os.path.join(Config.PATH_MAIN,
+        #                                                     'RadialPoints'))
+        #     print("Radial points directory:         ", Config.PATH_TRAJ)
 
-        Config.FILE_TRAJ = Config.PATH_TRAJ+'/'+options.outdir.split('.')[0]
-        # -- Creation of output directory
-        if len(glob.glob(Config.PATH_TRAJ)) == 0:
-            mkpath(Config.PATH_TRAJ)
+        # Config.FILE_TRAJ = Config.PATH_OUT+'/'+options.outdir.split('.')[0]
+        # # -- Creation of output directory
+        # if len(glob.glob(Config.PATH_TRAJ)) == 0:
+        #     mkpath(Config.PATH_TRAJ)
 
         # -- Output of elementary effects
         # if(Config.MSinit == 0):
-        Config.PATH_EE = os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                                      'ElementaryEffects'))
-        print("Elementary effects directory:          ", Config.PATH_EE)
-        Config.FILE_EE = Config.PATH_EE+'/'+options.outdir.split('.')[0]
+        # Config.PATH_EE = os.path.abspath(os.path.join(Config.PATH_MAIN,
+        #                                               'ElementaryEffects'))
+        # print("Elementary effects directory:          ", Config.PATH_EE)
+        # Config.FILE_EE = Config.PATH_OUT+'/'+options.outdir.split('.')[0]
 
     # print('')
 
@@ -259,7 +262,7 @@ def parameters(Config, Opti, Paras, Site, options):
         Opti.initSample = 'uniform'
 
     # -- Construct parameter-realted vectors used in calibration,
-    # sensitivity or ensemble runs
+    # -- sensitivity or ensemble runs
     for par in Paras.names:
 
         # Default
@@ -418,22 +421,12 @@ def parameters(Config, Opti, Paras, Site, options):
         #     # print(f_in
         #     Opti.xpar = np.genfromtxt(f_in, delimiter=',', skip_header=1)
         #     # print(Opti.xpar.shape
-        #     # Reconstruct step (+- 0.5)
-        #     if(Config.MSspace == 'trajectory'):
-        #         Opti.dx = np.diff(Opti.xpar, axis=0)
-        #     elif(Config.MSspace == 'radial'):
-        #         Opti.dx = Opti.xpar[1::, :] - Opti.xpar[0, :]
-        #     Opti.dx[Opti.dx != 0] = Opti.dx[Opti.dx != 0] / \
-        #         np.abs(Opti.dx[Opti.dx != 0]) * 0.5
-        #     if(np.ptp(Opti.dx) != 1.0 or np.min(Opti.dx) != -0.5 or
-        #        np.max(Opti.dx) != 0.5):
-        #         sys.exit('Error: The fetched Bnorm has a problem...')
         Opti.xpar = Opti.Bstar
         # Reconstruct step (+- 0.5)
-        if(Config.MSspace == 'trajectory'):
-            Opti.dx = np.diff(Opti.xpar, axis=0)
-        elif(Config.MSspace == 'radial'):
-            Opti.dx = Opti.xpar[1::, :, :] - Opti.xpar[0, :, :]
+        if(Opti.MSspace == 'trajectory'):
+            Opti.dx = np.diff(Opti.Bstar, axis=0)
+        elif(Opti.MSspace == 'radial'):
+            Opti.dx = Opti.Bstar[1::, :, :] - Opti.Bstar[0, :, :]
         Opti.dx[Opti.dx != 0] = Opti.dx[Opti.dx != 0] / \
             np.abs(Opti.dx[Opti.dx != 0]) * 0.5
         if(np.ptp(Opti.dx) != 1.0 or np.min(Opti.dx) != -0.5 or
@@ -443,10 +436,8 @@ def parameters(Config, Opti, Paras, Site, options):
         # Total number of runs
         Opti.nruns = (Opti.nvar+1) * Opti.nr
 
-    # Calibration or SA runs: Check that the same parameters are used
-    if Config.mode == 'calib_MCruns' or Config.mode == 'sensi_morris':
         # (Config.mode == 'sensi_morris' and Config.MSinit == 0):
-        if(len(Opti.xpar[0]) != len(Opti.names)):
+        if(len(Opti.Bstar[:,0,0]) != len(Opti.names)):
             sys.exit("The definition file and input parameter file ain't " +
                      "matching!")
 
@@ -606,7 +597,7 @@ def runs(Config, Opti, Obs, Paras, Site, options):
         sys.exit('Error: the script need a template ech2o config file!')
 
     # (if needed) get the parallel job number, based on the output dir name
-    Config.numsim = options.outdir.split('.')[::-1][0]
+    # Config.numsim = options.outdir.split('.')[::-1][0]
 
     # -- Tracking age and/or tracers?
     if not hasattr(Site, 'isTrck'):
@@ -717,6 +708,7 @@ def observations(Config, Opti, Obs):
             # Check if specified, otherwise use the whole simulation
             # in any case, remove the spinup (it will be removed from
             # simulation outputs in post-processing)
+            # (no need of Obs.saveB because simt starts at saveB)
             if 'fit_beg' not in Obs.obs[oname].keys() or \
                type(Obs.obs[oname]['fit_beg']) is not datetime.date:
                 fitbeg = Obs.simt[0]

@@ -29,6 +29,9 @@ def get(Opti, Config, options):
         # Open one file for all samples
         Opti.xpar = np.genfromtxt(Config.FILE_PAR+Config.numsim+'.txt',
                                   delimiter=',', unpack=True)[1::]
+        if(len(Opti.xpar[0]) != len(Opti.names)):
+            sys.exit("The definition file and input parameter file ain't " +
+                     "matching!")
         #print(Opti.xpar.shape)
 
     # -- Forward ensemble runs: read directly the params from "best params"
@@ -93,7 +96,6 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                 # Opti.x += [paramcur()[i][0]]
                 Opti.x += [paramcur[i]]
 
-            # print('|',Opti.names[i],':',Opti.x[i],end='\r')
     else:
         # Otherwise, just get the samples of the current iteration
         Opti.x = Opti.xpar[it]

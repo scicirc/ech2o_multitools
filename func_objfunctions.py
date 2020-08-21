@@ -83,7 +83,11 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
                     # Log Gaussian with error set using std
                     # LogLikehood as used in Vrugt et al. (2016)
                     # Using standard deviation as indicator of error
-                    o_err = np.repeat(np.std(o)*0.25, o.__len__())
+                    # o_err = 0.5*np.std(o) + 0.1*o
+                    res = o - s
+                    cor = np.corrcoef(res[:-1],res[1:])[1,0]
+                    o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
+                                      res.__len__())
                     L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
                 else:
                     # Log Gaussian likelihood without error (temporary)
@@ -92,9 +96,12 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
                     # Log Gaussian with error set using std
                     # LogLikehood as used in Vrugt et al. (2016)
                     # Using standard deviation as indicator of error...
-                    o_err = np.std(o) + 0.25*o
+                    # o_err = np.std(o) + 0.25*o
+                    res = o - s
+                    cor = np.corrcoef(res[:-1],res[1:])[1,0]
+                    o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
+                                      res.__len__())
                     L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
-                
                 # Normalize by data length
                 L /= o.__len__()
 

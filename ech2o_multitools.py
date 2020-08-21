@@ -88,9 +88,6 @@ parser.add_option("--tlimit", dest="tlimit", metavar="tlimit",
                   help="Time limit of one ECH2O run (in seconds)")
 
 # -- If mode == 'calib_MCruns'
-# Spinup ? (if post optim, mode = 2 ) ?
-parser.add_option("--spinup", dest="spinup", metavar="spinup",
-                  help="Spinup switch (0) or length (days)")
 # Restart ? if calibration stopped for some reasons
 # --> 0 if not (by default), or 1: the code will take the antelast that worked
 parser.add_option("--restart", dest="restart", metavar="restart",
@@ -111,15 +108,6 @@ parser.add_option("--MapAvT", dest="MapAvT", metavar="MapAvT",
 
 parser.add_option("--OMP_it", dest="OMP_it", metavar="OMP_it",
                   help="Ensemble iteration number")
-
-# If mode == 'sensi_morris'
-# Only generating trajectories ?
-parser.add_option("--MSinit", dest="MSinit", metavar="MSinit",
-                  help="Switch for Morris sensitivity: " +
-                  "0=trajectories generation, 1=runs")
-parser.add_option("--MSspace", dest="MSspace", metavar="MSspace",
-                  help="Walk in the parameter space for Morris: " +
-                  "'trajectory' or 'radial'")
 
 # Read the options
 (options, args) = parser.parse_args()
@@ -184,7 +172,7 @@ elif Config.mode == 'forward_runs':
     # Ensemble "forward" runs
     runs.forward_runs(Config, Opti, Obs, Paras, Site, options)
 
-elif Config.mode == 'sensi_morris' and Config.MSinit == 0:
+elif Config.mode == 'sensi_morris':
     # Simulations when varying the parameters, Morris's one-at-a-time
     runs.morris_runs(Config, Opti, Obs, Paras, Site)
 
