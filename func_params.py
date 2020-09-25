@@ -32,7 +32,7 @@ def get(Opti, Config, options):
         if(len(Opti.xpar[0]) != len(Opti.names)):
             sys.exit("The definition file and input parameter file ain't " +
                      "matching!")
-        #print(Opti.xpar.shape)
+        # print(Opti.xpar.shape)
 
     # -- Forward ensemble runs: read directly the params from "best params"
     #    file
@@ -78,7 +78,7 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                paramcur=None):
 
     # Small switch not to write the vegetation params file if
-    # there is no need 
+    # there is no need
     sw_veg = 0
 
     # -- Get the parameter values
@@ -98,11 +98,17 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
 
     else:
         # Otherwise, just get the samples of the current iteration
-        Opti.x = Opti.xpar[it]
+        if type(Opti.xpar[it]) is not np.float64:
+            Opti.x = np.array(Opti.xpar[it], dtype=np.float64)
+        else:
+            Opti.x = [Opti.xpar[it]]
+
+    # print(Opti.x)
+    # sys.exit()
 
     for pname in Paras.names:
 
-        # print pname
+        # print(pname)
 
         # - Mapped parameters
         if Paras.ref[pname]['map'] == 1:
@@ -110,15 +116,17 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
             # Soil unit dependence
             if Paras.ref[pname]['soil'] == 1:
                 # print 'Soil dependent !!'
+
                 outmap = Site.bmaps['unit']*0
+
                 # Read each soil map unit and apply param value
                 for im in range(Site.ns):
                     outmap += \
                         Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im]]
 
                 # if Site.simRock == 1:
-                #     # Taking into account rock/scree: micro-topsoil, low poros
-                #     # and fixed anisotropy
+                #     # Taking into account rock/scree: micro-topsoil,
+                #     low poros and fixed anisotropy
                 #     if pname == 'HLayer1':
                 #         outmap = \
                 #             outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
@@ -144,6 +152,7 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                    ['chanwidth', 'chanmanningn', 'chanparam']:
                     outmap = Site.bmaps['chanmask']*Opti.x[Paras.ind[pname][0]]
                 else:
+                    # print(type(Opti.x[Paras.ind[pname][0]]))
                     outmap = Site.bmaps['unit']*Opti.x[Paras.ind[pname][0]]
 
             # Create map

@@ -31,12 +31,12 @@ def read_sim(Config, Obs, oname):
         # HEader in EcH2O files
         hskip = Obs.nts+3
         idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]
-                                                   ['sim_pts']-1]+1
+                                                  ['sim_pts']-1]+1
         # Read
         sim = pd.read_table(Obs.obs[oname]['sim_file'],
                             skiprows=hskip, header=None).iloc[:, idx] * \
             Obs.obs[oname]['sim_conv']
-      
+
     # Integrated variables (in BasinSummary.txt) -----------------
     if Obs.obs[oname]['type'] == 'Total':
         idx = Obs.obs[oname]['sim_pts']-1
@@ -54,36 +54,14 @@ def read_sim(Config, Obs, oname):
 # -- Store in files for later use
 
 
-def store_sim(Obs, Opti, Config, it):
-
-    # -- Report the full BasinSummary.txt files?
-    if Obs.repBS == 1 and Config.mode != 'calib_MCruns':    
-        os.system('mv '+Config.PATH_EXEC+'/BasinSummary.txt ' +
-                  Config.PATH_OUT+'/BasinSummary_run'+str(it+1)+'.txt')
-
-        if Config.isTrck == 1:
-            # deuterium summary
-            if len(glob.glob(Config.PATH_EXEC+'/Basind2HSummary.txt')) != 0:
-                os.system('mv '+Config.PATH_EXEC + '/Basind2HSummary.txt ' +
-                          Config.PATH_OUT+'/Basind2HSummary_run' +
-                          str(it+1)+'.txt')
-            # oxygen 18 summary
-            if len(glob.glob(Config.PATH_EXEC+'/Basind18OSummary.txt')) != 0:
-                os.system('mv '+Config.PATH_EXEC + '/Basind18OSummary.txt ' +
-                          Config.PATH_OUT+'/Basind18OSummary_run' +
-                          str(it+1)+'.txt')
-            # age summary
-            if len(glob.glob(Config.PATH_EXEC + '/BasinAgeSummary.txt')) != 0:
-                os.system('mv '+Config.PATH_EXEC + '/BasinAgeSummary.txt ' +
-                          Config.PATH_OUT+'/BasinAgeSummary_run' +
-                          str(it+1)+'.txt')
+def store_sim(Obs, Opti, Config, Site, it):
 
     # -- Group the output files in one across simulations,
     #    separating by observations points and veg type where it applies
     for oname in Obs.names:
         if Obs.obs[oname]['type'] != 'map' and \
            Obs.obs[oname]['type'] != 'mapTs' and (it == 0 or
-                                                   Opti.begfail == 1):
+                                                  Opti.begfail == 1):
             # Historic time series file names
             Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
             # Header of files
@@ -121,7 +99,7 @@ def store_sim(Obs, Opti, Config, it):
         if Obs.obs[oname]['type'] == 'Ts':
             hskip = Obs.nts+3
             idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]
-                                                       ['sim_pts']-1]+1
+                                                      ['sim_pts']-1]+1
 
             tmp = np.genfromtxt(
                 Obs.obs[oname]['sim_file'], delimiter='\t',
@@ -368,4 +346,26 @@ def store_sim(Obs, Opti, Config, it):
             rootgrp.sync()
             rootgrp.close()
 
-            # print
+    # print
+    # -- Report the full BasinSummary.txt files?
+    if Obs.repBS == 1 and Config.mode != 'calib_MCruns':
+        os.system('mv '+Config.PATH_EXEC+'/BasinSummary.txt ' +
+                  Config.PATH_OUT+'/BasinSummary_run'+str(it+1)+'.txt')
+
+        if Site.isTrck == 1:
+            # deuterium summary
+            if len(glob.glob(Config.PATH_EXEC+'/Basind2HSummary.txt')) != 0:
+                os.system('mv '+Config.PATH_EXEC + '/Basind2HSummary.txt ' +
+                          Config.PATH_OUT+'/Basind2HSummary_run' +
+                          str(it+1)+'.txt')
+            # oxygen 18 summary
+            if len(glob.glob(Config.PATH_EXEC+'/Basind18OSummary.txt')) != 0:
+                os.system('mv '+Config.PATH_EXEC + '/Basind18OSummary.txt ' +
+                          Config.PATH_OUT+'/Basind18OSummary_run' +
+                          str(it+1)+'.txt')
+            # age summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinAgeSummary.txt')) != 0:
+                os.system('mv '+Config.PATH_EXEC + '/BasinAgeSummary.txt ' +
+                          Config.PATH_OUT+'/BasinAgeSummary_run' +
+                          str(it+1)+'.txt')
+

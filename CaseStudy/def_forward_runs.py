@@ -70,8 +70,8 @@ class Site:
     simRock = 0
 
 # ==============================================================================
-# Define the observations charactreristics, including sim outputs and 
-# the measurements on which assimilation is performed
+# Define the observations charactreristics, including sim outputs
+# and the measurements on which assimilation is performed
 # ------------------------------------------------------------------------
 
 
@@ -103,100 +103,100 @@ class Obs:
     # -- Observations scrutinized
     obs = {}
     # Hydrometric data
-    obs['Streamflow'] = {'sim_file': 'Streamflow.tab', 'sim_pts': 5,
+    obs['Streamflow'] = {'sim_file': 'Streamflow.tab', 'sim_pts':  5,
                          'sim_conv': 1, 'type': 'Ts'}
     # Groundwater level
-    obs['GWD_P1'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':5,
-                     'sim_conv':1, 'type': 'Ts'}
-    obs['GWD_P2'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':2,
-                     'sim_conv':1, 'type': 'Ts'}
-    obs['GWD_P3'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':1,
-                     'sim_conv':1, 'type': 'Ts'}
-    obs['GWD_P5'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':10,
-                     'sim_conv':1, 'type': 'Ts'}
-    obs['GWD_P6'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':7,
-                     'sim_conv':1, 'type': 'Ts'}
-    obs['GWD_P7'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':6,
-                     'sim_conv':1, 'type': 'Ts'}
-    obs['GWD_P8'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':4,
-                     'sim_conv':1, 'type': 'Ts'}
-    obs['GWD_P9'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':4,
-                     'sim_conv':1, 'type': 'Ts'}
-    obs['GWD_P10'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':4,
-                      'sim_conv':1, 'type': 'Ts'}
-    obs['GWD_P12'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':9,
-                      'sim_conv':1, 'type': 'Ts'}
-    obs['GWD_P13'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':8,
-                      'sim_conv':1, 'type': 'Ts'}
-    
+    obs['GWD_P1'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts': 5,
+                     'sim_conv': 1, 'type': 'Ts'}
+    obs['GWD_P2'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts': 2,
+                     'sim_conv': 1, 'type': 'Ts'}
+    obs['GWD_P3'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':  1,
+                     'sim_conv': 1, 'type': 'Ts'}
+    obs['GWD_P5'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts':  10,
+                     'sim_conv': 1, 'type': 'Ts'}
+    obs['GWD_P6'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts': 7,
+                     'sim_conv': 1, 'type': 'Ts'}
+    obs['GWD_P7'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts': 6,
+                     'sim_conv': 1, 'type': 'Ts'}
+    obs['GWD_P8'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts': 4,
+                     'sim_conv': 1, 'type': 'Ts'}
+    obs['GWD_P9'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts': 4,
+                     'sim_conv': 1, 'type': 'Ts'}
+    obs['GWD_P10'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts': 4,
+                      'sim_conv': 1, 'type': 'Ts'}
+    obs['GWD_P12'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts': 9,
+                      'sim_conv': 1, 'type': 'Ts'}
+    obs['GWD_P13'] = {'sim_file': 'WaterTableDepth.tab', 'sim_pts': 8,
+                      'sim_conv': 1, 'type': 'Ts'}
+
     # == Catchment-scale values: From BasinSummary.txt
     # & BasinAgeSummary.txt ------------
-    
+
     # Water budget
-    obs['P_tot'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 1,
+    obs['P_tot'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  1,
                     'sim_conv': 1, 'type': 'Total'}
-    obs['S_tot.SWE'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 2,
+    obs['S_tot.SWE'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  2,
                         'sim_conv': 1, 'type': 'Total'}
-    obs['S_tot.Veg'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 3,
+    obs['S_tot.Veg'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  3,
                         'sim_conv': 1, 'type': 'Total'}
-    obs['S_tot.Srf'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 4,
+    obs['S_tot.Srf'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  4,
                         'sim_conv': 1, 'type': 'Total'}
-    obs['S_tot.Soil'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 5,
+    obs['S_tot.Soil'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  5,
                          'sim_conv': 1, 'type': 'Total'}
-    obs['S_tot.L1'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 6,
+    obs['S_tot.L1'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  6,
                        'sim_conv': 1, 'type': 'Total'}
-    obs['S_tot.L2'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 7,
+    obs['S_tot.L2'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  7,
                        'sim_conv': 1, 'type': 'Total'}
-    obs['S_tot.RZ'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 9,
+    obs['S_tot.RZ'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  9,
                        'sim_conv': 1, 'type': 'Total'}
-    obs['S_tot.GW'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 10,
+    obs['S_tot.GW'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  10,
                        'sim_conv': 1, 'type': 'Total'}
-    obs['Q_tot.E'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 11,
+    obs['Q_tot.E'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  11,
                       'sim_conv': 1, 'type': 'Total'}
-    obs['Q_tot.Es'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 12,
+    obs['Q_tot.Es'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  12,
                        'sim_conv': 1, 'type': 'Total'}
-    obs['Q_tot.Ei'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 13,
+    obs['Q_tot.Ei'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  13,
                        'sim_conv': 1, 'type': 'Total'}
-    obs['Q_tot.Et'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 14,
+    obs['Q_tot.Et'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  14,
                        'sim_conv': 1, 'type': 'Total'}
-    obs['Q_tot.Srf'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 16,
+    obs['Q_tot.Srf'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  16,
                         'sim_conv': 1, 'type': 'Total'}
-    obs['Q_tot.GW'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 17,
+    obs['Q_tot.GW'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  17,
                        'sim_conv': 1, 'type': 'Total'}
-    obs['Q_tot.srfQ'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 18,
+    obs['Q_tot.srfQ'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  18,
                          'sim_conv': 1, 'type': 'Total'}
-    obs['Q_tot.GWQ'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 19,
+    obs['Q_tot.GWQ'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  19,
                         'sim_conv': 1, 'type': 'Total'}
-    obs['Q_tot.Rch'] = {'sim_file': 'BasinSummary.txt', 'sim_pts': 20,
+    obs['Q_tot.Rch'] = {'sim_file': 'BasinSummary.txt', 'sim_pts':  20,
                         'sim_conv': 1, 'type': 'Total'}
     # Lumped ages
-    obs['Age_tot.S'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 1,
+    obs['Age_tot.S'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  1,
                         'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.Soil'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 5,
+    obs['Age_tot.Soil'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  5,
                            'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.L1'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 6,
+    obs['Age_tot.L1'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  6,
                          'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.L2'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 7,
+    obs['Age_tot.L2'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  7,
                          'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.RZ'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 9,
+    obs['Age_tot.RZ'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  9,
                          'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.GW'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 10,
+    obs['Age_tot.GW'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  10,
                          'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.E'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 11,
+    obs['Age_tot.E'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  11,
                         'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.Es'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 12,
+    obs['Age_tot.Es'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  12,
                          'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.Ei'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 13,
+    obs['Age_tot.Ei'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  13,
                          'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.Et'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 14,
+    obs['Age_tot.Et'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  14,
                          'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.Q'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 16,
+    obs['Age_tot.Q'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  16,
                         'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.Qgw'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 17,
+    obs['Age_tot.Qgw'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  17,
                           'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.Out'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 18,
+    obs['Age_tot.Out'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  18,
                           'sim_conv': 1, 'type': 'Total'}
-    obs['Age_tot.srfQ'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 19,
+    obs['Age_tot.srfQ'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts':  19,
                            'sim_conv': 1, 'type': 'Total'}
     obs['Age_tot.GWQ'] = {'sim_file': 'BasinAgeSummary.txt', 'sim_pts': 20,
                           'sim_conv': 1, 'type': 'Total'}

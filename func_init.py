@@ -129,8 +129,8 @@ def config(options):
         #     Config.MSinit = int(options.MSinit)
         if not hasattr(Opti, 'MSspace'):
             Opti.MSspace = 'trajectory'
-        elif not Opti.MSspace in ['trajctroy','radial']:
-            sys.exit('Wrong specification of morris walking mode in the'+ 
+        elif Opti.MSspace not in ['trajectory', 'radial']:
+            sys.exit('Wrong specification of morris walking mode in the' +
                      "parameter space ('trajectory' or 'radial')")
         # Number of trajectories -> even number determined form ncpu
         if not hasattr(Opti, 'nr'):
@@ -156,27 +156,27 @@ def config(options):
         Opti.SPOTpar = 'seq'  # By default, sequential runs
     elif Opti.SPOTpar in ['mpc', 'mpi']:
         Opti.parallel = True
-        # Determine with process we're on, to avoid multiple print/file 
+        # Determine with process we're on, to avoid multiple print/file
         # edits later on
         if Opti.SPOTpar == 'mpi':
             if 'OMPI_COMM_WORLD_RANK' in os.environ.keys():
                 Opti.rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
             elif 'PMI_RANK' in os.environ.keys():
                 Opti.rank = int(os.environ['PMI_RANK'])
-            
+
     # Database output for SPOTPY
     if Config.mode == 'calib_SPOTPY':
         if hasattr(Opti, 'SPOTdb'):
-            # - Custom case, format txt with separate files per obs, one general
-            # file and a algo diagnostic file
-            # Used by spot_setup 
-            Opti.dbname = Config.PATH_OUT + '/' + Opti.SPOTalgo + 'ech2o' 
+            # - Custom case, format txt with separate files per obs, one
+            # general file and a algo diagnostic file
+            # Used by spot_setup
+            Opti.dbname = Config.PATH_OUT + '/' + Opti.SPOTalgo + 'ech2o'
             Opti.dbformat = 'custom'
             # Used by sampler.sample
             Opti.dbname2 = None
         else:
             # - Default case, format csv and db call in sampler.sample
-            Opti.dbname = None  # Used by spot_setup 
+            Opti.dbname = None  # Used by spot_setup
             Opti.dbformat = 'csv'
             # Used by sampler.sample
             Opti.dbname2 = Config.PATH_OUT + '/' + Opti.SPOTalgo + 'ech2o'
@@ -271,7 +271,7 @@ def parameters(Config, Opti, Paras, Site, options):
         if 'veg' not in Paras.ref[par].keys():
             Paras.ref[par]['veg'] = 0
 
-        # Number of components for this parameters : depends on soil or 
+        # Number of components for this parameters : depends on soil or
         # veg dependence (veg can be not all species present), default 1
         # Opti.names: unique name using par + component (none, soil/veg type)
         # Opti.comp: which of the component are calibrated? (none, all, some)
@@ -295,12 +295,12 @@ def parameters(Config, Opti, Paras, Site, options):
             elif type(Paras.ref[par]['veg']) == list:
                 if len(Paras.ref[par]['veg']) != Site.nv:
                     sys.exit('Invalid veg dependence for parameter '+par)
-                nr = sum(i==1 for i in Paras.ref[par]['veg'])
-                Opti.names = Opti.names + [par + '_' + Site.vegs[i] for 
-                                           i in range(Site.nv) if 
-                                           Paras.ref[par]['veg'][i]==1] 
-                Paras.comp[par] = [i for i in range(Site.nv) if 
-                                   Paras.ref[par]['veg'][i]==1]
+                nr = sum(i == 1 for i in Paras.ref[par]['veg'])
+                Opti.names = Opti.names + [par + '_' + Site.vegs[i] for
+                                           i in range(Site.nv) if
+                                           Paras.ref[par]['veg'][i] == 1]
+                Paras.comp[par] = [i for i in range(Site.nv) if
+                                   Paras.ref[par]['veg'][i] == 1]
             else:
                 sys.exit('Invalid veg dependence for parameter '+par)
         else:
@@ -333,7 +333,7 @@ def parameters(Config, Opti, Paras, Site, options):
                     Opti.min += Paras.ref[par]['min']
                     Opti.max += Paras.ref[par]['max']
                 else:
-                    sys.exit('Wrong "min" or "max" format for', par)
+                    sys.exit('Wrong "min" or "max" format for '+par)
             else:
                 Opti.min += list(np.repeat(np.nan, nr))
                 Opti.max += list(np.repeat(np.nan, nr))
@@ -373,7 +373,6 @@ def parameters(Config, Opti, Paras, Site, options):
         # Increment indices
         ipar += 1
         ipar2 += nr
-
 
     # Total number of variables
     Opti.nvar = len(Opti.names)
@@ -530,7 +529,7 @@ def runs(Config, Opti, Obs, Paras, Site, options):
 
     # Time wall for ECH2O execution
     if options.tlimit is None:
-        Config.tlimit = '2000'
+        Config.tlimit = '7200'
     else:
         Config.tlimit = options.tlimit
     # Time limit
@@ -676,7 +675,7 @@ def observations(Config, Opti, Obs):
             sys.exit('Error: the specified output slicing start+length ' +
                      'goes beyond simulation time!')
     # Report BasinSummary.txt
-    if hasattr(Obs, 'repBS'):
+    if not hasattr(Obs, 'repBS'):
         Obs.repBS = 0
     # Date of the simulations (used for calibration periods, mostly)
     Obs.simt = [Obs.simbeg + timedelta(days=x) for x in range(Obs.saveL)]
@@ -778,6 +777,24 @@ def files(Config, Opti, Paras, Site):
 
         # EcH2O config file: copy from template and edit
         copy_file(Config.FILE_CFG, Config.FILE_CFGdest)
+
+        # Morris sensitivity: write summary of parameters charactersitics
+        if Config.mode == 'sensi_morris':
+            f_out = Config.PATH_OUT+'/Parameters_char.txt'
+            with open(f_out, 'w') as fw:
+                # fw.write('Sample,'+','.join(Opti.names)+'\n')
+                fw.write('Names,'+','.join(Opti.names)+'\n')
+                fw.write('Min,'+','.join([str(Opti.min[x]) for x in
+                                          range(Opti.nvar)])+'\n')
+                fw.write('Max,'+','.join([str(Opti.max[x]) for x in
+                                          range(Opti.nvar)])+'\n')
+                fw.write('Log,'+','.join([str(Opti.log[x]) for x in
+                                          range(Opti.nvar)])+'\n')
+                fw.write('Step,'+','.join([str(Opti.step[x]) for x in
+                                           range(Opti.nvar)])+'\n')
+                fw.write('StepN,'+','.join([str(Opti.stepN[x]) for x in
+                                            range(Opti.nvar)])+'\n')
+
 
         with open(Config.FILE_CFGdest, 'a') as fw:
             fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')

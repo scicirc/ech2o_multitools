@@ -17,7 +17,7 @@ import sys
 import copy
 import csv
 import numpy as np
-# import pyDOE
+import pyDOE
 
 # --------------------------------------------------------------------------------------------
 # -- Creation of the Morris trajectories
@@ -29,7 +29,8 @@ import numpy as np
 
 def trajs(Config, Opti):
 
-    # Number of levels -> equal number of trajectories
+    # Number of levels -> equal number of trajectories/radial points
+    # This derives from a recommendation of Sohier et al. (IFAC, 2014)
     Opti.nlev = copy.copy(Opti.nr)
 
     # vals = {}
@@ -44,7 +45,7 @@ def trajs(Config, Opti):
                           np.float32)  # the final used in runs
 
     # Starting point: latin hypercube sampling, maximizing 'distance'
-    # between point, and centered
+    # between point, and centered in the nvar intervals
     Opti.Bnorm[:, 0, :] = np.transpose(pyDOE.lhs(Opti.nvar,
                                                  samples=Opti.nr,
                                                  criterion='cm'))
@@ -52,6 +53,7 @@ def trajs(Config, Opti):
     # Construct samples
     for ir in range(Opti.nr):
         for iv in range(Opti.nvar):
+
             # Mode 1 : trajectories
             # Mode 2 : radial points
             # In both cases the other of one-at-a-time change is fixed:
@@ -60,10 +62,10 @@ def trajs(Config, Opti):
             # the randomness is assured by the initial LHS + the fixed step of
             # +-0.5
 
-            if(Config.MSspace == 'trajectory'):
+            if(Opti.MSspace == 'trajectory'):
                 # copy previous location
                 Opti.Bnorm[:, iv+1, ir] = copy.copy(Opti.Bnorm[:, iv, ir])
-            elif(Config.MSspace == 'radial'):
+            elif(Opti.MSspace == 'radial'):
                 # alway start from initial
                 Opti.Bnorm[:, iv+1, ir] = copy.copy(Opti.Bnorm[:, 0, ir])
             else:
@@ -77,11 +79,12 @@ def trajs(Config, Opti):
                 Opti.Bnorm[iv, iv+1, ir] -= 0.5
 
             # Check for error
-            if Opti.Bnorm[iv, iv+1, ir] > 1-1/(2*Opti.nlev) or \
-               Opti.Bnorm[iv, iv+1, ir] < 1/(2*Opti.nlev):
-                print('Error in the incrementation of the parameter ',
+            if Opti.Bnorm[iv, iv+1, ir] > 1 or \
+               Opti.Bnorm[iv, iv+1, ir] <=0 :
+                print('Error in the incrementation of the parameter',
                       Opti.names[iv])
-                print(Opti.Bnorm[iv, iv, ir], Opti.Bnorm[iv, iv+1, ir])
+                print(1/(2*Opti.nlev),Opti.Bnorm[iv, iv, ir], 
+                      Opti.Bnorm[iv, iv+1, ir], 1-1/(2*Opti.nlev))
                 sys.exit()
 
     # Construct the actual Bstar, with non-normalized values
@@ -99,22 +102,6 @@ def trajs(Config, Opti):
     # Check if outputs directory exists
     #if len(glob.glob(Config.PATH_TRAJ)) == 0:
     #    os.system('mkdir ' + Config.PATH_TRAJ)
-
-    # Write on file giving parameters range, log...(for later plots)
-    f_out = Config.PATH_OUT+'/Parameters_char.txt'
-    with open(f_out, 'w') as fw:
-        # fw.write('Sample,'+','.join(Opti.names)+'\n')
-        fw.write('Names,'+','.join(Opti.names)+'\n')
-        fw.write('Min,'+','.join([str(Opti.min[x]) for x in
-                                  range(Opti.nvar)])+'\n')
-        fw.write('Max,'+','.join([str(Opti.max[x]) for x in
-                                  range(Opti.nvar)])+'\n')
-        fw.write('Log,'+','.join([str(Opti.log[x]) for x in
-                                  range(Opti.nvar)])+'\n')
-        fw.write('Step,'+','.join([str(Opti.step[x]) for x in
-                                   range(Opti.nvar)])+'\n')
-        fw.write('StepN,'+','.join([str(Opti.stepN[x]) for x in
-                                    range(Opti.nvar)])+'\n')
 
     # Write Bstar for each trajectory
     # for ir in range(Opti.nr):
@@ -179,9 +166,9 @@ def ee(Config, Obs, Opti, itraj):
             #     sim = np.diff(sim, axis=0)
 
             # # Diff between sims
-            # if(Config.MSspace == 'trajectory'):
+            # if(Opti.MSspace == 'trajectory'):
             #     simd = np.diff(sim)
-            # elif(Config.MSspace == 'radial'):
+            # elif(Opti.MSspace == 'radial'):
             #     simd = sim[:, 1::] - sim[:, 0][..., None]
 
             # # Elementary effect (keep direction of param change)
@@ -222,7 +209,7 @@ def ee(Config, Obs, Opti, itraj):
     #if len(glob.glob(Config.PATH_EE)) == 0:
     #    os.system('mkdir ' + Config.PATH_EE)
 
-    if(Config.MSspace == 'trajectory'):
+    if(Opti.MSspace == 'trajectory'):
         bias_ee_tot.to_csv(Config.PATH_OUT+'/EE.Traj'+trajnb+'.bias.txt')
         RMSE_ee_tot.to_csv(Config.PATH_OUT+'/EE.Traj'+trajnb+'.RMSE.txt')
         # with open(Config.FILE_EE+'.EE.Traj'+str(itraj+1) + 
@@ -243,7 +230,7 @@ def ee(Config, Obs, Opti, itraj):
         #                     ','.join([str(RMSE_ee_tot[i, j]) for j in
         #                               range(numObs)])+'\n')
 
-    if(Config.MSspace == 'radial'):
+    if(Opti.MSspace == 'radial'):
         bias_ee_tot.to_csv(Config.PATH_OUT+'/EE.RadP'+trajnb+'.bias.txt')
         RMSE_ee_tot.to_csv(Config.PATH_OUT+'/EE.RadP'+trajnb+'.RMSE.txt')
         # with open(Config.FILE_EE+'.EE.RadP'+str(itraj+1) +

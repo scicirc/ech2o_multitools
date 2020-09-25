@@ -106,7 +106,7 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
             # Write parameters values for this sequence
             params.store(Opti, Config, it)
             # Group sampling outputs
-            outputs.store_sim(Obs, Opti, Config, it)
+            outputs.store_sim(Obs, Opti, Config, Site, it)
 
         os.chdir(Config.PATH_OUT)
         # sys.exit()
@@ -155,7 +155,7 @@ def forward_runs(Config, Opti, Obs, Paras, Site, options):
         if runOK(Obs, Opti, Config) == 1:
 
             # Group outputs
-            outputs.store_sim(Obs, Opti, Config, it)
+            outputs.store_sim(Obs, Opti, Config, Site, it)
 
             # Clean up
             os.system('rm -f '+Config.PATH_EXEC+'/*')
@@ -166,7 +166,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
 
     # Simulations when varying the parameters, Morris's one-at-a-time
     # ---------------------------------------------------------------
-    print('Total Number of iterations : '+Opti.nruns)
+    print('Total Number of iterations:', Opti.nruns)
     print('')
     print('-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
     print('')
@@ -175,10 +175,10 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
     Opti.begfail = 0
 
 
-    for itraj in range(Config.ntraj):
+    for itraj in range(Opti.nr):
 
         print('======================================')
-        print('## Runs along trajectory #'+Config.numsim)
+        print('## Runs along trajectory #', itraj+1)
         print('--------------------------------------')
 
         # Array of parameters for this trajectory
@@ -215,9 +215,9 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
             os.chdir(Config.PATH_EXEC)
             if runOK(Obs, Opti, Config) == 1:
                 # Group outputs
-                outputs.store_sim(Obs, Opti, Config, irun)
+                outputs.store_sim(Obs, Opti, Config, Site, irun)
                 # os.system('rm -f *.tab')
-                
+
             else:  # Not running properly? Report
                 f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
                 if len(glob.glob(f_failpar)) == 0:
