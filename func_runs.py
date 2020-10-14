@@ -71,7 +71,7 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
 
         # Check if it ran properly
         os.chdir(Config.PATH_EXEC)
-        if runOK(Obs, Opti, Config) == 0:
+        if runOK(Obs, Opti, Config, mode='verbose') == 0:
             # If the run fails, let's give it one more chance!
             os.chdir(Config.PATH_OUT)
             os.system('rm -f '+Config.PATH_EXEC+'/*')
@@ -83,7 +83,7 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
                   'seconds (limit at '+Config.tlimit+')')
             os.chdir(Config.PATH_EXEC)
             # Still not running properly? Report and move on
-            if runOK(Obs, Opti, Config) == 0:
+            if runOK(Obs, Opti, Config, mode='verbose') == 0:
                 f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
                 if len(glob.glob(f_failpar)) == 0:
                     with open(f_failpar, 'w') as f_in:
@@ -102,7 +102,7 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
                     Opti.begfail = 1
 
         # If it worked...
-        if runOK(Obs, Opti, Config) == 1:
+        if runOK(Obs, Opti, Config, mode='silent') == 1:
             # Write parameters values for this sequence
             params.store(Opti, Config, it)
             # Group sampling outputs
@@ -152,13 +152,20 @@ def forward_runs(Config, Opti, Obs, Paras, Site, options):
               'seconds (limit at', Config.tlimit, ')')
         # Check if it ran properly
         os.chdir(Config.PATH_EXEC)
-        if runOK(Obs, Opti, Config) == 1:
+        # Group outputs
+        outputs.store_sim(Obs, Opti, Config, Site, it)
 
+        # if runOK(Obs, Opti, Config, mode='silent') == 0:
+          # print('Warning: something came up during the run;' +
+            #      ' some outputs might be truncated or missing')
             # Group outputs
-            outputs.store_sim(Obs, Opti, Config, Site, it)
+            # outputs.store_sim(Obs, Opti, Config, Site, it)
 
-            # Clean up
-            os.system('rm -f '+Config.PATH_EXEC+'/*')
+        # Store log (in case)
+        os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
+                  Config.PATH_OUT + '/ech2o_run'+str(it+1)+'.log')
+        # Clean up
+        os.system('rm -f '+Config.PATH_EXEC+'/*')
 # ===========================================================================
 
 
@@ -174,6 +181,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
     Config.initobs = 0
     Opti.begfail = 0
 
+    irun_tot = 0
 
     for itraj in range(Opti.nr):
 
@@ -213,22 +221,22 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
 
             # Check if it ran properly
             os.chdir(Config.PATH_EXEC)
-            if runOK(Obs, Opti, Config) == 1:
+            outputs.store_sim(Obs, Opti, Config, Site, irun_tot)
+
+            # if runOK(Obs, Opti, Config) == 1:
                 # Group outputs
-                outputs.store_sim(Obs, Opti, Config, Site, irun)
+                # outputs.store_sim(Obs, Opti, Config, Site, irun)
                 # os.system('rm -f *.tab')
 
-            else:  # Not running properly? Report
+            if runOK(Obs, Opti, Config, mode='silent') == 0:
+                # else:  # Not running properly? Report
                 f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
                 if len(glob.glob(f_failpar)) == 0:
                     with open(f_failpar, 'w') as f_in:
-                        f_in.write('Sample,'+','.join(Opti.names)+'\n')
-                        f_in.write(str(irun+1)+','+','.join([str(x) for x in
-                                                             Opti.x])+'\n')
-                else:
-                    with open(f_failpar, 'a') as f_in:
-                        f_in.write(str(irun+1)+','+','.join([str(x) for x in
-                                                             Opti.x])+'\n')
+                        f_in.write('Trajectory/RadPoint,Sample,'+','.join(Opti.names)+'\n')
+                with open(f_failpar, 'a') as f_in:
+                    f_in.write(str(itraj+1)+','+str(irun+1)+','+','.join([str(x) for x in
+                                                                          Opti.x])+'\n')
                 # If it is the very first iteration, record it for later storage
                 if irun == 0:
                     Opti.begfail = 1
@@ -239,6 +247,8 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
             # Clean up
             os.system('rm -f '+Config.PATH_EXEC+'/*')
 
+            irun_tot += 1
+
         # print(Obs.obs)
         # Only for debugging ------------------------------------------------------
         for oname in Obs.names:
@@ -248,10 +258,11 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
 
         # Calculate and output the elementary effects
         morris.ee(Config, Obs, Opti, itraj)
+
 # ===========================================================================
 
 
-def runOK(Obs, Opti, Config):
+def runOK(Obs, Opti, Config, mode='silent'):
     # -- Check if ECH2O ran properly
 
     isOK = 1
@@ -259,7 +270,8 @@ def runOK(Obs, Opti, Config):
     # 1. Check it ran
     if len(glob.glob(Config.PATH_EXEC+'/BasinSummary.txt')) == 0 or \
        os.stat(Config.PATH_EXEC+'/BasinSummary.txt').st_size == 0:
-        print("Something went wrong, BasinSummary.txt is missing/empty...")
+        if(mode == 'verbose'):
+            print("Something went wrong, BasinSummary.txt is missing/empty...")
         isOK = 0
 
     else:
@@ -273,8 +285,9 @@ def runOK(Obs, Opti, Config):
                         Obs.obs[oname]['sim_file'] + '.map'
 
                 if len(glob.glob(f_test)) == 0:
-                    print("Something went wrong, no output for "+oname+" !!")
-                    print('(i.e., '+f_test+' is missing...)')
+                    if(mode == 'verbose'):
+                        print("Something went wrong, no output for "+oname+" !!")
+                        print('(i.e., '+f_test+' is missing...)')
                     isOK = 0
                     # print 'Outputs are there...'
 

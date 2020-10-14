@@ -20,6 +20,8 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 
+import func_runs as runs
+
 # ----------------------------------------------------------------------------
 # -- Read a given simulation output (time series only)
 
@@ -56,12 +58,15 @@ def read_sim(Config, Obs, oname):
 
 def store_sim(Obs, Opti, Config, Site, it):
 
+    mode = 'verbose'
+    
     # -- Group the output files in one across simulations,
     #    separating by observations points and veg type where it applies
     for oname in Obs.names:
         if Obs.obs[oname]['type'] != 'map' and \
-           Obs.obs[oname]['type'] != 'mapTs' and (it == 0 or
-                                                  Opti.begfail == 1):
+           Obs.obs[oname]['type'] != 'mapTs' and \
+                                     (it == 0 or \
+                                      (Opti.begfail == 1 and Config.mode!='sensi_morris')):
             # Historic time series file names
             Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
             # Header of files
@@ -74,44 +79,66 @@ def store_sim(Obs, Opti, Config, Site, it):
 
     # Save current run outputs (and delete the file to relieve Maxwell...)
     for oname in Obs.names:
+
         # print(oname)
-
-        # Integrated variables (in BasinSummary.txt) --------------------------
-        if Obs.obs[oname]['type'] == 'Total':
-            idx = Obs.obs[oname]['sim_pts']-1
-
-            tmp = np.genfromtxt(Obs.obs[oname]['sim_file'], delimiter='\t',
-                                skip_header=1,
-                                unpack=True)[idx]*Obs.obs[oname]['sim_conv']
-
-            # Shave off the transient part (if any)
-            if Obs.saveB > 1:
-                tmp = tmp[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
-                if len(tmp) != Obs.saveL:
-                    sys.exit("ERROR -> Problem with output trim: we've got" +
-                             str(len(tmp)) + ' instead of '+str(Obs.saveL))
-
-            with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
-                f_out.write(str(it+1)+','+','.join([str(j) for j in
-                                                    list(tmp)])+'\n')
+        if(oname != Obs.names[0]):
+            mode = 'silent'
 
         # Time series ---------------------------------------------------------
+        # Integrated variables (in BasinSummary.txt)
+
+        if Obs.obs[oname]['type'] == 'Total':
+
+            if runs.runOK(Obs, Opti, Config, mode) == 1:
+
+                idx = Obs.obs[oname]['sim_pts']-1
+
+                tmp = np.genfromtxt(Obs.obs[oname]['sim_file'], delimiter='\t',
+                                    skip_header=1,
+                                    unpack=True)[idx]*Obs.obs[oname]['sim_conv']
+
+                # Shave off the transient part (if any)
+                if Obs.saveB > 1:
+                    tmp = tmp[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
+                    if len(tmp) != Obs.saveL:
+                        sys.exit("ERROR -> Problem with output trim: we've got" +
+                                 str(len(tmp)) + ' instead of '+str(Obs.saveL))
+
+                with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
+                    f_out.write(str(it+1)+','+','.join([str(j) for j in
+                                                        list(tmp)])+'\n')
+            else:
+                # If run failed, write nan line
+                with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
+                    f_out.write(str(it+1)+','+','.join(list(np.repeat('nan',
+                                                                      Obs.saveL)))+'\n')
+
+        # Time series ---------------------------------------------------------
+        # Pixel-scale variables (in *tab)
+
         if Obs.obs[oname]['type'] == 'Ts':
-            hskip = Obs.nts+3
-            idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]
-                                                      ['sim_pts']-1]+1
 
-            tmp = np.genfromtxt(
-                Obs.obs[oname]['sim_file'], delimiter='\t',
-                skip_header=hskip, unpack=True)[idx]*Obs.obs[oname]['sim_conv']
+            if runs.runOK(Obs, Opti, Config, mode) == 1:
+                hskip = Obs.nts+3
+                idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]
+                                                          ['sim_pts']-1]+1
 
-            # Shave off the transient part (if any)
-            if Obs.saveB > 1:
-                tmp = tmp[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
+                tmp = np.genfromtxt(
+                    Obs.obs[oname]['sim_file'], delimiter='\t',
+                    skip_header=hskip, unpack=True)[idx]*Obs.obs[oname]['sim_conv']
 
-            with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
-                f_out.write(str(it+1)+','+','.join([str(j) for j in
-                                                    list(tmp)])+'\n')
+                # Shave off the transient part (if any)
+                if Obs.saveB > 1:
+                    tmp = tmp[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
+
+                with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
+                    f_out.write(str(it+1)+','+','.join([str(j) for j in
+                                                        list(tmp)])+'\n')
+            else:
+                # If run failed, write nan line
+                with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
+                    f_out.write(str(it+1)+','+','.join(list(np.repeat('nan',
+                                                                      Obs.saveL)))+'\n')
 
         # Fixed-value (initial-value) maps ------------------------------------
         if Obs.obs[oname]['type'] == 'map':
@@ -368,4 +395,3 @@ def store_sim(Obs, Opti, Config, Site, it):
                 os.system('mv '+Config.PATH_EXEC + '/BasinAgeSummary.txt ' +
                           Config.PATH_OUT+'/BasinAgeSummary_run' +
                           str(it+1)+'.txt')
-

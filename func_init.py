@@ -772,9 +772,12 @@ def files(Config, Opti, Paras, Site):
 
         # Main output directory: create if needed
         mkpath(Config.PATH_OUT)
+
         # copy definition file there
         copy_file(Config.file, Config.PATH_OUT)
-
+        # If ensemble runs, copy parameter file
+        if(Config.mode == 'forward_runs'):
+            copy_file(Config.FILE_PAR, Config.PATH_OUT)
         # EcH2O config file: copy from template and edit
         copy_file(Config.FILE_CFG, Config.FILE_CFGdest)
 
@@ -794,7 +797,6 @@ def files(Config, Opti, Paras, Site):
                                            range(Opti.nvar)])+'\n')
                 fw.write('StepN,'+','.join([str(Opti.stepN[x]) for x in
                                             range(Opti.nvar)])+'\n')
-
 
         with open(Config.FILE_CFGdest, 'a') as fw:
             fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
@@ -818,6 +820,10 @@ def files(Config, Opti, Paras, Site):
         if Site.isTrck == 1:
             copy_file(Config.FILE_CFGtrck,
                       os.path.join(Config.PATH_OUT, 'configTrck.ini'))
+            # Where the configTrck file will be (first) copied
+            Config.FILE_CFGdest_trck = os.path.join(Config.PATH_OUT,
+                                                    'configTrck.ini')
+
 
         # Copy of reference input parameters
         # remove_tree(Config.PATH_SPA)
@@ -935,19 +941,39 @@ def files(Config, Opti, Paras, Site):
     Opti.vref['footer'] = paramread[Site.nv+1][0:len(paramread[Site.nv+1])]
     Opti.vref['name'] = paramread[Site.nv+2][0:len(paramread[Site.nv+2])]
 
+    # -- For initial coyping (or not) initial tracking maps,
+    # get the value of keyword in configTrck file
+    # if Site.isTrck == 1:
+    #     with open(Config.FILE_CFGdest_trck, 'r') as f:
+    #         datafile = f.readlines()
+    #     # Search and destroy, er, get the trck values
+    #     for line in datafile:
+    #         # 2H tracking ?
+    #         if 'sw_2H =' in line:
+    #             Site.sw_2H = int(line.split('=')[1].strip())
+    #         # 2H tracking ?
+    #         if 'sw_18O =' in line:
+    #             Site.sw_18O = int(line.split('=')[1].strip())
+    #         # 2H tracking ?
+    #         if 'sw_Cl =' in line:
+    #             Site.sw_Cl = int(line.split('=')[1].strip())
+    #         # 2H tracking ?
+    #         if 'sw_Age =' in line:
+    #             Site.sw_Age = int(line.split('=')[1].strip())
+
     # if Config.isTrck == 1:
-    #     os.system('cp '+Config.PATH_SPA+'/dD_snowpack.map '+Config.PATH_SPA+
-    # '/dD.snowpack.map')
-    #     os.system('cp '+Config.PATH_SPA+'/dD_surface.map '+Config.PATH_SPA+
-    # '/dD.surface.map')
-    #     os.system('cp '+Config.PATH_SPA+'/dD_soil1.map '+Config.PATH_SPA+
-    # '/dD.L1.map')
-    #     os.system('cp '+Config.PATH_SPA+'/dD_soil2.map '+Config.PATH_SPA+
-    # '/dD.L2.map')
-    #     os.system('cp '+Config.PATH_SPA+'/dD_soil3.map '+Config.PATH_SPA+
-    # '/dD.L3.map')
-    #     os.system('cp '+Config.PATH_SPA+'/dD_groundwater.map '+
-    # Config.PATH_SPA+'/dD.GW.map')
+    #     os.system('cp '+Config.PATH_SPA+'/d2H_snowpack.map '+Config.PATH_SPA+
+    # '/d2H.snowpack.map')
+    #     os.system('cp '+Config.PATH_SPA+'/d2H_surface.map '+Config.PATH_SPA+
+    # '/d2H.surface.map')
+    #     os.system('cp '+Config.PATH_SPA+'/d2H_soil1.map '+Config.PATH_SPA+
+    # '/d2H.L1.map')
+    #     os.system('cp '+Config.PATH_SPA+'/d2H_soil2.map '+Config.PATH_SPA+
+    # '/d2H.L2.map')
+    #     os.system('cp '+Config.PATH_SPA+'/d2H_soil3.map '+Config.PATH_SPA+
+    # '/d2H.L3.map')
+    #     os.system('cp '+Config.PATH_SPA+'/d2H_groundwater.map '+
+    # Config.PATH_SPA+'/d2H.GW.map')
 
     #     os.system('cp '+Config.PATH_SPA+'/d18O_snowpack.map '+
     # Config.PATH_SPA+'/d18O.snowpack.map')

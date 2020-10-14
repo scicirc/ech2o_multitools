@@ -11,13 +11,14 @@
 # Created on 10/2016
 # -------------------------------------------------
 
-import os
-import glob
+# import os
+# import glob
 import sys
 import copy
 import csv
 import numpy as np
 import pyDOE
+import pandas as pd
 
 # --------------------------------------------------------------------------------------------
 # -- Creation of the Morris trajectories
@@ -80,10 +81,10 @@ def trajs(Config, Opti):
 
             # Check for error
             if Opti.Bnorm[iv, iv+1, ir] > 1 or \
-               Opti.Bnorm[iv, iv+1, ir] <=0 :
+               Opti.Bnorm[iv, iv+1, ir] <= 0:
                 print('Error in the incrementation of the parameter',
                       Opti.names[iv])
-                print(1/(2*Opti.nlev),Opti.Bnorm[iv, iv, ir], 
+                print(1/(2*Opti.nlev), Opti.Bnorm[iv, iv, ir],
                       Opti.Bnorm[iv, iv+1, ir], 1-1/(2*Opti.nlev))
                 sys.exit()
 
@@ -99,20 +100,23 @@ def trajs(Config, Opti):
                 Opti.Bnorm[iv, :, :]*(Opti.max[iv]-Opti.min[iv]) + Opti.min[iv]
             Opti.step[iv] = 0.5 * (Opti.max[iv]*Opti.min[iv])
 
-    # Check if outputs directory exists
-    #if len(glob.glob(Config.PATH_TRAJ)) == 0:
-    #    os.system('mkdir ' + Config.PATH_TRAJ)
+# ----------------------------------------------------------------------------
+# -- Outputs of the parameter trajectory / radial points
 
-    # Write Bstar for each trajectory
-    # for ir in range(Opti.nr):
-    #     trajnb = str(ir+1)  # '%02i' % int(ir+1)
-    #     # print trajnb
-    #     with open(Config.FILE_TRAJ+'.Bstar_traj'+trajnb+'.txt', 'wb') as fw:
-    #         csv_writer = csv.writer(fw)
-    #         csv_writer.writerow(Opti.names)
-    #         for irun in range(Opti.nvar+1):
-    #             csv_writer.writerow(Opti.Bstar[:, irun, ir])
-    #     exit
+
+def write_Btraj(Config, Obs, Opti, itraj):
+
+    # Write Bstar for each trajectory / radial points
+    for ir in range(Opti.nr):
+        trajnb = str(ir+1)  # '%02i' % int(ir+1)
+        # print trajnb
+        with open(Config.FILE_TRAJ+'.Bstar_traj'+trajnb+'.txt', 'wb') as fw:
+            csv_writer = csv.writer(fw)
+            csv_writer.writerow(Opti.names)
+            for irun in range(Opti.nvar+1):
+                csv_writer.writerow(Opti.Bstar[:, irun, ir])
+        exit
+
 
 # ----------------------------------------------------------------------------
 # -- Calculation of elementary effects for Morris Sensitivity Analysis
@@ -135,24 +139,30 @@ def ee(Config, Obs, Opti, itraj):
     for oname in Obs.names:
 
         # Only look into time series
-        if Obs.obs[oname]['type'] != 'map' and \
-           Obs.obs[oname]['type'] != 'mapTs':
+        if Obs.obs[oname]['type'] == 'Ts' or \
+           Obs.obs[oname]['type'] == 'Total':
 
             # Read file
             f_in = Obs.obs[oname]['sim_hist']
-            df_sim = pd.read_csv(f_in,skiprows=1)
+            df_sim = pd.read_csv(f_in).iloc[itraj*(Opti.nvar+1)::, ]
 
-            # Diff between two sims
-            df_diff = df_sim.set_index('Sample').diff().loc[2:Opti.nvar+1,]
+            # Diff between sims
+            if Opti.MSspace == 'trajectory':
+                df_diff = df_sim.set_index('Sample').diff().iloc[1::, ]
+            if Opti.MSspace == 'radial':
+                df_diff = df_sim.set_index('Sample').iloc[1::] - \
+                          df_sim.set_index('Sample').iloc[0]
 
             # Get bias
             bias = df_diff.mean(axis=1)
             # Get RMSE
-            RMSE = np.sqrt((df.diff**2).mean(axis=1))
-            # Get corresponding elementary effect
+            RMSE = np.sqrt((df_diff**2).mean(axis=1))
+            # Get corresponding (normalized) elementary effect
             bias_ee = bias / Opti.stepN
             RMSE_ee = RMSE / Opti.stepN
-            # Write the files
+
+            # Associate the corresponding parameter being tested
+            # (the order if the basic parameter order)
             bias_ee.index = Opti.names
             RMSE_ee.index = Opti.names
 
@@ -180,17 +190,17 @@ def ee(Config, Obs, Opti, itraj):
             # # bias_ee = bias / Opti.BnormstepN
             # # RMSE_ee = RMSE / Opti.stepN
 
-            # Add the overall data frame
+            # Build the overall data frame
             if(firstObs == 0):
                 # bias_ee_tot = bias_ee[..., None]  # Creates a (..,1) dimension
                 # RMSE_ee_tot = RMSE_ee[..., None]  # Creates a (..,1) dimension
-                bias_ee_tot = pd.DataFrame(bias_ee).assign(oname=bias_ee)
-                RMSE_ee_tot = pd.DataFrame(RMSE_ee).assign(oname=RMSE_ee)
+                bias_ee_tot = pd.DataFrame(bias_ee) #.assign(oname=bias_ee)
+                RMSE_ee_tot = pd.DataFrame(RMSE_ee) #.assign(oname=RMSE_ee)
             else:
                 # bias_ee_tot = np.append(bias_ee_tot, bias_ee[..., None], 1)
                 # RMSE_ee_tot = np.append(RMSE_ee_tot, RMSE_ee[..., None], 1)
-                bias_ee_tot = bias_ee_tot.assign(oname=bias_ee)
-                RMSE_ee_tot = RMSE_ee_tot.assign(oname=RMSE_ee)
+                bias_ee_tot[str(numObs)] = bias_ee
+                RMSE_ee_tot[str(numObs)] = RMSE_ee
 
             # Update
             firstObs = 1
@@ -199,20 +209,14 @@ def ee(Config, Obs, Opti, itraj):
             # Append name of obs actually evaluated
             outObs = outObs + [oname]
 
-    # Ugly: drop the first column (named 0) that had to be left
-    # (duplicate of 2nd column)
-    bias_ee_tot.drop(0,axis=1,inplace=True)
-    RMSE_ee_tot.drop(0,axis=1,inplace=True)
     # Write outputs -----------------------------------------------------------
-
-    # Check if directory exists
-    #if len(glob.glob(Config.PATH_EE)) == 0:
-    #    os.system('mkdir ' + Config.PATH_EE)
+    bias_ee_tot.columns = outObs
+    RMSE_ee_tot.columns = outObs
 
     if(Opti.MSspace == 'trajectory'):
         bias_ee_tot.to_csv(Config.PATH_OUT+'/EE.Traj'+trajnb+'.bias.txt')
         RMSE_ee_tot.to_csv(Config.PATH_OUT+'/EE.Traj'+trajnb+'.RMSE.txt')
-        # with open(Config.FILE_EE+'.EE.Traj'+str(itraj+1) + 
+        # with open(Config.FILE_EE+'.EE.Traj'+str(itraj+1) +
         #           '.bias.txt', 'w') as f_out:
         #     f_out.write('Parameter'+','+','.join([outObs[j] for j in
         #                                           range(numObs)])+'\n')
