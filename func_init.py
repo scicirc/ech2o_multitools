@@ -265,6 +265,8 @@ def parameters(Config, Opti, Paras, Site, options):
     # -- sensitivity or ensemble runs
     for par in Paras.names:
 
+        #print(par)
+
         # Default
         if 'soil' not in Paras.ref[par].keys():
             Paras.ref[par]['soil'] = 0
@@ -333,7 +335,8 @@ def parameters(Config, Opti, Paras, Site, options):
                     Opti.min += Paras.ref[par]['min']
                     Opti.max += Paras.ref[par]['max']
                 else:
-                    sys.exit('Wrong "min" or "max" format for '+par)
+                    sys.exit('Wrong "min" or "max" format for '+par+
+                             ',maybe check soil units in def file?')
             else:
                 Opti.min += list(np.repeat(np.nan, nr))
                 Opti.max += list(np.repeat(np.nan, nr))
@@ -423,13 +426,32 @@ def parameters(Config, Opti, Paras, Site, options):
         Opti.xpar = Opti.Bstar
         # Reconstruct step (+- 0.5)
         if(Opti.MSspace == 'trajectory'):
-            Opti.dx = np.diff(Opti.Bstar, axis=0)
+            #Opti.dx = np.diff(Opti.Bstar, axis=1)
+            Opti.dx = np.diff(Opti.Bnorm, axis=1)
         elif(Opti.MSspace == 'radial'):
-            Opti.dx = Opti.Bstar[1::, :, :] - Opti.Bstar[0, :, :]
-        Opti.dx[Opti.dx != 0] = Opti.dx[Opti.dx != 0] / \
-            np.abs(Opti.dx[Opti.dx != 0]) * 0.5
+            #Opti.dx = Opti.Bstar[:, 1::, :] - Opti.Bstar[: ,0 , :][:, None, :]
+            Opti.dx = Opti.Bnorm[:, 1::, :] - Opti.Bnorm[: ,0 , :][:, None, :]
+        # print(Opti.Bstar)
+        # print('-----------------------------------------')
+        # print(Opti.Bnorm)
+        # print('-----------------------------------------')
+        # print(Opti.dx)
+        # print('-----------------------------------------')
+        # print(Opti.Bstar.shape)
+        # print(Opti.dx.shape)
+        # print(Opti.dx2.shape)
+        # print('-----------------------------------------')
+        # Opti.dx[Opti.dx != 0] = Opti.dx[Opti.dx != 0] / \
+        #     np.abs(Opti.dx[Opti.dx != 0]) * 0.5
+        # print(Opti.dx)
+        # print('-----------------------------------------')
+        # print(Opti.names)
+        # print('-----------------------------------------')
+        # print(Opti.dx-Opti.dx2)
+        # print('-----------------------------------------')
         if(np.ptp(Opti.dx) != 1.0 or np.min(Opti.dx) != -0.5 or
            np.max(Opti.dx) != 0.5):
+            print(np.ptp(Opti.dx), np.min(Opti.dx), np.max(Opti.dx))
             sys.exit('Error: Bnorm has a problem...')
 
         # Total number of runs
@@ -754,32 +776,37 @@ def files(Config, Opti, Paras, Site):
             print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
             print('')
         print('')
-        print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
-        print('Climate data:\n', Config.PATH_CLIM)
-        if Config.mode == 'calib_SPOTPY':
-            print('Calibration datasets:\n', Config.PATH_OBS)
-        print('Final outputs:\n', Config.PATH_OUT)
-        if Opti.parallel is False:
-            print('Maps & parameters:', Config.PATH_SPA)
-            print('Raw output from simulations:', Config.PATH_EXEC)
-        print('The user provided CFG file is: \n'+Config.FILE_CFG)
-        if Site.isTrck == 1:
-            print('The user provided CFGtrck file is:\n' + Config.FILE_CFGtrck)
+        if Config.runECH2O== 1:
+            print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
+            print('Climate data:\n', Config.PATH_CLIM)
+            if Config.mode == 'calib_SPOTPY':
+                print('Calibration datasets:\n', Config.PATH_OBS)
+            if Opti.parallel is False:
+                print('Maps & parameters:', Config.PATH_SPA)
+                print('Raw output from simulations:', Config.PATH_EXEC)
+            print('The user provided CFG file is: \n'+Config.FILE_CFG)
+            if Site.isTrck == 1:
+                print('The user provided CFGtrck file is:\n' + Config.FILE_CFGtrck)
+            print('Final outputs:\n', Config.PATH_OUT)
+        elif Config.mode == 'calib_MCsampling':
+            print('Calibration samples in :\n', Config.FILE_PAR+'* files')
+
         print('-----------------------------------------')
         # -- How many variables ?
         print('Total number of parameters :', Opti.nvar)
         print('')
 
-        # Main output directory: create if needed
-        mkpath(Config.PATH_OUT)
-
-        # copy definition file there
-        copy_file(Config.file, Config.PATH_OUT)
+        if Config.runECH2O == 1:
+            # Main output directory: create if needed
+            mkpath(Config.PATH_OUT)
+            # copy definition file there
+            copy_file(Config.file, Config.PATH_OUT)
         # If ensemble runs, copy parameter file
         if(Config.mode == 'forward_runs'):
             copy_file(Config.FILE_PAR, Config.PATH_OUT)
         # EcH2O config file: copy from template and edit
-        copy_file(Config.FILE_CFG, Config.FILE_CFGdest)
+        if Config.runECH2O == 1:
+            copy_file(Config.FILE_CFG, Config.FILE_CFGdest)
 
         # Morris sensitivity: write summary of parameters charactersitics
         if Config.mode == 'sensi_morris':
@@ -797,49 +824,49 @@ def files(Config, Opti, Paras, Site):
                                            range(Opti.nvar)])+'\n')
                 fw.write('StepN,'+','.join([str(Opti.stepN[x]) for x in
                                             range(Opti.nvar)])+'\n')
+        if Config.runECH2O == 1:
+            with open(Config.FILE_CFGdest, 'a') as fw:
+                fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
+                fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM+'\n')
+                # fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
+                # fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
+                # Further edit regarding tracking
+                if Site.isTrck == 1:
+                    fw.write('Tracking = 1\n')
+                    fw.write('TrackingConfig = configTrck.ini\n')
+                else:
+                    fw.write('Tracking = 0\n')
+                # Input maps directory defined here (unless you need parallel runs
+                # with DREAM, in which case the directory will change on the fly,
+                # see spot_setup.simulation)
+                if Opti.parallel is False:
+                    fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
+                    fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')
 
-        with open(Config.FILE_CFGdest, 'a') as fw:
-            fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
-            fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM+'\n')
-            # fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
-            # fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
-            # Further edit regarding tracking
+            # If tracking, copy template configTrck file for EcH2O
             if Site.isTrck == 1:
-                fw.write('Tracking = 1\n')
-                fw.write('TrackingConfig = configTrck.ini\n')
-            else:
-                fw.write('Tracking = 0\n')
-            # Input maps directory defined here (unless you need parallel runs
-            # with DREAM, in which case the directory will change on the fly,
-            # see spot_setup.simulation)
-            if Opti.parallel is False:
-                fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
-                fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')
-
-        # If tracking, copy template configTrck file for EcH2O
-        if Site.isTrck == 1:
-            copy_file(Config.FILE_CFGtrck,
-                      os.path.join(Config.PATH_OUT, 'configTrck.ini'))
-            # Where the configTrck file will be (first) copied
-            Config.FILE_CFGdest_trck = os.path.join(Config.PATH_OUT,
-                                                    'configTrck.ini')
+                copy_file(Config.FILE_CFGtrck,
+                          os.path.join(Config.PATH_OUT, 'configTrck.ini'))
+                # Where the configTrck file will be (first) copied
+                Config.FILE_CFGdest_trck = os.path.join(Config.PATH_OUT,
+                                                        'configTrck.ini')
 
 
-        # Copy of reference input parameters
-        # remove_tree(Config.PATH_SPA)
-        mkpath(Config.PATH_SPA)
-        os.system('cp -f '+Config.PATH_SPA_REF+'/*.map ' + Config.PATH_SPA)
-        # Remove the default map files of calibrated param in the inputs dir.
-        # --> helps checking early on if there is an improper map update
-        # for pname in Paras.names:
-        #     if Paras.ref[pname]['veg'] == 0:
-        #     os.remove(Config.PATH_SPA+'/' + Paras.ref[pname]['file']+'.map')
-        copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA)
+            # Copy of reference input parameters
+            # remove_tree(Config.PATH_SPA)
+            mkpath(Config.PATH_SPA)
+            os.system('cp -f '+Config.PATH_SPA_REF+'/*.map ' + Config.PATH_SPA)
+            # Remove the default map files of calibrated param in the inputs dir.
+            # --> helps checking early on if there is an improper map update
+            # for pname in Paras.names:
+            #     if Paras.ref[pname]['veg'] == 0:
+            #     os.remove(Config.PATH_SPA+'/' + Paras.ref[pname]['file']+'.map')
+            copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA)
 
-        # Keep it as last action in this if !
-        # EcH2O executable file: clean up / update old symlink
-        copy_file(os.path.join(Config.PATH_MAIN, Config.exe),
-                  Config.PATH_OUT)
+            # Keep it as last action in this if !
+            # EcH2O executable file: clean up / update old symlink
+            copy_file(os.path.join(Config.PATH_MAIN, Config.exe),
+                      Config.PATH_OUT)
 
     else:
         # In MPI mode, make other processes wait until EcH2O has been copied
@@ -850,153 +877,154 @@ def files(Config, Opti, Paras, Site):
     # === Preparing inputs maps/files for site geometry etc.
     # === (for all processes)
 
-    # -- Soils / units maps
-    # Initialization by cloning base map
-    Config.cloneMap = pcr.boolean(pcr.readmap(Config.PATH_SPA+'/base.map'))
-    pcr.setclone(Config.PATH_SPA+'/base.map')
-    Site.bmaps = {}
-    for im in range(Site.ns):
-        Site.bmaps[Site.soils[im]] = pcr.readmap(Config.PATH_SPA+'/' +
-                                                 Site.sfiles[im])
-    Site.bmaps['unit'] = pcr.readmap(Config.PATH_SPA+'/unit.map')
-    # Stream network
-    Site.bmaps['chanmask'] = pcr.readmap(Config.PATH_SPA+'/chanmask.map')
-    # Site.bmaps['chanmask_NaN'] = pcr.readmap(Config.PATH_SPA +
-    #                                          '/chanmask_NaN.map')
-    # Bare rock patches
-    if hasattr(Site, 'simRock'):
-        if Site.simRock == 1:
-            # Site.bmaps['nolowK'] = readmap(Config.PATH_SPA+'/unit.nolowK.map')
-            Site.bmaps['rock'] = pcr.readmap(Config.PATH_SPA+'/unit.rock.map')
+    if Config.runECH2O == 1:
+        # -- Soils / units maps
+        # Initialization by cloning base map
+        Config.cloneMap = pcr.boolean(pcr.readmap(Config.PATH_SPA+'/base.map'))
+        pcr.setclone(Config.PATH_SPA+'/base.map')
+        Site.bmaps = {}
+        for im in range(Site.ns):
+            Site.bmaps[Site.soils[im]] = pcr.readmap(Config.PATH_SPA+'/' +
+                                                     Site.sfiles[im])
+        Site.bmaps['unit'] = pcr.readmap(Config.PATH_SPA+'/unit.map')
+        # Stream network
+        Site.bmaps['chanmask'] = pcr.readmap(Config.PATH_SPA+'/chanmask.map')
+        # Site.bmaps['chanmask_NaN'] = pcr.readmap(Config.PATH_SPA +
+        #                                          '/chanmask_NaN.map')
+        # Bare rock patches
+        if hasattr(Site, 'simRock'):
+            if Site.simRock == 1:
+                # Site.bmaps['nolowK'] = readmap(Config.PATH_SPA+'/unit.nolowK.map')
+                Site.bmaps['rock'] = pcr.readmap(Config.PATH_SPA+'/unit.rock.map')
 
-    # -- For initial soil moisture maps generation at each run of EcH2O,
-    # get the value of keyword in config file (porosity profile type and
-    # name of maps)
-    # print('initial conditions 1')
-    # print(Config.FILE_CFGdest)
-    with open(Config.FILE_CFGdest, 'r') as f:
-        datafile = f.readlines()
+        # -- For initial soil moisture maps generation at each run of EcH2O,
+        # get the value of keyword in config file (porosity profile type and
+        # name of maps)
+        # print('initial conditions 1')
+        # print(Config.FILE_CFGdest)
+        with open(Config.FILE_CFGdest, 'r') as f:
+            datafile = f.readlines()
 
-    # Search and destroy, er, get the values
-    for line in datafile:
-        # Check which porosity profile mode is on in config file
-        if 'Porosity_profile =' in line:
-            Site.poros_mode = int(line.split('=')[1].strip())
-        # Files names needed in any case
-        if 'Top-of-profile_Porosity =' in line:
-            Site.f_poros = line.split('=')[1].strip()
-        if 'Soil_moisture_1' in line:
-            Site.f_initSWC1 = line.split('=')[1].strip()
-        if 'Soil_moisture_2' in line:
-            Site.f_initSWC2 = line.split('=')[1].strip()
-        if 'Soil_moisture_3' in line:
-            Site.f_initSWC3 = line.split('=')[1].strip()
-    if not any(s in Site.__dict__.keys() for s in
-               ['poros_mode', 'f_poros',
-                'f_initSWC1', 'f_initSWC2', 'f_initSWC3']):
-        sys.exit('Error: file names for poros and init SWC not found')
-
-    if Site.poros_mode == 1:
-        # Exponential: profile coeff and depths file names are needed
+        # Search and destroy, er, get the values
         for line in datafile:
-            if 'Porosity_Profile_coeff =' in line:
-                Site.f_kporos = line.split('=')[1].strip()
-            if 'Depth_soil_layer_1 =' in line:
-                Site.f_dL1 = line.split('=')[1].strip()
-            if 'Depth_soil_layer_2 =' in line:
-                Site.f_dL2 = line.split('=')[1].strip()
-            if 'Soil_depth =' in line:
-                Site.f_dTot = line.split('=')[1].strip()
+            # Check which porosity profile mode is on in config file
+            if 'Porosity_profile =' in line:
+                Site.poros_mode = int(line.split('=')[1].strip())
+            # Files names needed in any case
+            if 'Top-of-profile_Porosity =' in line:
+                Site.f_poros = line.split('=')[1].strip()
+            if 'Soil_moisture_1' in line:
+                Site.f_initSWC1 = line.split('=')[1].strip()
+            if 'Soil_moisture_2' in line:
+                Site.f_initSWC2 = line.split('=')[1].strip()
+            if 'Soil_moisture_3' in line:
+                Site.f_initSWC3 = line.split('=')[1].strip()
         if not any(s in Site.__dict__.keys() for s in
-                   ['f_kporos', 'f_dL1', 'f_dL2', 'f_dTot']):
-            sys.exit('Error: file names for poros profile and depths not found')
+                   ['poros_mode', 'f_poros',
+                    'f_initSWC1', 'f_initSWC2', 'f_initSWC3']):
+            sys.exit('Error: file names for poros and init SWC not found')
 
-    elif Site.poros_mode == 2:
-        # Porosity map given for each layer
-        for line in datafile:
-            if 'Porosity_Layer2 =' in line:
-                Site.f_porosL2 = line.split('=')[1].strip()
-            if 'Porosity_Layer3 =' in line:
-                Site.f_porosL3 = line.split('=')[1].strip()
-        if not any(s in Site.__dict__.keys() for s in
-                   ['f_porosL2', 'f_porosL3']):
-            sys.exit('Error: files names for L2 & L3 poros not found')
+        if Site.poros_mode == 1:
+            # Exponential: profile coeff and depths file names are needed
+            for line in datafile:
+                if 'Porosity_Profile_coeff =' in line:
+                    Site.f_kporos = line.split('=')[1].strip()
+                if 'Depth_soil_layer_1 =' in line:
+                    Site.f_dL1 = line.split('=')[1].strip()
+                if 'Depth_soil_layer_2 =' in line:
+                    Site.f_dL2 = line.split('=')[1].strip()
+                if 'Soil_depth =' in line:
+                    Site.f_dTot = line.split('=')[1].strip()
+            if not any(s in Site.__dict__.keys() for s in
+                       ['f_kporos', 'f_dL1', 'f_dL2', 'f_dTot']):
+                sys.exit('Error: file names for poros profile and depths not found')
 
-    # -- Vegetation inputs file: reference dictionary
-    Opti.vref = {}
-    # Read template file
-    with open(Config.PATH_SPA_REF+'/' + Site.vfile, 'r') as csvfile:
-        paramread = list(csv.reader(csvfile, delimiter='\t'))
-    # "Head": number of species and of params
-    Opti.vref['header'] = paramread[0][0:len(paramread[0])]
-    # Check that the number of species per params in def files matches
-    if Site.nv != len(paramread)-3:
-        sys.exit('ERROR: the number of species in def files (', Site.nv,
-                 ') differs from that in templace params file (',
-                 len(paramread)-3, ')')
-    # All parameters values (keep strings!)
-    for iv in range(Site.nv):
-        Opti.vref[iv] = paramread[iv+1][0:len(paramread[iv+1])]
-    # "Footers" : name of head1 and of parameters
-    Opti.vref['footer'] = paramread[Site.nv+1][0:len(paramread[Site.nv+1])]
-    Opti.vref['name'] = paramread[Site.nv+2][0:len(paramread[Site.nv+2])]
+        elif Site.poros_mode == 2:
+            # Porosity map given for each layer
+            for line in datafile:
+                if 'Porosity_Layer2 =' in line:
+                    Site.f_porosL2 = line.split('=')[1].strip()
+                if 'Porosity_Layer3 =' in line:
+                    Site.f_porosL3 = line.split('=')[1].strip()
+            if not any(s in Site.__dict__.keys() for s in
+                       ['f_porosL2', 'f_porosL3']):
+                sys.exit('Error: files names for L2 & L3 poros not found')
 
-    # -- For initial coyping (or not) initial tracking maps,
-    # get the value of keyword in configTrck file
-    # if Site.isTrck == 1:
-    #     with open(Config.FILE_CFGdest_trck, 'r') as f:
-    #         datafile = f.readlines()
-    #     # Search and destroy, er, get the trck values
-    #     for line in datafile:
-    #         # 2H tracking ?
-    #         if 'sw_2H =' in line:
-    #             Site.sw_2H = int(line.split('=')[1].strip())
-    #         # 2H tracking ?
-    #         if 'sw_18O =' in line:
-    #             Site.sw_18O = int(line.split('=')[1].strip())
-    #         # 2H tracking ?
-    #         if 'sw_Cl =' in line:
-    #             Site.sw_Cl = int(line.split('=')[1].strip())
-    #         # 2H tracking ?
-    #         if 'sw_Age =' in line:
-    #             Site.sw_Age = int(line.split('=')[1].strip())
+        # -- Vegetation inputs file: reference dictionary
+        Opti.vref = {}
+        # Read template file
+        with open(Config.PATH_SPA_REF+'/' + Site.vfile, 'r') as csvfile:
+            paramread = list(csv.reader(csvfile, delimiter='\t'))
+        # "Head": number of species and of params
+        Opti.vref['header'] = paramread[0][0:len(paramread[0])]
+        # Check that the number of species per params in def files matches
+        if Site.nv != len(paramread)-3:
+            sys.exit('ERROR: the number of species in def files (', Site.nv,
+                     ') differs from that in templace params file (',
+                     len(paramread)-3, ')')
+        # All parameters values (keep strings!)
+        for iv in range(Site.nv):
+            Opti.vref[iv] = paramread[iv+1][0:len(paramread[iv+1])]
+        # "Footers" : name of head1 and of parameters
+        Opti.vref['footer'] = paramread[Site.nv+1][0:len(paramread[Site.nv+1])]
+        Opti.vref['name'] = paramread[Site.nv+2][0:len(paramread[Site.nv+2])]
 
-    # if Config.isTrck == 1:
-    #     os.system('cp '+Config.PATH_SPA+'/d2H_snowpack.map '+Config.PATH_SPA+
-    # '/d2H.snowpack.map')
-    #     os.system('cp '+Config.PATH_SPA+'/d2H_surface.map '+Config.PATH_SPA+
-    # '/d2H.surface.map')
-    #     os.system('cp '+Config.PATH_SPA+'/d2H_soil1.map '+Config.PATH_SPA+
-    # '/d2H.L1.map')
-    #     os.system('cp '+Config.PATH_SPA+'/d2H_soil2.map '+Config.PATH_SPA+
-    # '/d2H.L2.map')
-    #     os.system('cp '+Config.PATH_SPA+'/d2H_soil3.map '+Config.PATH_SPA+
-    # '/d2H.L3.map')
-    #     os.system('cp '+Config.PATH_SPA+'/d2H_groundwater.map '+
-    # Config.PATH_SPA+'/d2H.GW.map')
-
-    #     os.system('cp '+Config.PATH_SPA+'/d18O_snowpack.map '+
-    # Config.PATH_SPA+'/d18O.snowpack.map')
-    #     os.system('cp '+Config.PATH_SPA+'/d18O_surface.map '+
-    # Config.PATH_SPA+'/d18O.surface.map')
-    #     os.system('cp '+Config.PATH_SPA+'/d18O_soil1.map '+Config.PATH_SPA+
-    # '/d18O.L1.map')
-    #     os.system('cp '+Config.PATH_SPA+'/d18O_soil2.map '+Config.PATH_SPA+
-    # '/d18O.L2.map')
-    #     os.system('cp '+Config.PATH_SPA+'/d18O_soil3.map '+Config.PATH_SPA+
-    # '/d18O.L3.map')
-    #     os.system('cp '+Config.PATH_SPA+'/d18O_groundwater.map '+
-    # Config.PATH_SPA+'/d18O.GW.map')
-
-    #     os.system('cp '+Config.PATH_SPA+'/Age_snowpack.map '+
-    # Config.PATH_SPA+'/Age.snowpack.map')
-    #     os.system('cp '+Config.PATH_SPA+'/Age_surface.map '+
-    # Config.PATH_SPA+'/Age.surface.map')
-    #     os.system('cp '+Config.PATH_SPA+'/Age_soil1.map '+Config.PATH_SPA+
-    # '/Age.L1.map')
-    #     os.system('cp '+Config.PATH_SPA+'/Age_soil2.map '+Config.PATH_SPA+
-    # '/Age.L2.map')
-    #     os.system('cp '+Config.PATH_SPA+'/Age_soil3.map '+Config.PATH_SPA+
-    # '/Age.L3.map')
-    #     os.system('cp '+Config.PATH_SPA+'/Age_groundwater.map '+
-    # Config.PATH_SPA+'/Age.GW.map')
+        # -- For initial coyping (or not) initial tracking maps,
+        # get the value of keyword in configTrck file
+        # if Site.isTrck == 1:
+        #     with open(Config.FILE_CFGdest_trck, 'r') as f:
+        #         datafile = f.readlines()
+        #     # Search and destroy, er, get the trck values
+        #     for line in datafile:
+        #         # 2H tracking ?
+        #         if 'sw_2H =' in line:
+        #             Site.sw_2H = int(line.split('=')[1].strip())
+        #         # 2H tracking ?
+        #         if 'sw_18O =' in line:
+        #             Site.sw_18O = int(line.split('=')[1].strip())
+        #         # 2H tracking ?
+        #         if 'sw_Cl =' in line:
+        #             Site.sw_Cl = int(line.split('=')[1].strip())
+        #         # 2H tracking ?
+        #         if 'sw_Age =' in line:
+        #             Site.sw_Age = int(line.split('=')[1].strip())
+        
+        # if Config.isTrck == 1:
+        #     os.system('cp '+Config.PATH_SPA+'/d2H_snowpack.map '+Config.PATH_SPA+
+        # '/d2H.snowpack.map')
+        #     os.system('cp '+Config.PATH_SPA+'/d2H_surface.map '+Config.PATH_SPA+
+        # '/d2H.surface.map')
+        #     os.system('cp '+Config.PATH_SPA+'/d2H_soil1.map '+Config.PATH_SPA+
+        # '/d2H.L1.map')
+        #     os.system('cp '+Config.PATH_SPA+'/d2H_soil2.map '+Config.PATH_SPA+
+        # '/d2H.L2.map')
+        #     os.system('cp '+Config.PATH_SPA+'/d2H_soil3.map '+Config.PATH_SPA+
+        # '/d2H.L3.map')
+        #     os.system('cp '+Config.PATH_SPA+'/d2H_groundwater.map '+
+        # Config.PATH_SPA+'/d2H.GW.map')
+        
+        #     os.system('cp '+Config.PATH_SPA+'/d18O_snowpack.map '+
+        # Config.PATH_SPA+'/d18O.snowpack.map')
+        #     os.system('cp '+Config.PATH_SPA+'/d18O_surface.map '+
+        # Config.PATH_SPA+'/d18O.surface.map')
+        #     os.system('cp '+Config.PATH_SPA+'/d18O_soil1.map '+Config.PATH_SPA+
+        # '/d18O.L1.map')
+        #     os.system('cp '+Config.PATH_SPA+'/d18O_soil2.map '+Config.PATH_SPA+
+        # '/d18O.L2.map')
+        #     os.system('cp '+Config.PATH_SPA+'/d18O_soil3.map '+Config.PATH_SPA+
+        # '/d18O.L3.map')
+        #     os.system('cp '+Config.PATH_SPA+'/d18O_groundwater.map '+
+        # Config.PATH_SPA+'/d18O.GW.map')
+        
+        #     os.system('cp '+Config.PATH_SPA+'/Age_snowpack.map '+
+        # Config.PATH_SPA+'/Age.snowpack.map')
+        #     os.system('cp '+Config.PATH_SPA+'/Age_surface.map '+
+        # Config.PATH_SPA+'/Age.surface.map')
+        #     os.system('cp '+Config.PATH_SPA+'/Age_soil1.map '+Config.PATH_SPA+
+        # '/Age.L1.map')
+        #     os.system('cp '+Config.PATH_SPA+'/Age_soil2.map '+Config.PATH_SPA+
+        # '/Age.L2.map')
+        #     os.system('cp '+Config.PATH_SPA+'/Age_soil3.map '+Config.PATH_SPA+
+        # '/Age.L3.map')
+        #     os.system('cp '+Config.PATH_SPA+'/Age_groundwater.map '+
+        # Config.PATH_SPA+'/Age.GW.map')

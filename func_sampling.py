@@ -14,7 +14,7 @@
 import sys
 import copy
 import numpy as np
-# import pyDOE
+import pyDOE
 # import random
 
 # ----------------------------------------------------------------------------
@@ -47,7 +47,8 @@ def MC_sample(Opti, Config):
         elif Config.sampling == 'LHS_r':
             print('...with correlation criterion -- it will take longer and a lot of memory')
             # First, get the hypercube samples, ranging from 0 to 1
-            mat = np.transpose(lhs(Opti.nvar,samples=Opti.nsamptot,criterion='corr'))
+            mat = np.transpose(pyDOE.lhs(Opti.nvar, samples=Opti.nsamptot,
+                                         criterion='corr'))
 
 
         print('...LHS matrix generated...')

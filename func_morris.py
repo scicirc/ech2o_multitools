@@ -50,6 +50,9 @@ def trajs(Config, Opti):
     Opti.Bnorm[:, 0, :] = np.transpose(pyDOE.lhs(Opti.nvar,
                                                  samples=Opti.nr,
                                                  criterion='cm'))
+    # print(Opti.nvar, Opti.nvar+1, Opti.nr)
+    # print(Opti.Bnorm[:, 0, :])
+    # print('-----------------------------------------')
 
     # Construct samples
     for ir in range(Opti.nr):
@@ -81,7 +84,7 @@ def trajs(Config, Opti):
 
             # Check for error
             if Opti.Bnorm[iv, iv+1, ir] > 1 or \
-               Opti.Bnorm[iv, iv+1, ir] <= 0:
+               Opti.Bnorm[iv, iv+1, ir] < 0:
                 print('Error in the incrementation of the parameter',
                       Opti.names[iv])
                 print(1/(2*Opti.nlev), Opti.Bnorm[iv, iv, ir],
@@ -153,8 +156,11 @@ def ee(Config, Obs, Opti, itraj):
                 df_diff = df_sim.set_index('Sample').iloc[1::] - \
                           df_sim.set_index('Sample').iloc[0]
 
+            print(df_diff.shape)
             # Get bias
             bias = df_diff.mean(axis=1)
+            print(bias.shape)
+            print(Opti.stepN.shape)
             # Get RMSE
             RMSE = np.sqrt((df_diff**2).mean(axis=1))
             # Get corresponding (normalized) elementary effect
