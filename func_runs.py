@@ -20,6 +20,8 @@ import numpy as np
 import func_params as params
 import func_outputs as outputs
 import func_morris as morris
+
+from distutils.dir_util import mkpath
 # ----------------------------------------------------------------------------
 
 
@@ -49,69 +51,68 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
 
     for it in range(it0, Opti.nit):
 
-        Opti.itout = '%05i' % int(it+1)
+        Opti.itout = '%04i' % int(it+1)
         print('Iteration ', Opti.itout, ' of ', Opti.nit)
 
-        # Create / clean up the run outputs directory
-        if len(glob.glob(Config.PATH_EXEC)) == 0:
-            os.system('mkdir '+Config.PATH_EXEC)
-        else:
-            os.system('rm -f '+Config.PATH_EXEC+'/*')
-
+        # Create (if needed) the run outputs directory
+        mkpath(Config.PATH_EXEC)
         # Create the inputs for ECH2O
         params.sim_inputs(Config, Opti, Paras, Site, Config.PATH_SPA, it=it)
         # Run ECH2O
         os.chdir(Config.PATH_OUT)
         print('|| running ECH2O...', end='\r')
         start = time.time()
-        os.system(Config.cmde_ech2o+' config.ini > ' +
+        os.system(Config.cmde_ech2o+' '+Config.cfg2_ech2o+' > ' +
                   Config.PATH_EXEC+'/ech2o.log')
         print('run time:', time.time()-start,
               'seconds (limit at '+Config.tlimit+')')
 
-        # Check if it ran properly
+        # Store goodness of fit across outputs (or NA/blank if the run crashed)
         os.chdir(Config.PATH_EXEC)
-        if runOK(Obs, Opti, Config, mode='verbose') == 0:
-            # If the run fails, let's give it one more chance!
-            os.chdir(Config.PATH_OUT)
-            os.system('rm -f '+Config.PATH_EXEC+'/*')
-            print('|| running ECH2O...', end='\r')
-            start = time.time()
-            os.system(Config.cmde_ech2o+' config.ini > ' +
-                      Config.PATH_EXEC+'/ech2o.log')
-            print('run time:', time.time()-start,
-                  'seconds (limit at '+Config.tlimit+')')
-            os.chdir(Config.PATH_EXEC)
-            # Still not running properly? Report and move on
-            if runOK(Obs, Opti, Config, mode='verbose') == 0:
-                f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
-                if len(glob.glob(f_failpar)) == 0:
-                    with open(f_failpar, 'w') as f_in:
-                        f_in.write('Sample,'+','.join(Opti.names)+'\n')
-                        f_in.write(str(it+1)+','+','.join([str(x) for x in
-                                                           Opti.x])+'\n')
-                else:
-                    with open(f_failpar, 'a') as f_in:
-                        f_in.write(str(it+1)+','+','.join([str(x) for x in
-                                                           Opti.x])+'\n')
-                os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
-                          Config.PATH_OUT + '/ech2o_'+Opti.itout+'.log')
-                # If it is the very first iteration, record it for
-                # main_outputs later
-                if it == 0:
-                    Opti.begfail = 1
+        # Write goodness of fit (even if it's nan)
+        outputs.store_GOF(Obs, Opti, Config, Site, it)
+        # Write parameters values for this sequence
+        #params.store(Opti, Config, it)
 
-        # If it worked...
-        if runOK(Obs, Opti, Config, mode='silent') == 1:
-            # Write parameters values for this sequence
-            params.store(Opti, Config, it)
-            # Group sampling outputs
-            outputs.store_sim(Obs, Opti, Config, Site, it)
+        if runOK(Obs, Opti, Config, mode='silent') == 0:
+            # # If the run fails, let's give it one more chance!
+            # os.chdir(Config.PATH_OUT)
+            # os.system('rm -f '+Config.PATH_EXEC+'/*')
+            # print('|| running ECH2O...', end='\r')
+            # start = time.time()
+            # os.system(Config.cmde_ech2o+' '+Config.cfg2_ech2o+' > ' +
+            #           Config.PATH_EXEC+'/ech2o.log')
+            # print('run time:', time.time()-start,
+            #       'seconds (limit at '+Config.tlimit+')')
+            # os.chdir(Config.PATH_EXEC)
+            # # Still not running properly? Report and move on
+            # if runOK(Obs, Opti, Config, mode='verbose') == 0:
+            f_failpar = Config.PATH_OUTmain+'/Parameters_fail.task'+Config.outnum+'.txt'
+            if len(glob.glob(f_failpar)) == 0:
+                with open(f_failpar, 'w') as f_in:
+                    f_in.write('Sample,'+','.join(Opti.names)+'\n')
+            with open(f_failpar, 'a') as f_in:
+                f_in.write(str(it+1)+','+','.join([str(x) for x in Opti.x])+'\n')
+            # If it is the very first iteration, record it for later use
+            if it == 0:
+                Opti.begfail = 1
+
+            os.system('cp -p '+Config.PATH_EXEC+'/ech2o.log ' +
+                      Config.PATH_OUT + '/ech2o.run'+Opti.itout+'.log')
+
+        # # If it worked...
+        # if runOK(Obs, Opti, Config, mode='silent') == 1:
+        #     # Group sampling outputs
+        #     outputs.store_sim(Obs, Opti, Config, Site, it)
+        
+        os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
+                  Config.PATH_EXEC + '/ech2o.run'+Opti.itout+'.log')
 
         os.chdir(Config.PATH_OUT)
         # sys.exit()
         # Clean up
-        os.system('rm -f '+Config.PATH_EXEC+'/*')
+        os.system('rm -f '+Config.PATH_EXEC+'/*.tab')
+        os.system('rm -f '+Config.PATH_EXEC+'/Basin*.txt')
 # ============================================================================
 
 
@@ -146,7 +147,7 @@ def forward_runs(Config, Opti, Obs, Paras, Site, options):
         os.chdir(Config.PATH_OUT)
         print('|| running ECH2O...', end='\r')
         start = time.time()
-        os.system(Config.cmde_ech2o+' config.ini > ' +
+        os.system(Config.cmde_ech2o+' '+Config.cfg2_ech2o+' > ' +
                   Config.PATH_EXEC+'/ech2o.log')
         print('run time:', time.time()-start,
               'seconds (limit at', Config.tlimit, ')')
@@ -214,7 +215,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
             os.chdir(Config.PATH_OUT)
             print('|| running ECH2O...')
             start = time.time()
-            os.system(Config.cmde_ech2o+' config.ini > ' +
+            os.system(Config.cmde_ech2o+' '+Config.cfg2_ech2o+' > ' +
                       Config.PATH_EXEC+'/ech2o.log')
             print('run time:', time.time() - start,
                   'seconds (limit at ', Config.tlimit, ')')
@@ -270,26 +271,26 @@ def runOK(Obs, Opti, Config, mode='silent'):
     # 1. Check it ran
     if len(glob.glob(Config.PATH_EXEC+'/BasinSummary.txt')) == 0 or \
        os.stat(Config.PATH_EXEC+'/BasinSummary.txt').st_size == 0:
-        if(mode == 'verbose'):
-            print("Something went wrong, BasinSummary.txt is missing/empty...")
+        #if(mode == 'verbose'):
+        print("Something went wrong, BasinSummary.txt is missing/empty...")
         isOK = 0
 
     else:
-        for oname in Obs.names:
-            # print oname
-            if Obs.obs[oname]['type'] != 'mapTs':
-                if Obs.obs[oname]['type'] != 'map':
-                    f_test = Config.PATH_EXEC+'/'+Obs.obs[oname]['sim_file']
-                else:
-                    f_test = Config.PATH_EXEC+'/' + \
-                        Obs.obs[oname]['sim_file'] + '.map'
+        # for oname in Obs.names:
+        #     # print oname
+        #     if Obs.obs[oname]['type'] != 'mapTs':
+        #         if Obs.obs[oname]['type'] != 'map':
+        #             f_test = Config.PATH_EXEC+'/'+Obs.obs[oname]['sim_file']
+        #         else:
+        #             f_test = Config.PATH_EXEC+'/' + \
+        #                 Obs.obs[oname]['sim_file'] + '.map'
 
-                if len(glob.glob(f_test)) == 0:
-                    if(mode == 'verbose'):
-                        print("Something went wrong, no output for "+oname+" !!")
-                        print('(i.e., '+f_test+' is missing...)')
-                    isOK = 0
-                    # print 'Outputs are there...'
+        #         if len(glob.glob(f_test)) == 0:
+        #             if(mode == 'verbose'):
+        #                 print("Something went wrong, no output for "+oname+" !!")
+        #                 print('(i.e., '+f_test+' is missing...)')
+        #             isOK = 0
+        #             # print 'Outputs are there...'
 
         # 2. Check it ran until the end
         f_test = Config.PATH_EXEC+'/BasinSummary.txt'

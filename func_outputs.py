@@ -21,37 +21,64 @@ from datetime import datetime
 import pandas as pd
 
 import func_runs as runs
+import func_GOFs as GOFs
+
+from distutils.dir_util import mkpath
+from distutils.file_util import copy_file
 
 # ----------------------------------------------------------------------------
 # -- Read a given simulation output (time series only)
 
 
-def read_sim(Config, Obs, oname):
+def read_sim(Config, Obs, oname, it=0):
 
+    #print(oname)
     # Point-scale time series -------------------------------------
     if Obs.obs[oname]['type'] == 'Ts':
+        #print(Obs.obs[oname]['sim_file'])
         # HEader in EcH2O files
         hskip = Obs.nts+3
-        idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]
-                                                  ['sim_pts']-1]+1
+        idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]['sim_pts']-1]
         # Read
         sim = pd.read_table(Obs.obs[oname]['sim_file'],
-                            skiprows=hskip, header=None).iloc[:, idx] * \
-            Obs.obs[oname]['sim_conv']
+                            skiprows=hskip, header=None).set_index(0)
+        # Check if it ran properly (sometimes some time steps are skipped in *tab...)
+        # If steps are missing but the series is long enough, let's replace with nan
+        if len(sim) < Obs.lsim and len(sim) > 365:
+            idx2 = np.arange(1,7476+1)
+            sim = sim.reindex(idx2)
+            print("Warning: some steps were missing in", Obs.obs[oname]['sim_file'],
+                  '(',','.join([str(x) for x in list(pd.isnull(sim[1]).nonzero()[0]+1)]))
+            copy_file(Obs.obs[oname]['sim_file'],
+                      Config.PATH_OUT+'/'+Obs.obs[oname]['sim_file']+ 
+                      '.run'+str(it+1)+'.txt')
 
     # Integrated variables (in BasinSummary.txt) -----------------
-    if Obs.obs[oname]['type'] == 'Total':
+    elif Obs.obs[oname]['type'] == 'Total':
         idx = Obs.obs[oname]['sim_pts']-1
         # Read
-        sim = np.genfromtxt(Obs.obs[oname]['sim_file'],
-                            delimiter='\t', skip_header=1,
-                            unpack=True)[idx] * Obs.obs[oname]['sim_conv']
+        sim = pd.read_table(Obs.obs[oname]['sim_file'])
+        sim = sim.set_axis([str(i) for i in np.arange(1,sim.shape[0]+1)])
 
-    # If required, trim (spinup, transient state, etc.)
-    if Obs.saveB > 1 or Obs.saveL < Obs.lsim:
-        sim = sim[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
 
-    return sim
+    # Get observation column
+    sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv']
+    print(len(sim),'(2)')
+    # Trim (spinup, transient state, etc.)
+    sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1]
+    print(len(sim),'(3', Obs.saveB, Obs.saveB+Obs.saveL-1,')')
+
+    if len(sim) != Obs.saveL:
+        print("Warning: problem with "+oname+" trim: read length is " + 
+              str(len(sim)) + ' instead of '+str(Obs.saveL))
+        sim = [np.nan] * Obs.saveL
+
+    # if Obs.saveB > 1 or Obs.saveL < Obs.lsim:
+    #     sim = sim[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
+    #     # print(len(sim))
+    # #print(sim)
+    
+    return list(sim)
 # ----------------------------------------------------------------------------
 # -- Store in files for later use
 
@@ -59,6 +86,7 @@ def read_sim(Config, Obs, oname):
 def store_sim(Obs, Opti, Config, Site, it):
 
     mode = 'verbose'
+    firstMapTs = 1
     
     # -- Group the output files in one across simulations,
     #    separating by observations points and veg type where it applies
@@ -92,21 +120,21 @@ def store_sim(Obs, Opti, Config, Site, it):
             if runs.runOK(Obs, Opti, Config, mode) == 1:
 
                 idx = Obs.obs[oname]['sim_pts']-1
+                # Read
+                sim = pd.read_table(Obs.obs[oname]['sim_file'])
+                sim = sim.set_axis([str(i) for i in np.arange(1,sim.shape[0]+1)])
+                # Get observation column
+                sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv']
+                # Trim (spinup, transient state, etc.)
+                sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1]
 
-                tmp = np.genfromtxt(Obs.obs[oname]['sim_file'], delimiter='\t',
-                                    skip_header=1,
-                                    unpack=True)[idx]*Obs.obs[oname]['sim_conv']
-
-                # Shave off the transient part (if any)
-                if Obs.saveB > 1:
-                    tmp = tmp[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
-                    if len(tmp) != Obs.saveL:
-                        sys.exit("ERROR -> Problem with output trim: we've got" +
-                                 str(len(tmp)) + ' instead of '+str(Obs.saveL))
+                if len(sim) != Obs.saveL:
+                    sys.exit("Warning: problem with "+oname+" trim: we've got" +
+                             str(len(sim)) + ' instead of '+str(Obs.saveL))
 
                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
                     f_out.write(str(it+1)+','+','.join([str(j) for j in
-                                                        list(tmp)])+'\n')
+                                                        list(sim)])+'\n')
             else:
                 # If run failed, write nan line
                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
@@ -121,19 +149,23 @@ def store_sim(Obs, Opti, Config, Site, it):
             if runs.runOK(Obs, Opti, Config, mode) == 1:
                 hskip = Obs.nts+3
                 idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]
-                                                          ['sim_pts']-1]+1
+                                                          ['sim_pts']-1]
 
-                tmp = np.genfromtxt(
-                    Obs.obs[oname]['sim_file'], delimiter='\t',
-                    skip_header=hskip, unpack=True)[idx]*Obs.obs[oname]['sim_conv']
+                # Read
+                sim = pd.read_table(Obs.obs[oname]['sim_file'],
+                                    skiprows=hskip, header=None).set_index(0)
+                # Get observation column
+                sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv']
+                # Trim (spinup, transient state, etc.)
+                sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1]
 
-                # Shave off the transient part (if any)
-                if Obs.saveB > 1:
-                    tmp = tmp[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
+                if len(sim) != Obs.saveL:
+                    sys.exit("Warning: problem with "+oname+" trim: we've got" +
+                             str(len(sim)) + ' instead of '+str(Obs.saveL))
 
                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
                     f_out.write(str(it+1)+','+','.join([str(j) for j in
-                                                        list(tmp)])+'\n')
+                                                        list(sim)])+'\n')
             else:
                 # If run failed, write nan line
                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
@@ -287,7 +319,8 @@ def store_sim(Obs, Opti, Config, Site, it):
                       "a saveBmap value beyond the last simulation timestep?")
                 continue
 
-            if(len(itNotOK) > 0):
+            if(len(itNotOK) > 0 and firstMapTs == 1):
+                firstMapTs = 0
                 if(len(itOK) > 0):
                     print("Warning: some of the demanded "+oname +
                           " maps are missing, before t=", itOK[0])
@@ -395,3 +428,120 @@ def store_sim(Obs, Opti, Config, Site, it):
                 os.system('mv '+Config.PATH_EXEC + '/BasinAgeSummary.txt ' +
                           Config.PATH_OUT+'/BasinAgeSummary_run' +
                           str(it+1)+'.txt')
+
+# ==============================================================================
+# -- Store goodness-of-fit using using several metrics:
+#    NSE, KGE, RMSE, MAE
+
+
+def store_GOF(Obs, Opti, Config, Site, it):
+
+    # -- Group the output files in one across simulations,
+    #    separating by observations points and veg type where it applies
+    if it == 0:
+        GOFref = ['NSE','KGE','KGE2012','RMSE','MAE','RMSEc','MAEc']
+        # Check that use-defined GOFs are in the refernece list
+        tmp = []
+        for gof in Opti.GOFs:
+            if gof in GOFref:
+                tmp += [gof]
+        if len(tmp) == 0:
+            sys.exit('ERROR: None of that user-defined GOFs are in the reference list!')
+        else:
+            Opti.GOFs = tmp
+            Opti.nGOF = len(Opti.GOFs)
+            Opti.GOFfiles = {}
+            for gof in Opti.GOFs:
+                # Historic time series file names
+                Opti.GOFfiles[gof] = Config.PATH_OUTmain+'/'+gof+'.task'+Config.outnum+'.tab'
+                # Header of files
+                with open(Opti.GOFfiles[gof], 'w') as f_out:
+                    f_out.write('Sample,'+','.join(Obs.names)+'\n')
+        
+    # Did it run OK?
+    if runs.runOK(Obs, Opti, Config, mode='verbose') == 1:
+        # Read outputs
+        if Obs.nobs == 1:
+            simulations = read_sim(Config, Obs, Obs.names[0], it)
+            # if(len(simulations) < Obs.saveL):
+            #     print('sim length:', len(simulations), ', expected:', Obs.saveL)
+            #     simulations = [np.nan] * Obs.saveL
+        else:
+            simulations = np.full((Obs.nobs, Obs.saveL), np.nan).tolist()
+            for i in range(Obs.nobs):
+                oname = Obs.names[i]
+                simulations[i][:] = read_sim(Config, Obs, oname, it)
+                # if(len(simulations[i]) < Obs.saveL):
+                #     print('sim length:', len(simulations[i]), ', expected:', Obs.saveL)
+                #     simulations[i][:] = [np.nan] * Obs.saveL
+
+        for i in range(Obs.nobs):
+
+            oname = Obs.names[i]
+
+            # Have obervation and simulations matching the same time period
+            # obs: already pre-processed
+            tobs = pd.to_datetime(Opti.obs[oname]['Date'].values)
+            o = np.asanyarray(Opti.obs[oname]['value'].values)
+            
+            # First step for sim: trim sim to obs timespan
+            # + only keep dates with obs (even if nan)
+            # print(sim)
+            # print(sim.shape)
+            if Obs.nobs == 1:
+                s = np.asanyarray([simulations[j] for j in range(Obs.saveL) if
+                                   Obs.simt[j] in tobs])
+            else:
+                s = np.asanyarray([simulations[i][j] for j in range(Obs.saveL) if
+                                   Obs.simt[j] in tobs])
+            # Second step (both o and s): remove nan due to gaps in obs
+            # (or missing steps in sims...)
+            tmp = s*o
+            s = np.asanyarray([s[k] for k in range(len(tmp)) if not
+                               np.isnan(tmp[k])])
+            o = np.asanyarray([o[j] for j in range(len(tmp)) if not
+                               np.isnan(tmp[j])])
+
+
+            # Prepare lists of GOFs
+            if i==0:
+                gofs = {}
+                for gof in Opti.GOFs:
+                    gofs[gof] = []
+        
+            # Another sanity check: if there any data/sim left after nan screening?
+            if s.__len__() == 0 or o.__len__() == 0:
+                print('Warning: nothing to compare to after date trimming!')
+                # Add nan
+                for gof in Opti.GOFs:
+                    gofs[gof] += [np.nan]
+            else:
+                # Now use your favorite likelihood estimator for each obs type
+                for gof in Opti.GOFs:
+                    if gof == 'NSE':
+                        gofs[gof] += [GOFs.nash_sutcliffe(s,o)] # NSE
+                    if gof == 'KGE':
+                        gofs[gof] += [GOFs.kling_gupta(s,o)] # KGE 2009
+                    if gof == 'KGE2012':
+                        gofs[gof] += [GOFs.kling_gupta(s,o,method='2012')] # KGE 2012
+                    if gof == 'RMSE':
+                        gofs[gof] += [GOFs.rmse(s,o)] # RMSE
+                    if gof == 'MAE':
+                        gofs[gof] += [GOFs.meanabs(s,o)] # MAE
+                    if gof == 'RMSEc':
+                        gofs[gof] += [GOFs.rmse(s-np.mean(s),o-np.mean(o))] # RMSE
+                    if gof == 'MAEc':
+                        gofs[gof] += [GOFs.meanabs(s-np.mean(s),o-np.mean(o))] # MAE
+
+        # Store goodnesses of fit, one files per GOF
+        for gof in Opti.GOFs:
+            # GOF
+            with open(Opti.GOFfiles[gof], 'a') as f_out:
+                f_out.write(str(it+1)+','+','.join([str(x) for x in gofs[gof]])+'\n')
+
+    else:
+        # Write NaN
+        for gof in Opti.GOFs:
+            with open(Opti.GOFfiles[gof], 'a') as f_out:
+                f_out.write(str(it+1)+','+','.join(list(np.repeat('nan',Obs.nobs)))+'\n')
+    

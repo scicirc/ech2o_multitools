@@ -80,33 +80,57 @@ def config(options):
     # Base name
     if options.outdir is None:
         if Config.mode != 'forward_runs':
-            options.outdir = os.path.splitext(options.file)[0]
+            Config.outdir = os.path.splitext(options.file)[0]
         else:
             tmp = options.cfg.split('_')[1].split('.')[0].split('-')
             if(len(tmp) == 2):
                 [pref1, pref2] = tmp
-                options.outdir = 'Res.ens'+options.nEns+'_'+pref2 + \
-                    '.'+pref1+'.'+options.inEns
+                Config.outdir = 'Res.ens'+options.nEns+'_'+pref2 + \
+                                '.'+pref1+'.'+options.inEns
             if(len(tmp) == 1):
-                options.outdir = 'Res.ens'+options.nEns+'.'+tmp[0]+'.' +\
-                    options.inEns
+                Config.outdir = 'Res.ens'+options.nEns+'.'+tmp[0]+'.' +\
+                                options.inEns
             if(len(tmp) > 2):
                 sys.exit('Error: incorrect config file format.')
+    elif Config.mode == 'calib_MCruns':
+        tmp = options.outdir.split('.')
+        if len(tmp)==2:
+            Config.outdir = tmp[0]
+            Config.outnum = '%03i' % int(tmp[1])
+            Config.outnum2 = tmp[1]
+        else:
+            tmp = options.outdir.split('_')
+            if len(tmp)==2:
+                Config.outdir = tmp[0]
+                Config.outnum = '%03i' % int(tmp[1])
+                Config.outnum2 = tmp[1]
+            else:
+                sys.exit('Please specify an outdir like XX.$task# or +',
+                         'XX_$task# as a format')
+    else:
+        Config.outdir = copy.copy(options.outdir)
+
     # Absolute location
     if Config.mode == 'forward_runs' and options.OMP_it is not None:
         Config.OMP_it = int(options.OMP_it)
         Config.PATH_OUTmain = \
-            os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                         options.outdir))
+            os.path.abspath(os.path.join(Config.PATH_MAIN, Config.outdir))
         if len(glob.glob(Config.PATH_OUTmain)) == 0:
             mkpath(Config.PATH_OUTmain)
         Config.PATH_OUT = \
             os.path.abspath(os.path.join(Config.PATH_OUTmain,
-                                         'EnsembleRun_' +
-                                         str(Config.OMP_it)))
+                                         'EnsembleRun_' + str(Config.OMP_it)))
+    elif Config.mode == 'calib_MCruns':
+        Config.PATH_OUTmain = \
+            os.path.abspath(os.path.join(Config.PATH_MAIN, Config.outdir))
+        if len(glob.glob(Config.PATH_OUTmain)) == 0:
+            mkpath(Config.PATH_OUTmain)
+        Config.PATH_OUT = \
+            os.path.abspath(os.path.join(Config.PATH_OUTmain,
+                                         'task' + Config.outnum))
     else:
         Config.PATH_OUT = os.path.abspath(os.path.join(Config.PATH_MAIN,
-                                                       options.outdir))
+                                                       Config.outdir))
 
     # -- Restart: do not start from first iteration
     if options.restart is None:
@@ -185,19 +209,22 @@ def config(options):
     # -- Calibration: all parameter path (and datasets, if needed)
     if Config.mode in ['calib_MCsampling', 'calib_MCruns']:
         if not hasattr(Config, 'PATH_PAR'):
-            print('Warning: path to parameter samples not specified, ' +
-                  'set to default')
+            #print('Warning: path to parameter samples not specified, ' +
+            #      'set to default')
             Config.PATH_PAR = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                            'Calibration_Samples'))
-        Config.FILE_PAR = Config.PATH_PAR+'/'+options.outdir.split('.')[0] + \
-            '_parameters.'
+        Config.FILE_PAR = Config.PATH_PAR+'/'+Config.outdir.split('.')[0] + \
+                          '_parameters.'
+        if Config.mode == 'calib_MCruns':
+            Config.FILE_PAR += Config.outnum2+'.txt'
+
         # -- Creation of output directory
         if len(glob.glob(Config.PATH_PAR)) == 0:
             mkpath(Config.PATH_PAR)
         # -- Some verbose
-        print('')
-        print("Parameter samples' directory:          ", Config.PATH_PAR)
-        print('')
+        #print('')
+        #print("Parameter samples file:\n", Config.FILE_PAR)
+        #print('')
 
     if Config.mode.split('_')[0] == 'calib':
         if not hasattr(Config, 'PATH_OBS'):
@@ -318,7 +345,7 @@ def parameters(Config, Opti, Paras, Site, options):
             Paras.ind[par] = [ipar2]
 
         # Build vectors used in the optimisation
-        if Config.mode != 'forward_runs':
+        if Config.mode not in ['calib_MCruns', 'forward_runs']:
 
             # Log-sampling ?
             if 'log' not in Paras.ref[par].keys():
@@ -419,7 +446,7 @@ def parameters(Config, Opti, Paras, Site, options):
         # else:
         #     # Get the trajectory
         #     f_in = Config.PATH_TRAJ+'/'+options.outdir.split('.')[0] + \
-        #         '.Bstar_traj' + Config.numsim+'.txt'
+        #         '.Bstar_traj' + Config.outnum+'.txt'
         #     # print(f_in
         #     Opti.xpar = np.genfromtxt(f_in, delimiter=',', skip_header=1)
         #     # print(Opti.xpar.shape
@@ -569,14 +596,21 @@ def runs(Config, Opti, Obs, Paras, Site, options):
     # with DREAM, the acutal directory will be next to this one)
     if Config.scratch > 0:
         if Config.scratch == 1:
-            Config.PATH_EXEC = '/scratch/sylvain.kuppel/'+options.outdir
+            if Config.mode == 'calib_MCruns':
+                Config.PATH_EXEC = '/scratch/sylvain.kuppel/MCruns.'+Config.outdir+ \
+                                   '_tmp'+Config.outnum
+            else:
+                Config.PATH_EXEC = '/scratch/sylvain.kuppel/'+Config.outdir
         # if Config.scratch == 2:
         #     Config.PATH_EXEC = '/nobackup/users/s08sk8/'+options.outdir
         print('-----------------------------------------')
         print("Scratch storage activated! Hopefully that will speed " +
               "things up...")
     else:
-        Config.PATH_EXEC = os.path.abspath(os.path.join(Config.PATH_OUT, 'tmp'))
+        if Config.mode == 'calib_MCruns':
+            Config.PATH_EXEC = copy.copy(Config.PATH_OUT)
+        else:
+            Config.PATH_EXEC = os.path.abspath(os.path.join(Config.PATH_OUT, 'tmp'))
 
     # # In parellel computing case, one execution folder per task
     # if Opti.parallel == True:
@@ -612,13 +646,14 @@ def runs(Config, Opti, Obs, Paras, Site, options):
             sys.exit('The user provided CFG file was not found: ' +
                      Config.FILE_CFG)
         # Where the config file will be (first) copied
-        Config.FILE_CFGdest = os.path.join(Config.PATH_OUT, 'config.ini')
+        Config.cfg2_ech2o = options.cfg+'.ini'
+        Config.FILE_CFGdest = os.path.join(Config.PATH_OUT, Config.cfg2_ech2o)
 
     else:
         sys.exit('Error: the script need a template ech2o config file!')
 
     # (if needed) get the parallel job number, based on the output dir name
-    # Config.numsim = options.outdir.split('.')[::-1][0]
+    # Config.outnum = options.outdir.split('.')[::-1][0]
 
     # -- Tracking age and/or tracers?
     if not hasattr(Site, 'isTrck'):
@@ -704,7 +739,7 @@ def observations(Config, Opti, Obs):
     # Same thing in froward mode (needs to be merged...)
     Config.treal = [Obs.simbeg+timedelta(days=x) for x in range(Obs.saveL)]
 
-    if Config.mode == 'calib_SPOTPY':
+    if Config.mode in ['calib_MCruns','calib_SPOTPY']:
 
         # print('Reading measured datasets for calibration...')
 
@@ -779,15 +814,19 @@ def files(Config, Opti, Paras, Site):
         if Config.runECH2O== 1:
             print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
             print('Climate data:\n', Config.PATH_CLIM)
-            if Config.mode == 'calib_SPOTPY':
+            if Config.mode.split('_')[0] == 'calib':
                 print('Calibration datasets:\n', Config.PATH_OBS)
+            if Config.mode == 'calib_MCruns':
+                print('Calibration sample file: \n'+Config.FILE_PAR)
             if Opti.parallel is False:
-                print('Maps & parameters:', Config.PATH_SPA)
-                print('Raw output from simulations:', Config.PATH_EXEC)
+                print('Maps & parameters:\n', Config.PATH_SPA)
+                print('Raw output from simulations:\n', Config.PATH_EXEC)
             print('The user provided CFG file is: \n'+Config.FILE_CFG)
+            if Config.mode == 'calib_MCruns':
+                print('-> for this subtask moved/edited to: \n'+Config.FILE_CFGdest)
             if Site.isTrck == 1:
                 print('The user provided CFGtrck file is:\n' + Config.FILE_CFGtrck)
-            print('Final outputs:\n', Config.PATH_OUT)
+            print('Final outputs:\n', Config.PATH_OUTmain)
         elif Config.mode == 'calib_MCsampling':
             print('Calibration samples in :\n', Config.FILE_PAR+'* files')
 

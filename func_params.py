@@ -27,12 +27,20 @@ def get(Opti, Config, options):
 
         # Read parameters sample for this instance of array task
         # Open one file for all samples
-        Opti.xpar = np.genfromtxt(Config.FILE_PAR+Config.numsim+'.txt',
-                                  delimiter=',', unpack=True)[1::]
-        if(len(Opti.xpar[0]) != len(Opti.names)):
+        Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',', unpack=True)[1::]
+
+        tmp = list(pd.read_csv(Config.FILE_PAR, header=None).loc[:, 0])
+        if tmp != Opti.names:
+            print(Opti.names)
+            print(tmp)
             sys.exit("The definition file and input parameter file ain't " +
                      "matching!")
+
+        # if(Opti.xpar.shape[1] != len(Opti.names)):
+        #     sys.exit("The definition file and input parameter file ain't " +
+        #              "matching!")
         # print(Opti.xpar.shape)
+        Opti.nit = Opti.xpar.shape[0]
 
     # -- Forward ensemble runs: read directly the params from "best params"
     #    file
@@ -61,10 +69,14 @@ def store(Opti, Config, it):
 
     # Open one file for all samples
     if Config.initpar == 0:
-        Config.f_par = Config.PATH_OUT+'/Parameters.txt'
+        if Config.mode == 'calib_MCruns':
+            Config.f_par = Config.PATH_OUTmain+'/Parameters.task'+Config.outnum+'.txt'
+        else:
+            Config.f_par = Config.PATH_OUT+'/Parameters.txt'
+
         if Config.restart == 0:
             with open(Config.f_par, 'w') as f_in:
-                f_in.write('Iteration,'+','.join(Opti.names)+'\n')
+                f_in.write('Sample,'+','.join(Opti.names)+'\n')
         Config.initpar = 1
 
     with open(Config.f_par, 'a') as f_in:
