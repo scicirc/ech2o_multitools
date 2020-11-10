@@ -271,7 +271,7 @@ def runOK(Obs, Opti, Config, mode='silent'):
     # 1. Check it ran
     if len(glob.glob(Config.PATH_EXEC+'/BasinSummary.txt')) == 0 or \
        os.stat(Config.PATH_EXEC+'/BasinSummary.txt').st_size == 0:
-        #if(mode == 'verbose'):
+        # if(mode == 'verbose'):
         print("Something went wrong, BasinSummary.txt is missing/empty...")
         isOK = 0
 
@@ -304,15 +304,17 @@ def runOK(Obs, Opti, Config, mode='silent'):
             if type(tmp) == float or type(tmp) == np.float64 or \
                type(tmp) == np.float32:
                 isOK = 0
-                print("Something went wrong, output of length 1 !")
+                if mode == 'verbose':
+                    print("Something went wrong, output of length 1 !")
             elif len(tmp) != Obs.lsim:
                 # & len(tmp2)==Obs.lsim:
                 # print 'It ran until the end !'
                 isOK = 0
-                print("Something went wrong, output does not match the " +
-                      "supposed sim length!")
-                print('Output: '+str(len(tmp))+' , supposed to be: ' +
-                      str(Obs.lsim))
+                if mode == 'verbose':
+                    print("Something went wrong, output does not match the " +
+                          "supposed sim length!")
+                    print('Output: '+str(len(tmp))+' , supposed to be: ' +
+                          str(Obs.lsim))
 
     return isOK
 # ==================================================================================
