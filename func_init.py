@@ -836,7 +836,7 @@ def files(Config, Opti, Paras, Site):
             print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
             print('')
         print('')
-        if Config.runECH2O== 1:
+        if Config.runECH2O == 1:
             print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)
             print('Climate data:\n', Config.PATH_CLIM)
             if Config.mode.split('_')[0] == 'calib':
@@ -851,7 +851,11 @@ def files(Config, Opti, Paras, Site):
                 print('-> for this subtask moved/edited to: \n'+Config.FILE_CFGdest)
             if Site.isTrck == 1:
                 print('The user provided CFGtrck file is:\n' + Config.FILE_CFGtrck)
-            print('Final outputs:\n', Config.PATH_OUTmain)
+            if Config.mode == 'calib_MCruns' or \
+               (Config.mode == 'forward_runs' and hasattr(Config, 'OMP_it')):
+                print('Final outputs:\n', Config.PATH_OUTmain)
+            else:
+                print('Final outputs:\n', Config.PATH_OUT)
         elif Config.mode == 'calib_MCsampling':
             print('Calibration samples in :\n', Config.FILE_PAR+'* files')
 

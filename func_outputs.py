@@ -108,7 +108,8 @@ def store_sim(Obs, Opti, Config, Site, it):
     # Save current run outputs (and delete the file to relieve Maxwell...)
     for oname in Obs.names:
 
-        # print(oname)
+        #print(oname)
+
         if(oname != Obs.names[0]):
             mode = 'silent'
 
@@ -122,14 +123,23 @@ def store_sim(Obs, Opti, Config, Site, it):
                 idx = Obs.obs[oname]['sim_pts']-1
                 # Read
                 sim = pd.read_table(Obs.obs[oname]['sim_file'])
-                sim = sim.set_axis([str(i) for i in np.arange(1,sim.shape[0]+1)])
+                # BasinSummary.txt don't have an index
+                # (Basin-dH/d18O/AGe/Cl-Summary.txt do)
+                if Obs.obs[oname]['sim_file'] == 'BasinSummary.txt':
+                    sim.set_axis([str(i) for i in np.arange(sim.shape[0])],
+                                 inplace=True)
                 # Get observation column
-                sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv']
+                sim = sim.iloc[:, idx] * Obs.obs[oname]['sim_conv']
                 # Trim (spinup, transient state, etc.)
-                sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1]
+                # Index starts at 0
+                if Obs.obs[oname]['sim_file'] == 'BasinSummary.txt':
+                    sim = sim[Obs.saveB-1:Obs.saveB+Obs.saveL-1]
+                else:
+                    sim = sim.loc[Obs.saveB-1:Obs.saveB+Obs.saveL-2]
 
                 if len(sim) != Obs.saveL:
-                    sys.exit("Warning: problem with "+oname+" trim: we've got" +
+                    sys.exit("Warning: problem with " + oname +
+                             " trim: we've got" +
                              str(len(sim)) + ' instead of '+str(Obs.saveL))
 
                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
@@ -138,8 +148,9 @@ def store_sim(Obs, Opti, Config, Site, it):
             else:
                 # If run failed, write nan line
                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
-                    f_out.write(str(it+1)+','+','.join(list(np.repeat('nan',
-                                                                      Obs.saveL)))+'\n')
+                    f_out.write(str(it+1)+','+
+                                ','.join(list(np.repeat('nan', Obs.saveL)))+
+                                '\n')
 
         # Time series ---------------------------------------------------------
         # Pixel-scale variables (in *tab)
@@ -157,6 +168,7 @@ def store_sim(Obs, Opti, Config, Site, it):
                 # Get observation column
                 sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv']
                 # Trim (spinup, transient state, etc.)
+                # Index starts at 1
                 sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1]
 
                 if len(sim) != Obs.saveL:

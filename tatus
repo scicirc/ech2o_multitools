@@ -1,0 +1,142 @@
+[1mdiff --git a/__pycache__/func_init.cpython-36.pyc b/__pycache__/func_init.cpython-36.pyc[m
+[1mindex c8ec143..b7a55b5 100644[m
+Binary files a/__pycache__/func_init.cpython-36.pyc and b/__pycache__/func_init.cpython-36.pyc differ
+[1mdiff --git a/__pycache__/func_morris.cpython-36.pyc b/__pycache__/func_morris.cpython-36.pyc[m
+[1mindex 19832ac..68a3445 100644[m
+Binary files a/__pycache__/func_morris.cpython-36.pyc and b/__pycache__/func_morris.cpython-36.pyc differ
+[1mdiff --git a/__pycache__/func_outputs.cpython-36.pyc b/__pycache__/func_outputs.cpython-36.pyc[m
+[1mindex 73cd684..facd49b 100644[m
+Binary files a/__pycache__/func_outputs.cpython-36.pyc and b/__pycache__/func_outputs.cpython-36.pyc differ
+[1mdiff --git a/__pycache__/func_params.cpython-36.pyc b/__pycache__/func_params.cpython-36.pyc[m
+[1mindex 98e9814..6e23f6e 100644[m
+Binary files a/__pycache__/func_params.cpython-36.pyc and b/__pycache__/func_params.cpython-36.pyc differ
+[1mdiff --git a/__pycache__/func_runs.cpython-36.pyc b/__pycache__/func_runs.cpython-36.pyc[m
+[1mindex fd93c25..1f59fe6 100644[m
+Binary files a/__pycache__/func_runs.cpython-36.pyc and b/__pycache__/func_runs.cpython-36.pyc differ
+[1mdiff --git a/__pycache__/func_sampling.cpython-36.pyc b/__pycache__/func_sampling.cpython-36.pyc[m
+[1mindex 1518deb..14e2d67 100644[m
+Binary files a/__pycache__/func_sampling.cpython-36.pyc and b/__pycache__/func_sampling.cpython-36.pyc differ
+[1mdiff --git a/func_init.py b/func_init.py[m
+[1mindex 3424de9..3de6294 100644[m
+[1m--- a/func_init.py[m
+[1m+++ b/func_init.py[m
+[36m@@ -811,7 +811,7 @@[m [mdef files(Config, Opti, Paras, Site):[m
+             print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - -')[m
+             print('')[m
+         print('')[m
+[31m-        if Config.runECH2O== 1:[m
+[32m+[m[32m        if Config.runECH2O == 1:[m
+             print('Original/template maps & parameters:\n', Config.PATH_SPA_REF)[m
+             print('Climate data:\n', Config.PATH_CLIM)[m
+             if Config.mode.split('_')[0] == 'calib':[m
+[36m@@ -826,7 +826,11 @@[m [mdef files(Config, Opti, Paras, Site):[m
+                 print('-> for this subtask moved/edited to: \n'+Config.FILE_CFGdest)[m
+             if Site.isTrck == 1:[m
+                 print('The user provided CFGtrck file is:\n' + Config.FILE_CFGtrck)[m
+[31m-            print('Final outputs:\n', Config.PATH_OUTmain)[m
+[32m+[m[32m            if Config.mode == 'calib_MCruns' or \[m
+[32m+[m[32m               (Config.mode == 'forward_runs' and hasattr(Config, 'OMP_it')):[m
+[32m+[m[32m                print('Final outputs:\n', Config.PATH_OUTmain)[m
+[32m+[m[32m            else:[m
+[32m+[m[32m                print('Final outputs:\n', Config.PATH_OUT)[m
+         elif Config.mode == 'calib_MCsampling':[m
+             print('Calibration samples in :\n', Config.FILE_PAR+'* files')[m
+ [m
+[1mdiff --git a/func_outputs.py b/func_outputs.py[m
+[1mindex 526c04a..73baa42 100644[m
+[1m--- a/func_outputs.py[m
+[1m+++ b/func_outputs.py[m
+[36m@@ -108,7 +108,8 @@[m [mdef store_sim(Obs, Opti, Config, Site, it):[m
+     # Save current run outputs (and delete the file to relieve Maxwell...)[m
+     for oname in Obs.names:[m
+ [m
+[31m-        # print(oname)[m
+[32m+[m[32m        #print(oname)[m
+[32m+[m
+         if(oname != Obs.names[0]):[m
+             mode = 'silent'[m
+ [m
+[36m@@ -122,14 +123,23 @@[m [mdef store_sim(Obs, Opti, Config, Site, it):[m
+                 idx = Obs.obs[oname]['sim_pts']-1[m
+                 # Read[m
+                 sim = pd.read_table(Obs.obs[oname]['sim_file'])[m
+[31m-                sim = sim.set_axis([str(i) for i in np.arange(1,sim.shape[0]+1)])[m
+[32m+[m[32m                # BasinSummary.txt don't have an index[m
+[32m+[m[32m                # (Basin-dH/d18O/AGe/Cl-Summary.txt do)[m
+[32m+[m[32m                if Obs.obs[oname]['sim_file'] == 'BasinSummary.txt':[m
+[32m+[m[32m                    sim.set_axis([str(i) for i in np.arange(sim.shape[0])],[m
+[32m+[m[32m                                 inplace=True)[m
+                 # Get observation column[m
+[31m-                sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv'][m
+[32m+[m[32m                sim = sim.iloc[:, idx] * Obs.obs[oname]['sim_conv'][m
+                 # Trim (spinup, transient state, etc.)[m
+[31m-                sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1][m
+[32m+[m[32m                # Index starts at 0[m
+[32m+[m[32m                if Obs.obs[oname]['sim_file'] == 'BasinSummary.txt':[m
+[32m+[m[32m                    sim = sim[Obs.saveB-1:Obs.saveB+Obs.saveL-1][m
+[32m+[m[32m                else:[m
+[32m+[m[32m                    sim = sim.loc[Obs.saveB-1:Obs.saveB+Obs.saveL-2][m
+ [m
+                 if len(sim) != Obs.saveL:[m
+[31m-                    sys.exit("Warning: problem with "+oname+" trim: we've got" +[m
+[32m+[m[32m                    sys.exit("Warning: problem with " + oname +[m
+[32m+[m[32m                             " trim: we've got" +[m
+                              str(len(sim)) + ' instead of '+str(Obs.saveL))[m
+ [m
+                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:[m
+[36m@@ -138,8 +148,9 @@[m [mdef store_sim(Obs, Opti, Config, Site, it):[m
+             else:[m
+                 # If run failed, write nan line[m
+                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:[m
+[31m-                    f_out.write(str(it+1)+','+','.join(list(np.repeat('nan',[m
+[31m-                                                                      Obs.saveL)))+'\n')[m
+[32m+[m[32m                    f_out.write(str(it+1)+','+[m
+[32m+[m[32m                                ','.join(list(np.repeat('nan', Obs.saveL)))+[m
+[32m+[m[32m                                '\n')[m
+ [m
+         # Time series ---------------------------------------------------------[m
+         # Pixel-scale variables (in *tab)[m
+[36m@@ -157,6 +168,7 @@[m [mdef store_sim(Obs, Opti, Config, Site, it):[m
+                 # Get observation column[m
+                 sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv'][m
+                 # Trim (spinup, transient state, etc.)[m
+[32m+[m[32m                # Index starts at 1[m
+                 sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1][m
+ [m
+                 if len(sim) != Obs.saveL:[m
+[1mdiff --git a/func_runs.py b/func_runs.py[m
+[1mindex a736704..45ef95c 100644[m
+[1m--- a/func_runs.py[m
+[1m+++ b/func_runs.py[m
+[36m@@ -271,7 +271,7 @@[m [mdef runOK(Obs, Opti, Config, mode='silent'):[m
+     # 1. Check it ran[m
+     if len(glob.glob(Config.PATH_EXEC+'/BasinSummary.txt')) == 0 or \[m
+        os.stat(Config.PATH_EXEC+'/BasinSummary.txt').st_size == 0:[m
+[31m-        #if(mode == 'verbose'):[m
+[32m+[m[32m        # if(mode == 'verbose'):[m
+         print("Something went wrong, BasinSummary.txt is missing/empty...")[m
+         isOK = 0[m
+ [m
+[36m@@ -304,15 +304,17 @@[m [mdef runOK(Obs, Opti, Config, mode='silent'):[m
+             if type(tmp) == float or type(tmp) == np.float64 or \[m
+                type(tmp) == np.float32:[m
+                 isOK = 0[m
+[31m-                print("Something went wrong, output of length 1 !")[m
+[32m+[m[32m                if mode == 'verbose':[m
+[32m+[m[32m                    print("Something went wrong, output of length 1 !")[m
+             elif len(tmp) != Obs.lsim:[m
+                 # & len(tmp2)==Obs.lsim:[m
+                 # print 'It ran until the end !'[m
+                 isOK = 0[m
+[31m-                print("Something went wrong, output does not match the " +[m
+[31m-                      "supposed sim length!")[m
+[31m-                print('Output: '+str(len(tmp))+' , supposed to be: ' +[m
+[31m-                      str(Obs.lsim))[m
+[32m+[m[32m                if mode == 'verbose':[m
+[32m+[m[32m                    print("Something went wrong, output does not match the " +[m
+[32m+[m[32m                          "supposed sim length!")[m
+[32m+[m[32m                    print('Output: '+str(len(tmp))+' , supposed to be: ' +[m
+[32m+[m[32m                          str(Obs.lsim))[m
+ [m
+     return isOK[m
+ # ==================================================================================[m
