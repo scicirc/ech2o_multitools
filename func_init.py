@@ -781,6 +781,31 @@ def observations(Config, Opti, Obs):
             tmp = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
 
             Opti.obs[oname] = tmp.dropna(how='all')
+
+
+    if Config.mode == 'calib_MCruns':
+        # -- Group the output files in one across simulations,
+        #    separating by observations points and veg type where it applies
+        GOFref = ['NSE','KGE','KGE2012','RMSE','MAE','RMSEc','MAEc']
+        # Check that use-defined GOFs are in the reference list
+        tmp = []
+        for gof in Opti.GOFs:
+            if gof in GOFref:
+                tmp += [gof]
+        if len(tmp) == 0:
+            sys.exit('ERROR: None of that user-defined GOFs are in the reference list!')
+        else:
+            Opti.GOFs = tmp
+            Opti.nGOF = len(Opti.GOFs)
+            Opti.GOFfiles = {}
+            for gof in Opti.GOFs:
+                # Historic time series file names
+                Opti.GOFfiles[gof] = Config.PATH_OUTmain+'/'+gof+'.task'+Config.outnum+'.tab'
+                # Header of files
+                if Config.restart == 0:
+                    with open(Opti.GOFfiles[gof], 'w') as f_out:
+                        f_out.write('Sample,'+','.join(Obs.names)+'\n')
+
 # ==========================================================================
 
 
@@ -939,6 +964,12 @@ def files(Config, Opti, Paras, Site):
         # -- For initial soil moisture maps generation at each run of EcH2O,
         # get the value of keyword in config file (porosity profile type and
         # name of maps)
+        if not hasattr(Site, 'frac_SWC1'):
+            Site.frac_SWC1 = 0.9
+        if not hasattr(Site, 'frac_SWC2'):
+            Site.frac_SWC2 = 0.9
+        if not hasattr(Site, 'frac_SWC3'):
+            Site.frac_SWC3 = 0.9
         # print('initial conditions 1')
         # print(Config.FILE_CFGdest)
         with open(Config.FILE_CFGdest, 'r') as f:

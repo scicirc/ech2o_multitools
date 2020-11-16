@@ -241,7 +241,8 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
         porosL1 = poros
         porosL2 = pcr.readmap(path_spa+'/' + Site.f_porosL2)
         porosL3 = pcr.readmap(path_spa+'/' + Site.f_porosL3)
+
     # Finally, use a fraction of these porosities as initial soil moisture
-    pcr.report(porosL1*0.9, path_spa + '/' + Site.f_initSWC1)
-    pcr.report(porosL2*0.9, path_spa + '/' + Site.f_initSWC2)
-    pcr.report(porosL3*0.9, path_spa + '/' + Site.f_initSWC3)
+    pcr.report(porosL1*Site.frac_SWC1, path_spa + '/' + Site.f_initSWC1)
+    pcr.report(porosL2*Site.frac_SWC2, path_spa + '/' + Site.f_initSWC2)
+    pcr.report(porosL3*Site.frac_SWC3, path_spa + '/' + Site.f_initSWC3)

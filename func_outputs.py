@@ -40,12 +40,12 @@ def read_sim(Config, Obs, oname, it=0):
         hskip = Obs.nts+3
         idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]['sim_pts']-1]
         # Read
-        sim = pd.read_table(Obs.obs[oname]['sim_file'],
+        sim = pd.read_table(Obs.obs[oname]['sim_file'],error_bad_lines=False,
                             skiprows=hskip, header=None).set_index(0)
         # Check if it ran properly (sometimes some time steps are skipped in *tab...)
         # If steps are missing but the series is long enough, let's replace with nan
         if len(sim) < Obs.lsim and len(sim) > 365:
-            idx2 = np.arange(1,7476+1)
+            idx2 = np.arange(1,Obs.lsim+1)
             sim = sim.reindex(idx2)
             print("Warning: some steps were missing in", Obs.obs[oname]['sim_file'],
                   '(',','.join([str(x) for x in list(pd.isnull(sim[1]).nonzero()[0]+1)]))
@@ -57,16 +57,16 @@ def read_sim(Config, Obs, oname, it=0):
     elif Obs.obs[oname]['type'] == 'Total':
         idx = Obs.obs[oname]['sim_pts']-1
         # Read
-        sim = pd.read_table(Obs.obs[oname]['sim_file'])
+        sim = pd.read_table(Obs.obs[oname]['sim_file'], error_bad_lines=False)
         sim = sim.set_axis([str(i) for i in np.arange(1,sim.shape[0]+1)])
 
 
     # Get observation column
     sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv']
-    print(len(sim),'(2)')
+    #print(len(sim),'(2)')
     # Trim (spinup, transient state, etc.)
     sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1]
-    print(len(sim),'(3', Obs.saveB, Obs.saveB+Obs.saveL-1,')')
+    #print(len(sim),'(3', Obs.saveB, Obs.saveB+Obs.saveL-1,')')
 
     if len(sim) != Obs.saveL:
         print("Warning: problem with "+oname+" trim: read length is " + 
@@ -435,28 +435,6 @@ def store_sim(Obs, Opti, Config, Site, it):
 
 
 def store_GOF(Obs, Opti, Config, Site, it):
-
-    # -- Group the output files in one across simulations,
-    #    separating by observations points and veg type where it applies
-    if it == 0:
-        GOFref = ['NSE','KGE','KGE2012','RMSE','MAE','RMSEc','MAEc']
-        # Check that use-defined GOFs are in the refernece list
-        tmp = []
-        for gof in Opti.GOFs:
-            if gof in GOFref:
-                tmp += [gof]
-        if len(tmp) == 0:
-            sys.exit('ERROR: None of that user-defined GOFs are in the reference list!')
-        else:
-            Opti.GOFs = tmp
-            Opti.nGOF = len(Opti.GOFs)
-            Opti.GOFfiles = {}
-            for gof in Opti.GOFs:
-                # Historic time series file names
-                Opti.GOFfiles[gof] = Config.PATH_OUTmain+'/'+gof+'.task'+Config.outnum+'.tab'
-                # Header of files
-                with open(Opti.GOFfiles[gof], 'w') as f_out:
-                    f_out.write('Sample,'+','.join(Obs.names)+'\n')
         
     # Did it run OK?
     if runs.runOK(Obs, Opti, Config, mode='verbose') == 1:
