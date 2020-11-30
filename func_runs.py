@@ -167,8 +167,8 @@ def forward_runs(Config, Opti, Obs, Paras, Site, options):
         # Store log (in case)
         os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
                   Config.PATH_OUT + '/ech2o_run'+str(it+1)+'.log')
-        # Clean up
-        os.system('rm -f '+Config.PATH_EXEC+'/*')
+    # Clean up
+    os.system('rm -f '+Config.PATH_EXEC+'/*')
 # ===========================================================================
 
 
@@ -247,10 +247,10 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
                 os.system('mv '+Config.PATH_EXEC+'/ech2o.log '+Config.PATH_OUT +
                           '/ech2o_traj'+str(itraj+1)+'_run'+str(irun+1)+'.log')
 
-            # Clean up
-            os.system('rm -f '+Config.PATH_EXEC+'/*')
-
             irun_tot += 1
+
+        # Clean up
+        os.system('rm -f '+Config.PATH_EXEC+'/*')
 
         # print(Obs.obs)
         # Only for debugging ------------------------------------------------------

@@ -59,6 +59,7 @@ parser.add_option("--outdir", dest="outdir", metavar="outdir",
 parser.add_option("--mpi", dest="mpi", metavar="mpi",
                   help="MPI parallel option (0 or 1)")
 # Number of CPUs used per EcH2O run (useful in options in mpirun mode)
+# overrides the Config.ncpu that may be in definition file
 parser.add_option("--ncpu", dest="ncpu", metavar="ncpu",
                   help="Number of CPUs for each EcH2O run")
 # Use scratch ? (saves EcH2O tmp outputs on scratch, then saves on users after

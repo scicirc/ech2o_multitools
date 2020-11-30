@@ -718,6 +718,11 @@ def observations(Config, Opti, Obs):
     # (and compared to measurements if there is calibration)
     Obs.names = sorted(Obs.obs.keys())
 
+    # Just a flag to make sure when the first map-time files is actually written
+    Obs.firstMapTs = {}
+    for oname in Obs.names:
+        Obs.firstMapTs[oname] = 1
+
     # --- Reporting stuff
     # Trim: only saves the time steps within the trim
     if not hasattr(Obs, 'saveB'):

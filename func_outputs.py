@@ -7,7 +7,7 @@
 # -------
 # Routine: Subroutines for outputs management
 # -------
-# Contributors: S. Kuppel, A.J. Neill
+# Contributors: S. Kuppel
 # Created on 10/2016
 # -------------------------------------------------
 
@@ -86,7 +86,6 @@ def read_sim(Config, Obs, oname, it=0):
 def store_sim(Obs, Opti, Config, Site, it):
 
     mode = 'verbose'
-    firstMapTs = 1
     
     # -- Group the output files in one across simulations,
     #    separating by observations points and veg type where it applies
@@ -109,6 +108,7 @@ def store_sim(Obs, Opti, Config, Site, it):
     for oname in Obs.names:
 
         #print(oname)
+        firstMapTs = 1
 
         if(oname != Obs.names[0]):
             mode = 'silent'
@@ -122,12 +122,9 @@ def store_sim(Obs, Opti, Config, Site, it):
 
                 idx = Obs.obs[oname]['sim_pts']-1
                 # Read
-                sim = pd.read_table(Obs.obs[oname]['sim_file'])
-                # BasinSummary.txt don't have an index
-                # (Basin-dH/d18O/AGe/Cl-Summary.txt do)
-                if Obs.obs[oname]['sim_file'] == 'BasinSummary.txt':
-                    sim.set_axis([str(i) for i in np.arange(sim.shape[0])],
-                                 inplace=True)
+                sim = pd.read_table(Obs.obs[oname]['sim_file'], error_bad_lines=False)
+                # Basin*Summary.txt files don't have an index
+                sim = sim.set_axis([str(i) for i in np.arange(1,sim.shape[0]+1)])
                 # Get observation column
                 sim = sim.iloc[:, idx] * Obs.obs[oname]['sim_conv']
                 # Trim (spinup, transient state, etc.)
@@ -163,17 +160,29 @@ def store_sim(Obs, Opti, Config, Site, it):
                                                           ['sim_pts']-1]
 
                 # Read
-                sim = pd.read_table(Obs.obs[oname]['sim_file'],
+                sim = pd.read_table(Obs.obs[oname]['sim_file'],error_bad_lines=False,
                                     skiprows=hskip, header=None).set_index(0)
+                # Check if it ran properly (sometimes some time steps are skipped in *tab...)
+                # If steps are missing but the series is long enough, let's replace with nan
+                if len(sim) < Obs.lsim and len(sim) > 365:
+                    idx2 = np.arange(1,Obs.lsim+1)
+                    sim = sim.reindex(idx2)
+                    print("Warning: some steps were missing in", Obs.obs[oname]['sim_file'],
+                          '(',','.join([str(x) for x in list(pd.isnull(sim[1]).nonzero()[0]+1)]))
+                    copy_file(Obs.obs[oname]['sim_file'],
+                              Config.PATH_OUT+'/'+Obs.obs[oname]['sim_file']+ 
+                              '.run'+str(it+1)+'.txt')
+
                 # Get observation column
                 sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv']
                 # Trim (spinup, transient state, etc.)
                 # Index starts at 1
                 sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1]
 
+
                 if len(sim) != Obs.saveL:
-                    sys.exit("Warning: problem with "+oname+" trim: we've got" +
-                             str(len(sim)) + ' instead of '+str(Obs.saveL))
+                    print("Warning: problem with "+oname+" trim: we've got" +
+                          str(len(sim)) + ' instead of '+str(Obs.saveL))
 
                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
                     f_out.write(str(it+1)+','+','.join([str(j) for j in
@@ -348,15 +357,20 @@ def store_sim(Obs, Opti, Config, Site, it):
                 # using a missing value,
                 # and add an extra 3rd dimension (empty) for later appending
                 if(it2 == 0):
-                    var_val = pcr.pcr2numpy(
-                        pcr.readmap(MapNames[it2]),
-                        MV)[None, ...]*Obs.obs[oname]['sim_conv']
+                    try:
+                        var_val = pcr.pcr2numpy(
+                            pcr.readmap(MapNames[it2]),
+                            MV)[None, ...]*Obs.obs[oname]['sim_conv']
+                    except RuntimeError:
+                        print('Warning: RuntimeError - could not read',MapNames[it2])
                 # Read subsequent map, same procedure and then append
                 else:
-                    var_val = \
-                        np.append(var_val,
-                                  pcr.pcr2numpy(pcr.readmap(MapNames[it2]),
-                                                MV)[None, ...], axis=0)
+                    try:
+                        var_val = np.append(var_val,
+                                            pcr.pcr2numpy(pcr.readmap(MapNames[it2]),
+                                                          MV)[None, ...], axis=0)
+                    except RuntimeError:
+                        print('Warning: RuntimeError - could not read',MapNames[it2])
                 # Clean up
                 os.system('rm -f '+MapNames[it2])
 
@@ -364,8 +378,8 @@ def store_sim(Obs, Opti, Config, Site, it):
             ncFile = Config.PATH_OUT+'/'+oname+'_all.nc'
             # print(ncFile)
             # -open nc dataset
-            # If first run, create file
-            if(it == 0):
+            # If first run (that works!), create file
+            if(Obs.firstMapTs[oname] == 1):
                 ncFile = Config.PATH_OUT+'/'+oname+'_all.nc'
                 rootgrp = spio.netcdf_file(ncFile, 'w')
                 rootgrp.createDimension('time', 0)
@@ -408,6 +422,8 @@ def store_sim(Obs, Opti, Config, Site, it):
                 # -write to file
                 rootgrp.sync()
                 rootgrp.close()
+
+                Obs.firstMapTs[oname] = 0
 
             # Write the actual values for this run
             rootgrp = spio.netcdf_file(ncFile, 'a')
