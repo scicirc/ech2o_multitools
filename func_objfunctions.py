@@ -75,35 +75,35 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
                 # Specific treatment for different obs types?
                 if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
                     # print(oname, 'remove mean')
-                    s -= np.mean(s)
-                    o -= np.mean(o)
-                    # Log Gaussian likelihood without error (temporary)
-                    # L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
-                    #     1 / (o.__len__() * np.mean(o))
+                    # s -= np.mean(s)
+                    # o -= np.mean(o)
+                    # Log Gaussian likelihood without error
+                    L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
+                        1 / np.mean(o)
                     # Log Gaussian with error set using std
                     # LogLikehood as used in Vrugt et al. (2016)
                     # Using standard deviation as indicator of error
                     # o_err = 0.5*np.std(o) + 0.1*o
-                    res = o - s
-                    cor = np.corrcoef(res[:-1],res[1:])[1,0]
-                    o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
-                                      res.__len__())
-                    L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
+                    # res = o - s
+                    # cor = np.corrcoef(res[:-1],res[1:])[1,0]
+                    # o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
+                    #                   res.__len__())
+                    # L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
                 else:
-                    # Log Gaussian likelihood without error (temporary)
-                    # L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
-                    #    1 / (o.__len__() * np.mean(o))
+                    # Log Gaussian likelihood without error
+                    L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
+                        1 / np.mean(o)
                     # Log Gaussian with error set using std
                     # LogLikehood as used in Vrugt et al. (2016)
                     # Using standard deviation as indicator of error...
                     # o_err = np.std(o) + 0.25*o
-                    res = o - s
-                    cor = np.corrcoef(res[:-1],res[1:])[1,0]
-                    o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
-                                      res.__len__())
-                    L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
+                    # res = o - s
+                    # cor = np.corrcoef(res[:-1],res[1:])[1,0]
+                    # o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
+                    #                   res.__len__())
+                    # L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
                 # Normalize by data length
-                L /= o.__len__()
+                # L /= o.__len__()
 
             Ltot += [L]  # list of all likelihoods
             like += L  # "main" likelihood (used by algorithm)
