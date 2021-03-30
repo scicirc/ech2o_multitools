@@ -18,13 +18,10 @@ import sys
 import spotpy_forked.spotpy as spotpy
 import numpy as np
 
-import func_outputs as outputs
-import func_params as params
-# import func_likelihoods as likelihoods
-import func_objfunctions as objfunc
-import multiprocessing
+import functions as func
+# import multiprocessing
 
-from distutils.dir_util import copy_tree, remove_tree, mkpath
+from distutils.dir_util import copy_tree, mkpath
 from distutils.file_util import copy_file
 from contextlib import ExitStack
 
@@ -134,20 +131,20 @@ class spot_setup(object):
                 self.database = open(self.filename, 'w')
                 self.database.write(",".join(self.dbheaders) + "\n")
 
-            ## -- Diagnostics from the calibration algorithm (for now
+            # -- Diagnostics from the calibration algorithm (for now
             # mostly suited for DREAM)
             if self.opti.SPOTalgo == 'DREAM':
                 self.f_diagnostics = dbname + '_Diagnostics.txt'
-                headers = ['Iteration','BestLike']
-                headers.extend(['PctAccept.ch'+str(c) for c in 
-                                range(1,self.opti.nChains+1)])
-                headers.extend(['ConvRates.{0}'.format(x) for x in self.opti.names])
+                headers = ['Iteration', 'BestLike']
+                headers.extend(['PctAccept.ch'+str(c) for c in
+                                range(1, self.opti.nChains+1)])
+                headers.extend(['ConvRates.{0}'.format(x)
+                                for x in self.opti.names])
                 with open(self.f_diagnostics, 'w') as f:
                     f.write(','.join(headers)+'\n')
             else:
                 print('Diagnostics for algorithm progression: file output',
                       'under construction...')
-            
 
     # Retrieve parameters
     def parameters(self):
@@ -206,8 +203,8 @@ class spot_setup(object):
         # Here, x is the current set of sampled parameter values.
         # It is ordered as in Opti.names etc., so it can be used as is            
         # print('rank', call, ': generating maps & veg params...')
-        params.sim_inputs(self.config, self.opti, self.par, self.site,
-                          self.PATH_SPA, 0, mode='spotpy', paramcur=x)
+        func.sim_inputs(self.config, self.opti, self.par, self.site,
+                        self.PATH_SPA, 0, mode='spotpy', paramcur=x)
 
         # nan values so that simulations can be returned even if the run fails
         if self.obs.nobs > 1:
@@ -235,10 +232,10 @@ class spot_setup(object):
 
             # Store outputs: for now restricted to time series
             os.chdir(self.PATH_EXEC)
-        
+
             if self.obs.nobs == 1:
-                simulations = outputs.read_sim(self.config, self.obs,
-                                               self.obs.names[0]).tolist()
+                simulations = func.read_sim(self.config, self.obs,
+                                            self.obs.names[0]).tolist()
                 if(len(simulations) < self.obs.saveL):
                     print('sim length:', len(simulations),
                           ', expected:', self.obs.saveL)
@@ -249,17 +246,17 @@ class spot_setup(object):
                                       np.nan).tolist()
                 for i in range(self.obs.nobs):
                     oname = self.obs.names[i]
-                    simulations[i][:] = outputs.read_sim(self.config,
-                                                         self.obs,
-                                                         oname).tolist()
+                    simulations[i][:] = func.read_sim(self.config,
+                                                      self.obs,
+                                                      oname).tolist()
                     if(len(simulations[i]) < self.obs.saveL):
                         print('sim length:', len(simulations[i]),
                               ', expected:', self.obs.saveL)
                         simulations[i][:] = [np.nan] * self.obs.saveL
-               
+
         except:
-            #'Model has failed'
-            print('Something went wrong, this run is useless')        
+            # 'Model has failed'
+            print('Something went wrong, this run is useless')       
             # simulations = [np.nan] * self.obs.saveL
             # Report param config that failed
             # f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
@@ -294,7 +291,7 @@ class spot_setup(object):
     def objectivefunction(self, simulation, evaluation, params=None):
 
         # Use multi-objective function
-        like = objfunc.MultiObj(evaluation, simulation, self.obs, self.opti)
+        like = func.MultiObj(evaluation, simulation, self.obs, self.opti)
         # Check if there was any issue with the simulation outputs
         if np.isnan(like).any():
             self.runFail = True

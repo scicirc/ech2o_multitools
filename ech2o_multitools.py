@@ -5,23 +5,22 @@ Multi-purpose routines ECH2O-iso:
 sensitivity analysis, calibration, and ensemble runs in general
 
 -------
-Routine: Main program
+Main program
 -------
 Author: S. Kuppel
 Created on 10/2016
 -------------------------------------------------
 '''
 
-import os
+# import os
 import sys
 # import glob
 from optparse import OptionParser
 # from itertools import chain
 
 # --- Subroutines
-import func_init as init
-import func_runs as runs
-import func_spotsetup as spot_setup
+import functions as func
+import spotsetup
 import spotpy_forked.spotpy as spotpy
 # ---------
 #  OPTIONS
@@ -117,40 +116,40 @@ parser.add_option("--OMP_it", dest="OMP_it", metavar="OMP_it",
 # == Initialization
 
 # Configuration --------------------------------
-(Config, Opti, Obs, Paras, Site) = init.config(options)
+(Config, Opti, Obs, Paras, Site) = func.config_init(options)
 
 # Whenever there are EcH2O runs: a few others initializations
 if Config.runECH2O == 1:
     # Runs' properties etc.
-    init.runs(Config, Opti, Obs, Paras, Site, options)
+    func.runs_init(Config, Opti, Obs, Paras, Site, options)
     # Initialize observation names
     # (and read datasets if in DREAM calibration mode)
-    init.observations(Config, Opti, Obs)
+    func.obs_init(Config, Opti, Obs)
 
 # Parameters: from definition to all values ------
-init.parameters(Config, Opti, Paras, Site, options)
+func.param_init(Config, Opti, Paras, Site, options)
 
 # Files and verbose: only do it once
 # print(options.mpi+1)
 # print('rank', str(rank), 'in initialization routines')
-init.files(Config, Opti, Paras, Site)
+func.files_init(Config, Opti, Paras, Site)
 
 # === Runs ========================================
 # -------------------
 if Config.mode == 'calib_MCruns':
     # Calibration loop
-    runs.calibMC_runs(Config, Opti, Obs, Paras, Site)
+    func.calibMC_runs(Config, Opti, Obs, Paras, Site)
 
 elif Config.mode == 'calib_SPOTPY':
 
     if Opti.SPOTalgo in ['DREAM']:
         # Initialize
-        spot_setup = spot_setup.spot_setup(Config, Opti, Paras,
-                                           Obs, Site,
-                                           parallel=Opti.SPOTpar,
-                                           _used_algorithm=Opti.SPOTalgo.lower(),
-                                           # file extension added automatically
-                                           dbname= Opti.dbname)
+        spot_setup = spotsetup.spot_setup(Config, Opti, Paras,
+                                          Obs, Site,
+                                          parallel=Opti.SPOTpar,
+                                          _used_algorithm=Opti.SPOTalgo.lower(),
+                                          # file extension added automatically
+                                          dbname=Opti.dbname)
         if Opti.SPOTalgo == 'DREAM':
             sampler = spotpy.algorithms.dream(spot_setup,
                                               parallel=Opti.SPOTpar,
@@ -171,11 +170,11 @@ elif Config.mode == 'calib_SPOTPY':
 
 elif Config.mode == 'forward_runs':
     # Ensemble "forward" runs
-    runs.forward_runs(Config, Opti, Obs, Paras, Site, options)
+    func.forward_runs(Config, Opti, Obs, Paras, Site, options)
 
 elif Config.mode == 'sensi_morris':
     # Simulations when varying the parameters, Morris's one-at-a-time
-    runs.morris_runs(Config, Opti, Obs, Paras, Site)
+    func.morris_runs(Config, Opti, Obs, Paras, Site)
 
 
 # END MAIN
