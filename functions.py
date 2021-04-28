@@ -587,18 +587,22 @@ def runs_init(Config, Opti, Obs, Paras, Site, options):
             Config.scratch = 1
     # Execution directory (in case of parallel runs
     # with DREAM, the acutal directory will be next to this one)
-    if Config.scratch > 0:
-        if Config.scratch == 1:
-            if Config.mode == 'calib_MCruns':
-                Config.PATH_EXEC = '/scratch/sylvain.kuppel/MCruns.'+Config.outdir+ \
-                                   '_tmp'+Config.outnum
-            else:
-                Config.PATH_EXEC = '/scratch/sylvain.kuppel/'+Config.outdir
-        # if Config.scratch == 2:
-        #     Config.PATH_EXEC = '/nobackup/users/s08sk8/'+options.outdir
+    if Config.scratch == 1:
         print('-----------------------------------------')
         print("Scratch storage activated! Hopefully that will speed " +
               "things up...")
+        if hasattr(Config, 'PATH_SCRATCH'):
+            if Config.mode == 'calib_MCruns':
+                #Config.PATH_EXEC = '/scratch/sylvain.kuppel/MCruns.'+Config.outdir+ \
+                Config.PATH_EXEC = Config.PATH_SCRATCH+'/MCruns.'+Config.outdir+ \
+                                   '_tmp'+Config.outnum
+            else:
+                #Config.PATH_EXEC = '/scratch/sylvain.kuppel/'+Config.outdir
+                Config.PATH_EXEC = Config.PATH_SCRATCH+'/'+Config.outdir
+        else:
+            sys.exit('Error: no scratch/workdir storage path specified.')
+        # if Config.scratch == 2:
+        #     Config.PATH_EXEC = '/nobackup/users/s08sk8/'+options.outdir
     else:
         if Config.mode == 'calib_MCruns':
             Config.PATH_EXEC = copy.copy(Config.PATH_OUT)
@@ -909,6 +913,9 @@ def files_init(Config, Opti, Paras, Site):
                     fw.write('Maps_Folder = '+Config.PATH_SPA+'\n')
                     fw.write('Output_Folder = '+Config.PATH_EXEC+'\n')
 
+                # Vegetation parameter files to be used
+                fw.write('Species_Parameters = '+Site.vfile+'\n')
+                
             # If tracking, copy template configTrck file for EcH2O
             if Site.isTrck == 1:
                 copy_file(Config.FILE_CFGtrck,
@@ -927,7 +934,10 @@ def files_init(Config, Opti, Paras, Site):
             # for pname in Paras.names:
             #     if Paras.ref[pname]['veg'] == 0:
             #     os.remove(Config.PATH_SPA+'/' + Paras.ref[pname]['file']+'.map')
-            copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA)
+            # os.system('cp -p '+Config.PATH_SPA_REF+'/SpeciesParams*.tab '+
+            #           Config.PATH_SPA)
+            #copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA)
+            copy_file(Config.PATH_SPA_REF+'/'+Site.vfile, Config.PATH_SPA)
 
             # Keep it as last action in this if !
             # EcH2O executable file: clean up / update old symlink
@@ -1992,9 +2002,10 @@ def store_sim(Obs, Opti, Config, Site, it):
                 firstMapTs = 0
                 if(len(itOK) > 0):
                     print("Warning: some of the demanded "+oname +
-                          " maps are missing, before t=", itOK[0])
+                          " maps are missing") #, before t=", itOK[0])
                     print("(that's normal if maps output does not start " +
-                          "at t=saveBmap in EcH2O config file)")
+                          "at t=saveBmap or if map interval>86400"+
+                          "in EcH2O config file)")
                 else:
                     print("Warning: all of the demanded "+oname +
                           " maps are missing!")
