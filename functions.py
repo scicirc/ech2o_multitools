@@ -936,6 +936,9 @@ def files_init(Config, Opti, Paras, Site):
             #     os.remove(Config.PATH_SPA+'/' + Paras.ref[pname]['file']+'.map')
             # os.system('cp -p '+Config.PATH_SPA_REF+'/SpeciesParams*.tab '+
             #           Config.PATH_SPA)
+            # Copy reference tables (if Species_State_Variable_Input_Method = tables in ech2o cobfig file)
+            os.system('cp -f '+Config.PATH_SPA_REF+'/Spec*.tab ' + Config.PATH_SPA)
+            # Copy species parameters reference file (may be redundant if Site.vfile starts with Spec...)
             #copy_file(Config.PATH_SPA_REF+'/SpeciesParams.tab', Config.PATH_SPA)
             copy_file(Config.PATH_SPA_REF+'/'+Site.vfile, Config.PATH_SPA)
 
@@ -1696,7 +1699,7 @@ def read_sim(Config, Obs, oname, it=0):
         hskip = Obs.nts+3
         idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]['sim_pts']-1]
         # Read
-        sim = pd.read_table(Obs.obs[oname]['sim_file'],error_bad_lines=False,
+        sim = pd.read_table(Obs.obs[oname]['sim_file'],#error_bad_lines=False,
                             skiprows=hskip, header=None).set_index(0)
         # Check if it ran properly (sometimes some time steps are skipped in *tab...)
         # If steps are missing but the series is long enough, let's replace with nan
@@ -1713,7 +1716,7 @@ def read_sim(Config, Obs, oname, it=0):
     elif Obs.obs[oname]['type'] == 'Total':
         idx = Obs.obs[oname]['sim_pts']-1
         # Read
-        sim = pd.read_table(Obs.obs[oname]['sim_file'], error_bad_lines=False)
+        sim = pd.read_table(Obs.obs[oname]['sim_file'])  #, error_bad_lines=False)
         sim = sim.set_axis([str(i) for i in np.arange(1,sim.shape[0]+1)])
 
 
@@ -1787,10 +1790,13 @@ def store_sim(Obs, Opti, Config, Site, it):
                 sim = sim.iloc[:, idx] * Obs.obs[oname]['sim_conv']
                 # Trim (spinup, transient state, etc.)
                 # Index starts at 0
-                if Obs.obs[oname]['sim_file'] == 'BasinSummary.txt':
+                if Obs.obs[oname]['sim_file'] in ['BasinSummary.txt', 'BasinAgeSummary.txt',
+                                                  'BasincClSummary.txt', 'Basind2HSummary.txt',
+                                                  'Basind18OSummary.txt']:
                     sim = sim[Obs.saveB-1:Obs.saveB+Obs.saveL-1]
                 else:
-                    sim = sim.loc[Obs.saveB-1:Obs.saveB+Obs.saveL-2]
+                    #sim = sim.loc[Obs.saveB-1:Obs.saveB+Obs.saveL-2]
+                    sys.exit('Error: a "Total" obs type should be associated with Basin*Summary file')
 
                 if len(sim) != Obs.saveL:
                     sys.exit("Warning: problem with " + oname +
@@ -1818,7 +1824,7 @@ def store_sim(Obs, Opti, Config, Site, it):
                                                           ['sim_pts']-1]
 
                 # Read
-                sim = pd.read_table(Obs.obs[oname]['sim_file'],error_bad_lines=False,
+                sim = pd.read_table(Obs.obs[oname]['sim_file'],#error_bad_lines=False,
                                     skiprows=hskip, header=None).set_index(0)
                 # Check if it ran properly (sometimes some time steps are skipped in *tab...)
                 # If steps are missing but the series is long enough, let's replace with nan
@@ -1924,7 +1930,7 @@ def store_sim(Obs, Opti, Config, Site, it):
 
             # print(oname)
 
-            # Missing vaue for PCraster to numpy conversion
+            # Missing value for PCraster to numpy conversion
             MV = -9999.
             lensuf = 8 - len(Obs.obs[oname]['sim_file'])
 
@@ -2096,23 +2102,28 @@ def store_sim(Obs, Opti, Config, Site, it):
     # print
     # -- Report the full BasinSummary.txt files?
     if Obs.repBS == 1 and Config.mode != 'calib_MCruns':
-        os.system('mv '+Config.PATH_EXEC+'/BasinSummary.txt ' +
+        os.system('cp '+Config.PATH_EXEC+'/BasinSummary.txt ' +
                   Config.PATH_OUT+'/BasinSummary_run'+str(it+1)+'.txt')
 
         if Site.isTrck == 1:
             # deuterium summary
             if len(glob.glob(Config.PATH_EXEC+'/Basind2HSummary.txt')) != 0:
-                os.system('mv '+Config.PATH_EXEC + '/Basind2HSummary.txt ' +
+                os.system('cp '+Config.PATH_EXEC + '/Basind2HSummary.txt ' +
                           Config.PATH_OUT+'/Basind2HSummary_run' +
                           str(it+1)+'.txt')
             # oxygen 18 summary
             if len(glob.glob(Config.PATH_EXEC+'/Basind18OSummary.txt')) != 0:
-                os.system('mv '+Config.PATH_EXEC + '/Basind18OSummary.txt ' +
+                os.system('cp '+Config.PATH_EXEC + '/Basind18OSummary.txt ' +
                           Config.PATH_OUT+'/Basind18OSummary_run' +
+                          str(it+1)+'.txt')
+            # chloride summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasincClSummary.txt')) != 0:
+                os.system('cp '+Config.PATH_EXEC + '/BasincClSummary.txt ' +
+                          Config.PATH_OUT+'/BasincClSummary_run' +
                           str(it+1)+'.txt')
             # age summary
             if len(glob.glob(Config.PATH_EXEC + '/BasinAgeSummary.txt')) != 0:
-                os.system('mv '+Config.PATH_EXEC + '/BasinAgeSummary.txt ' +
+                os.system('cp '+Config.PATH_EXEC + '/BasinAgeSummary.txt ' +
                           Config.PATH_OUT+'/BasinAgeSummary_run' +
                           str(it+1)+'.txt')
 
