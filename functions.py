@@ -788,7 +788,7 @@ def obs_init(Config, Opti, Obs):
     if Config.mode == 'calib_MCruns':
         # -- Group the output files in one across simulations,
         #    separating by observations points and veg type where it applies
-        GOFref = ['NSE','KGE','KGE2012','RMSE','MAE','RMSEc','MAEc']
+        GOFref = ['NSE','KGE','KGE2012','RMSE','MAE','KGEc','KGE2012c','RMSEc','MAEc']
         # Check that use-defined GOFs are in the reference list
         tmp = []
         for gof in Opti.GOFs:
@@ -2203,6 +2203,12 @@ def store_GOF(Obs, Opti, Config, Site, it):
                         gofs[gof] += [GOFs.rmse(s, o)]
                     if gof == 'MAE':  # MAE
                         gofs[gof] += [GOFs.meanabs(s, o)]
+                    if gof == 'KGEc':  # mean-centered KGE
+                        gofs[gof] += [GOFs.kling_gupta(s-np.mean(s), o-np.mean(o))]
+                    if gof == 'KGE2012c':  # mean-centered KGE2012
+                        gofs[gof] += [GOFs.kling_gupta(s-np.mean(s),
+                                                       o-np.mean(o),
+                                                       method='2012')]
                     if gof == 'RMSEc':  # mean-centered RMSE
                         gofs[gof] += [GOFs.rmse(s-np.mean(s), o-np.mean(o))]
                     if gof == 'MAEc':  # mean-centered MAE
@@ -2642,9 +2648,11 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
                     # print(oname, 'remove mean')
                     # s -= np.mean(s)
                     # o -= np.mean(o)
+                    # Kling-gupta
+                    L = spotpy.objectivefunctions.kge(o, s)
                     # Log Gaussian likelihood without error
-                    L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
-                        1 / np.mean(o)
+                    # L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
+                    #     1 / np.mean(o)
                     # Log Gaussian with error set using std
                     # LogLikehood as used in Vrugt et al. (2016)
                     # Using standard deviation as indicator of error
@@ -2655,9 +2663,11 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
                     #                   res.__len__())
                     # L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
                 else:
+                    # Mean absolute error
+                    L = spotpy.objectivefunctions.mae(o, s) / mean(o)
                     # Log Gaussian likelihood without error
-                    L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
-                        1 / np.mean(o)
+                    # L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
+                    #     1 / np.mean(o)
                     # Log Gaussian with error set using std
                     # LogLikehood as used in Vrugt et al. (2016)
                     # Using standard deviation as indicator of error...
@@ -2668,7 +2678,7 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
                     #                   res.__len__())
                     # L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
                 # Normalize by data length
-                L /= o.__len__()
+                # L /= o.__len__()
 
             Ltot += [L]  # list of all likelihoods
             like += L  # "main" likelihood (used by algorithm)
