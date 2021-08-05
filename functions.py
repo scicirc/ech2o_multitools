@@ -1279,6 +1279,11 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
 
     irun_tot = 0
 
+    # Initial clean up
+    f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
+    if len(glob.glob(f_failpar)) != 0:
+        os.system('rm -f '+f_failpar)
+    
     for itraj in range(Opti.nr):
 
         print('======================================')
@@ -1326,7 +1331,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
 
             if runOK(Obs, Opti, Config, mode='silent') == 0:
                 # else:  # Not running properly? Report
-                f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
+                
                 if len(glob.glob(f_failpar)) == 0:
                     with open(f_failpar, 'w') as f_in:
                         f_in.write('Trajectory/RadPoint,Sample,'+','.join(Opti.names)+'\n')
@@ -1338,7 +1343,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
                     Opti.begfail = 1
 
                 os.system('mv '+Config.PATH_EXEC+'/ech2o.log '+Config.PATH_OUT +
-                          '/ech2o_traj'+str(itraj+1)+'_run'+str(irun+1)+'.log')
+                    '/ech2o_traj'+str(itraj+1)+'_run'+str(irun+1)+'.log')
 
             irun_tot += 1
 
