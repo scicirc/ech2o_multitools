@@ -391,9 +391,9 @@ def param_init(Config, Opti, Paras, Site, options):
             else:
                 # Parameters
                 sdmult = 0.1
-                for j in range(nr):
-                    # (Log sampling case taken into account above)
-                    Opti.std += [sdmult*(Opti.max[ipar2+j]-Opti.min[ipar2+j])]
+                # (Log sampling case taken into account above)
+                Opti.std += [sdmult*(Opti.max[ipar2+j]-Opti.min[ipar2+j])
+                             for j in range(nr)]
 
         # Increment indices
         ipar += 1
@@ -788,7 +788,8 @@ def obs_init(Config, Opti, Obs):
     if Config.mode == 'calib_MCruns':
         # -- Group the output files in one across simulations,
         #    separating by observations points and veg type where it applies
-        GOFref = ['NSE','KGE','KGE2012','RMSE','MAE','KGEc','KGE2012c','RMSEc','MAEc']
+        GOFref = ['NSE','KGE','KGE2012','RMSE','MAE','KGEc','KGE2012c','RMSEc','MAEc',
+                  'gauL','gauLerr','logL']
         # Check that use-defined GOFs are in the reference list
         tmp = []
         for gof in Opti.GOFs:
@@ -1136,6 +1137,12 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
     Config.initpar = 0
     Config.initobs = 0
     Opti.begfail = 0
+    
+    # Initial clean up, if not restarting
+    f_failpar = Config.PATH_OUTmain+'/Parameters_fail.task'+Config.outnum+'.txt'
+    if len(glob.glob(f_failpar)) != 0 and Config.restart == 0:
+        os.system('rm -f '+f_failpar)
+
 
     if Config.restart == 1:
         it0 = Config.itres-1
@@ -2218,6 +2225,12 @@ def store_GOF(Obs, Opti, Config, Site, it):
                         gofs[gof] += [GOFs.rmse(s-np.mean(s), o-np.mean(o))]
                     if gof == 'MAEc':  # mean-centered MAE
                         gofs[gof] += [GOFs.meanabs(s-np.mean(s), o-np.mean(o))]
+                    if gof == 'gauL':  # Gaussian likelihood, measurement error out
+                        gofs[gof] += [spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)]
+                    if gof == 'logL':  # Gaussian likelihood, measurement error out
+                        gofs[gof] += [spotpy.likelihoods.logLikelihood(o, s)]
+                    if gof == 'gauLerr':  # Gaussian likelihood, measurement error out
+                        gofs[gof] += [spotpy.likelihoods.gaussianLikelihoodHomoHeteroDataError(o, s)]
 
         # Store goodnesses of fit, one files per GOF
         for gof in Opti.GOFs:
