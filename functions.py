@@ -277,7 +277,8 @@ def param_init(Config, Opti, Paras, Site, options):
     Paras.ind = {}
     ipar = 0
     ipar2 = 0
-    Paras.isveg = 0
+    Paras.Veg = 0 # report if at least one param is veg-dependent
+    Paras.Spa = 0 # report if at least one param is map-unit-dependent
 
     # Initial Sampling type (for DREAM)
     if not hasattr(Opti, 'initSample'):
@@ -309,9 +310,10 @@ def param_init(Config, Opti, Paras, Site, options):
             Opti.names = Opti.names + [par + '_' + s for s in Site.soils]
             Paras.comp[par] = range(Site.ns)
             Paras.ref[par]['map'] = 1
+            Paras.Spa = 1
         elif Paras.ref[par]['veg'] != 0:
             Paras.ref[par]['map'] = 0
-            Paras.isveg += 1
+            Paras.Veg = 1
             if Paras.ref[par]['veg'] == 1:
                 nr = Site.nv
                 Opti.names = Opti.names + [par + '_' + s for s in Site.vegs]
@@ -328,7 +330,7 @@ def param_init(Config, Opti, Paras, Site, options):
             else:
                 sys.exit('Invalid veg dependence for parameter '+par)
         else:
-            sys.exit('Invalid soil/veg dependence for parameter '+par)
+            sys.exit('Invalid spatial/veg dependence for parameter '+par)
 
         # Link between Paras and Opti indices:
         # 1. Which paras entry is covered in each Opti.* position?
@@ -963,9 +965,10 @@ def files_init(Config, Opti, Paras, Site):
         Config.cloneMap = pcr.boolean(pcr.readmap(Config.PATH_SPA+'/base.map'))
         pcr.setclone(Config.PATH_SPA+'/base.map')
         Site.bmaps = {}
-        for im in range(Site.ns):
-            Site.bmaps[Site.soils[im]] = pcr.readmap(Config.PATH_SPA+'/' +
-                                                     Site.sfiles[im])
+        if(Paras.Spa == 1):
+            for im in range(Site.ns):
+                Site.bmaps[Site.soils[im]] = pcr.readmap(Config.PATH_SPA+'/' +
+                                                         Site.sfiles[im])
         Site.bmaps['unit'] = pcr.readmap(Config.PATH_SPA+'/unit.map')
         # Stream network
         Site.bmaps['chanmask'] = pcr.readmap(Config.PATH_SPA+'/chanmask.map')
