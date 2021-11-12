@@ -737,7 +737,11 @@ def obs_init(Config, Opti, Obs):
                      'goes beyond simulation time!')
     # Report BasinSummary.txt
     if not hasattr(Obs, 'repBS'):
-        Obs.repBS = 0
+        Obs.repBS = 0        
+    # Report BasinSummary.txt for lines at saveB and last line
+    if not hasattr(Opti, 'repBS_interval'):
+        Opti.repBS_interval = 0
+
     # Date of the simulations (used for calibration periods, mostly)
     Obs.simt = [Obs.simbeg + timedelta(days=x) for x in range(Obs.saveL)]
     # Same thing in froward mode (needs to be merged...)
@@ -791,7 +795,7 @@ def obs_init(Config, Opti, Obs):
         # -- Group the output files in one across simulations,
         #    separating by observations points and veg type where it applies
         GOFref = ['NSE','KGE','KGE2012','RMSE','MAE','KGEc','KGE2012c','RMSEc','MAEc',
-                  'gauL','gauLerr','logL']
+                  'gauL','gauLerr','logL','corr','rstd','rmu']
         # Check that use-defined GOFs are in the reference list
         tmp = []
         for gof in Opti.GOFs:
@@ -810,6 +814,14 @@ def obs_init(Config, Opti, Obs):
                 if Config.restart == 0:
                     with open(Opti.GOFfiles[gof], 'w') as f_out:
                         f_out.write('Sample,'+','.join(Obs.names)+'\n')
+
+        # -- Optional: group the BasinSummary files in one across simulations
+        if Opti.repBS_interval == 1:
+            # Interval start (saveB)
+            Opti.BSfile_tb = Config.PATH_OUTmain+'/BasinBudget_tb.task'+Config.outnum+'.tab'
+            # Interval start (saveB+lsim)
+            Opti.BSfile_te = Config.PATH_OUTmain+'/BasinBudget_te.task'+Config.outnum+'.tab'
+            
 
 # ==========================================================================
 
@@ -1205,10 +1217,9 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
         # Write parameters values for this sequence
         # params.store(Opti, Config, it)
 
-        # # If it worked...
-        # if runOK(Obs, Opti, Config, mode='silent') == 1:
-        #     # Group sampling outputs
-        #     outputs.store_sim(Obs, Opti, Config, Site, it)
+        # Store BasinSummary.txt at intervals if asked (and if the simulation worked)
+        if Opti.repBS_interval == 1:
+            store_BS_interval(Obs, Opti, Config, it)
         
         # os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
         #           Config.PATH_EXEC + '/ech2o.run'+Opti.itout+'.log')
@@ -1450,7 +1461,16 @@ def restart(Config, Opti, Obs):
         # Get last referenced index (i.e. run number) that worked (without NaN)
         tmp = pd.read_csv(Opti.GOFfiles[gof]).set_index('Sample').loc[1:Config.itres-1]
         tmp.to_csv(Opti.GOFfiles[gof], na_rep="nan")
-            
+
+    # Rewrite the BSfile (if needed): to evenize between variable last it or 
+    # remove the final NaN lines (but not those in between "good" runs)
+    if Opti.repBS_interval == 1:
+        # Get last referenced index (i.e. run number) that worked (without NaN)
+        tmp = pd.read_csv(Opti.BSfile_tb).set_index('Sample').loc[1:Config.itres-1]
+        tmp.to_csv(Opti.BSfile_tb, na_rep="nan")
+        tmp = pd.read_csv(Opti.BSfile_te).set_index('Sample').loc[1:Config.itres-1]
+        tmp.to_csv(Opti.BSfile_te, na_rep="nan")
+
     # # -- Some cleaning for parameters
     # Config.f_par = Config.PATH_OUT+'/Parameters.txt'
     # # Read grouped simulations
@@ -2142,6 +2162,47 @@ def store_sim(Obs, Opti, Config, Site, it):
                           Config.PATH_OUT+'/BasinAgeSummary_run' +
                           str(it+1)+'.txt')
 
+def store_BS_interval(Obs, Opti, Config, it):
+    # -- Store in files for later use
+    # Integrated variables (in BasinSummary.txt)
+
+    # Read
+    sim = pd.read_table(Config.PATH_EXEC+'/BasinSummary.txt',
+                        error_bad_lines=False).loc[:, 'Precip':'MBErr']
+    #print(sim)
+    # Basin*Summary.txt files don't have an index
+    sim = sim.set_axis([str(i) for i in np.arange(1, sim.shape[0]+1)])
+
+    # Get observation lines, at beginning and end
+    sim_tb = sim.iloc[Obs.saveB-1, :]
+    sim_te = sim.iloc[Obs.lsim-1, :]
+    #print(sim_tb)
+    #print(sim_te)
+
+    # Header
+    if (it == 0 or Opti.begfail == 1) and Config.restart == 0:
+        with open(Opti.BSfile_tb, 'w') as f_out:
+            f_out.write('Sample,'+','.join([j for j in sim.columns])+'\n')
+        with open(Opti.BSfile_te, 'w') as f_out:
+            f_out.write('Sample,'+','.join([j for j in sim.columns])+'\n')
+
+    # Write values at given intervals
+    if runOK(Obs, Opti, Config, 'silent') == 1:
+        # Simulation, or nan
+        with open(Opti.BSfile_tb, 'a') as f_out:
+            f_out.write(str(it+1)+','+
+                        ','.join([str(j) for j in list(sim_tb)])+'\n')
+        with open(Opti.BSfile_te, 'a') as f_out:
+            f_out.write(str(it+1)+','+
+                        ','.join([str(j) for j in list(sim_te)])+'\n')
+    else:
+        # If run failed, write nan line
+        with open(Opti.BSfile_tb, 'a') as f_out:
+            f_out.write(str(it+1)+','+
+                        ','.join(list(np.repeat('nan', 22)))+'\n')
+        with open(Opti.BSfile_te, 'a') as f_out:
+            f_out.write(str(it+1)+','+
+                        ','.join(list(np.repeat('nan', 22)))+'\n')
 
 def store_GOF(Obs, Opti, Config, Site, it):
     # -- Store goodness-of-fit using using several metrics:
@@ -2207,6 +2268,12 @@ def store_GOF(Obs, Opti, Config, Site, it):
             else:
                 # Now use your favorite likelihood estimator for each obs type
                 for gof in Opti.GOFs:
+                    if gof == 'corr':  # pearson correlation coefficient
+                        gofs[gof] += [GOFs.corr(s, o)]
+                    if gof == 'rstd':  # ratio of standard deviations
+                        gofs[gof] += [GOFs.rstd(s, o)]
+                    if gof == 'rmu':  # ratio of mean
+                        gofs[gof] += [GOFs.rmu(s, o)]
                     if gof == 'NSE':  # NSE
                         gofs[gof] += [GOFs.nash_sutcliffe(s, o)]
                     if gof == 'KGE':  # KGE 2009
@@ -2230,9 +2297,9 @@ def store_GOF(Obs, Opti, Config, Site, it):
                         gofs[gof] += [GOFs.meanabs(s-np.mean(s), o-np.mean(o))]
                     if gof == 'gauL':  # Gaussian likelihood, measurement error out
                         gofs[gof] += [spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)]
-                    if gof == 'logL':  # Gaussian likelihood, measurement error out
+                    if gof == 'logL':  # Log likelihood
                         gofs[gof] += [spotpy.likelihoods.logLikelihood(o, s)]
-                    if gof == 'gauLerr':  # Gaussian likelihood, measurement error out
+                    if gof == 'gauLerr':  # Gaussian likelihood
                         gofs[gof] += [spotpy.likelihoods.gaussianLikelihoodHomoHeteroDataError(o, s)]
 
         # Store goodnesses of fit, one files per GOF
@@ -2670,10 +2737,10 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
                     # s -= np.mean(s)
                     # o -= np.mean(o)
                     # Kling-gupta
-                    L = spotpy.objectivefunctions.kge(o, s)
+                    # L = spotpy.objectivefunctions.kge(o, s)
                     # Log Gaussian likelihood without error
-                    # L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
-                    #     1 / np.mean(o)
+                    L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
+                    #   *  1 / np.mean(o)
                     # Log Gaussian with error set using std
                     # LogLikehood as used in Vrugt et al. (2016)
                     # Using standard deviation as indicator of error
