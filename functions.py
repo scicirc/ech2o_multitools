@@ -210,8 +210,8 @@ def config_init(options):
     # -- Calibration: all parameter path (and datasets, if needed)
     if Config.mode in ['calib_MCsampling', 'calib_MCruns']:
         if not hasattr(Config, 'PATH_PAR'):
-            # print('Warning: path to parameter samples not specified, ' +
-            #      'set to default')
+            print('Warning: path to parameter samples not specified, ' +
+                  'set to default')
             Config.PATH_PAR = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                            'Calibration_Samples'))
 
@@ -815,6 +815,10 @@ def obs_init(Config, Opti, Obs):
     for oname in Obs.names:
         Obs.firstMapTs[oname] = 1
 
+    # Time resolution in simulations, in seconds
+    if not hasattr(Obs, 'simres'):
+        Obs.simres = 86400  # Daily, by default
+
     # --- Reporting stuff
     # Trim: only saves the time steps within the trim
     if not hasattr(Obs, 'saveB'):
@@ -838,10 +842,8 @@ def obs_init(Config, Opti, Obs):
     if not hasattr(Opti, 'repBS_interval'):
         Opti.repBS_interval = 0
 
-    # Date of the simulations (used for calibration periods, mostly)
-    Obs.simt = [Obs.simbeg + timedelta(days=x) for x in range(Obs.saveL)]
-    # Same thing in froward mode (needs to be merged...)
-    Config.treal = [Obs.simbeg+timedelta(days=x) for x in range(Obs.saveL)]
+    # Date vector of the simulations timesteps
+    Obs.simt = [Obs.simbeg + timedelta(seconds=Obs.simres*x) for x in range(Obs.saveL)]
 
     if Config.mode in ['calib_MCruns','calib_SPOTPY']:
         # print('Reading measured datasets for calibration...')
@@ -862,7 +864,7 @@ def obs_init(Config, Opti, Obs):
                 :, [0, Obs.obs[oname]['obs_col']-1]]
             tmp.columns.values[:] = ['Date', 'value']
             # Convert date column to datetime
-            tmp['Date'] = pd.to_datetime(tmp['Date'], format='%Y-%m-%d')
+            tmp['Date'] = pd.to_datetime(tmp['Date'])
             # Convert date column to datetime
             tmp['value'] = tmp['value'] * Obs.obs[oname]['obs_conv']
 
@@ -1189,9 +1191,9 @@ def files_init(Config, Opti, Paras, Site):
         Opti.vref['header'] = paramread[0][0:len(paramread[0])]
         # Check that the number of species per params in def files matches
         if Site.nv != len(paramread)-3:
-            sys.exit('ERROR: the number of species in def files (', Site.nv,
-                     ') differs from that in templace params file (',
-                     len(paramread)-3, ')')
+            sys.exit('ERROR: the number of species in def files ('+ str(Site.nv)+
+                     ') differs from that in template params file ('+
+                     str(len(paramread)-3)+ ')')
         # All parameters values (keep strings!)
         for iv in range(Site.nv):
             Opti.vref[iv] = paramread[iv+1][0:len(paramread[iv+1])]
@@ -1662,10 +1664,13 @@ def param_get(Opti, Config, options):
 
         tmp = list(pd.read_csv(Config.FILE_PAR, header=None).loc[:, 0])
         if tmp != Opti.names:
+            print("ERROR: the full list of parameters are not the same"+
+                " in the MCrun definition file and in the input parameter file")
+            print('== Dictionary from the MCrun definition file:')
             print(Opti.names)
+            print('== Dictionary from stored parameter sets (from MCsampling):')
             print(tmp)
-            sys.exit("The definition file and input parameter file ain't " +
-                     "matching!")
+            sys.exit("Aborting calibration")
 
         # if(Opti.xpar.shape[1] != len(Opti.names)):
         #     sys.exit("The definition file and input parameter file ain't " +
@@ -1925,7 +1930,7 @@ def read_sim(Config, Obs, oname, it=0):
                             skiprows=hskip, header=None).set_index(0)
         # Check if it ran properly (sometimes some time steps are skipped in *tab...)
         # If steps are missing but the series is long enough, let's replace with nan
-        if len(sim) < Obs.lsim and len(sim) > 365:
+        if len(sim) < Obs.lsim:  # and len(sim) > 365:
             idx2 = np.arange(1,Obs.lsim+1)
             sim = sim.reindex(idx2)
             print("Warning: some steps were missing in", Obs.obs[oname]['sim_file'],
@@ -2052,7 +2057,7 @@ def store_sim(Obs, Opti, Config, Site, it):
                 
                 # Check if it ran properly (sometimes some time steps are skipped in *tab...)
                 # If steps are missing but the series is long enough, let's replace with nan
-                if len(sim) < Obs.lsim and len(sim) > 365:
+                if len(sim) < Obs.lsim:  # and len(sim) > 365:
                     idx2 = np.arange(1,Obs.lsim+1)
                     sim = sim.reindex(idx2)
                     print("Warning: some steps were missing in", Obs.obs[oname]['sim_file'],
@@ -2219,7 +2224,7 @@ def store_sim(Obs, Opti, Config, Site, it):
                         # print(f_m)
 
             # Time values for netCDF output
-            var_t = np.array([(Config.treal[x-Obs.saveBmap] -
+            var_t = np.array([(Obs.simt[x-Obs.saveBmap] -
                                datetime(1901, 1, 1, 0, 0)).days for x in itOK])
 
             if(len(itOK) == 0):
