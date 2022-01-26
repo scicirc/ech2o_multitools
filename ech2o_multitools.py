@@ -53,6 +53,9 @@ parser.add_option("--file", dest="file", metavar="FILE",
 # Output directory
 parser.add_option("--outdir", dest="outdir", metavar="outdir",
                   help="Output directory")
+# Output directory
+parser.add_option("--task", dest="task", metavar="task",
+                  help="Identifier of subtasks in jobs array for MonteCarlo simulations")
 
 # MPI parallel computing activated
 parser.add_option("--mpi", dest="mpi", metavar="mpi",

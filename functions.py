@@ -87,23 +87,29 @@ def config_init(options):
                                 options.inEns
             if(len(tmp) > 2):
                 sys.exit('Error: incorrect config file format.')
-    elif Config.mode == 'calib_MCruns':
-        tmp = options.outdir.split('.')
-        if len(tmp) == 2:
-            Config.outdir = tmp[0]
-            Config.outnum = '%03i' % int(tmp[1])
-            Config.outnum2 = tmp[1]
-        else:
-            tmp = options.outdir.split('_')
-            if len(tmp)==2:
-                Config.outdir = tmp[0]
-                Config.outnum = '%03i' % int(tmp[1])
-                Config.outnum2 = tmp[1]
-            else:
-                sys.exit('Please specify an outdir like XX.$task# or +',
-                         'XX_$task# as a format')
     else:
         Config.outdir = copy.copy(options.outdir)
+
+    if Config.mode == 'calib_MCruns':
+        if options.task is not None:
+            tmp = options.task.split('.')
+            if len(tmp) == 2:
+                Config.indir = tmp[0]
+                Config.tasknum = '%03i' % int(tmp[1])
+                Config.tasknum2 = tmp[1]
+            else:
+                tmp = options.task.split('_')
+                if len(tmp)==2:
+                    Config.indir = tmp[0]
+                    Config.tasknum = '%03i' % int(tmp[1])
+                    Config.tasknum2 = tmp[1]
+                else:
+                    sys.exit('Please specify an task ID like XX.tasknumber or +',
+                             'XX_tasknumber as a format')
+        else:
+            sys.exit('Please specify an subtask like XX.number or +',
+                     'XX_tasknumber as a format')
+
 
     # Absolute location
     if Config.mode == 'forward_runs' and options.OMP_it is not None:
@@ -122,7 +128,7 @@ def config_init(options):
             mkpath(Config.PATH_OUTmain)
         Config.PATH_OUT = \
             os.path.abspath(os.path.join(Config.PATH_OUTmain,
-                                         'task' + Config.outnum))
+                                         'task' + Config.tasknum))
     else:
         Config.PATH_OUT = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                        Config.outdir))
@@ -208,10 +214,13 @@ def config_init(options):
             #      'set to default')
             Config.PATH_PAR = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                            'Calibration_Samples'))
-        Config.FILE_PAR = Config.PATH_PAR+'/'+Config.outdir.split('.')[0] + \
-                          '_parameters.'
+
+        if Config.mode == 'calib_MCsampling':
+            Config.FILE_PAR = Config.PATH_PAR+'/'+Config.outdir + '_parameters.'
+        
         if Config.mode == 'calib_MCruns':
-            Config.FILE_PAR += Config.outnum2+'.txt'
+            Config.FILE_PAR = Config.PATH_PAR+'/'+Config.indir + '_parameters.' + \
+                              Config.tasknum2+'.txt'
 
         # -- Creation of output directory
         if len(glob.glob(Config.PATH_PAR)) == 0:
@@ -288,8 +297,8 @@ def param_init(Config, Opti, Paras, Site, options):
     # -- sensitivity or ensemble runs
     for par in Paras.names:
 
-        #print(par)
-
+        # print(par)
+        
         # Default
         if 'soil' not in Paras.ref[par].keys():
             Paras.ref[par]['soil'] = 0
@@ -301,32 +310,96 @@ def param_init(Config, Opti, Paras, Site, options):
         # Opti.names: unique name using par + component (none, soil/veg type)
         # Opti.comp: which of the component are calibrated? (none, all, some)
         if Paras.ref[par]['soil'] == 0 and Paras.ref[par]['veg'] == 0:
+
+            # No soil or vegetation dependance
             nr = 1
             Opti.names = Opti.names + [par]
             Paras.comp[par] = 0
             Paras.ref[par]['map'] = 1
-        elif Paras.ref[par]['soil'] == 1:
-            nr = Site.ns
-            Opti.names = Opti.names + [par + '_' + s for s in Site.soils]
-            Paras.comp[par] = range(Site.ns)
+
+        elif Paras.ref[par]['soil'] != 0:
+
             Paras.ref[par]['map'] = 1
             Paras.Spa = 1
+
+            # Case where mapped parameters are distributed
+            # over all the soil units listed in the def file
+            if Paras.ref[par]['soil'] ==1:
+                nr = Site.ns
+                Opti.names = Opti.names + [par + '_' + s for s in Site.soils]
+                Paras.comp[par] = range(Site.ns)
+
+            # Case where mapped parameters either:
+            # - don't have component calibrated in some soil units
+            # [..,0,...] for that component and/or
+            # - some component are shared across various 1 or more soil units
+            # e.g. [0,1,2,2,0] mean that out of 5 possible soil components,
+            # 1st and 5th are not calibrated, 2nd is one component,
+            # 3st and 4st is one 2nd component shared across 3st and 4st soil units
+            elif type(Paras.ref[par]['soil']) == list:
+                # The length of the list must match that of soil units
+                if len(Paras.ref[par]['soil']) != Site.ns:
+                    sys.exit('Invalid soil dependence for parameter '+par)
+                # number of components
+                nr = sum(i>0 for i in np.unique(Paras.ref[par]['soil']))
+                # name
+                for i in range(1,nr+1):
+                    # param_SoilUnit if one component
+                    if sum(j==i for j in Paras.ref[par]['soil'])==1:
+                        Opti.names = Opti.names + [par + '_' + Site.soils[j] for
+                                                   j in range(Site.ns) if
+                                                   Paras.ref[par]['soil'][j] == i]
+                    # param_VegName1+VegName2+... if more than one
+                    if sum(j==i for j in Paras.ref[par]['soil'])>1:
+                        Opti.names = Opti.names + [par + '_' +
+                                                   '+'.join(Site.soils[j] for
+                                                            j in range(Site.ns) if
+                                                            Paras.ref[par]['soil'][j] == i)]
+                # component, here, rows indices in reference SpeciesParams.tab param file 
+                Paras.comp[par] = [i for i in range(Site.ns) if
+                                   Paras.ref[par]['soil'][i] > 0                                ]
+            else:
+                sys.exit('Invalid soil dependence for parameter '+par)
+
         elif Paras.ref[par]['veg'] != 0:
+
             Paras.ref[par]['map'] = 0
             Paras.Veg = 1
+
+            # Case where there will be as many vegetation components
+            # for this parameter as there are vegetation types
             if Paras.ref[par]['veg'] == 1:
                 nr = Site.nv
                 Opti.names = Opti.names + [par + '_' + s for s in Site.vegs]
                 Paras.comp[par] = range(Site.nv)
+
+            # Case where some vegetation type don't have the parameter calibrated,
+            # ([..,1 or more,...]>0) while others do [..,0,...])
+            # all components > 0 with same integer share the associated parameter
+            # e.g. [0,1,2,2,0] mean that out of 5 veg types, 1st and 5th are not
+            # calibrated, 2nd has one component, and 3st and 4st share common parameter
             elif type(Paras.ref[par]['veg']) == list:
+                # The length of the list must match that of vegetation types
                 if len(Paras.ref[par]['veg']) != Site.nv:
                     sys.exit('Invalid veg dependence for parameter '+par)
-                nr = sum(i == 1 for i in Paras.ref[par]['veg'])
-                Opti.names = Opti.names + [par + '_' + Site.vegs[i] for
-                                           i in range(Site.nv) if
-                                           Paras.ref[par]['veg'][i] == 1]
+                # number of components
+                nr = sum(i>0 for i in np.unique(Paras.ref[par]['veg']))
+                # name
+                for i in range(1,nr+1):
+                    # param_VegName if one component
+                    if sum(j==i for j in Paras.ref[par]['veg'])==1:
+                        Opti.names = Opti.names + [par + '_' + Site.vegs[j] for
+                                                   j in range(Site.nv) if
+                                                   Paras.ref[par]['veg'][j] == i]
+                    # param_VegName1+VegName2+... if more than one
+                    if sum(j==i for j in Paras.ref[par]['veg'])>1:
+                        Opti.names = Opti.names + [par + '_' +
+                                                   '+'.join(Site.vegs[j] for
+                                                            j in range(Site.nv) if
+                                                            Paras.ref[par]['veg'][j] == i)]
+                # component, here, rows indices in reference SpeciesParams.tab param file 
                 Paras.comp[par] = [i for i in range(Site.nv) if
-                                   Paras.ref[par]['veg'][i] == 1]
+                                   Paras.ref[par]['veg'][i] > 0                                ]
             else:
                 sys.exit('Invalid veg dependence for parameter '+par)
         else:
@@ -336,9 +409,29 @@ def param_init(Config, Opti, Paras, Site, options):
         # 1. Which paras entry is covered in each Opti.* position?
         Opti.ind += list(np.repeat(ipar, nr))
         # Vice versa: which Opti.* indice(s) correspond to a given par?
-        if nr > 1:
-            Paras.ind[par] = list(np.arange(ipar2, ipar2+nr, 1))
-        if nr == 1:
+        if nr>1 or type(Paras.comp[par]) == list :
+            
+            # If there are as many component as there are different soil/species calibrated
+            if len(Paras.comp[par]) == nr:
+                Paras.ind[par] = list(np.arange(ipar2, ipar2+nr, 1))
+
+            # Else if there are one component covering several veg types
+            if len(Paras.comp[par]) > nr:
+
+                if type(Paras.ref[par]['soil']) == list:
+                    # soil parameter case
+                    tmp = [i for i in Paras.ref[par]['soil'] if i > 0]
+                elif type(Paras.ref[par]['veg']) == list:
+                    # vegetation parameter case
+                    tmp = [i for i in Paras.ref[par]['veg'] if i > 0]
+                else:
+                    sys.exit('Error when mapping parameter '+par+' to optimization vector')
+                    
+                Paras.ind[par] = []
+                for i in range(nr):
+                    Paras.ind[par] += [i+ipar2 for j in tmp if j==np.unique(tmp)[i]]
+                
+        else:
             Paras.ind[par] = [ipar2]
 
         # Build vectors used in the optimisation
@@ -443,7 +536,7 @@ def param_init(Config, Opti, Paras, Site, options):
         # else:
         #     # Get the trajectory
         #     f_in = Config.PATH_TRAJ+'/'+options.outdir.split('.')[0] + \
-        #         '.Bstar_traj' + Config.outnum+'.txt'
+        #         '.Bstar_traj' + Config.tasknum+'.txt'
         #     # print(f_in
         #     Opti.xpar = np.genfromtxt(f_in, delimiter=',', skip_header=1)
         #     # print(Opti.xpar.shape
@@ -573,7 +666,7 @@ def runs_init(Config, Opti, Obs, Paras, Site, options):
 
     # Time wall for ECH2O execution
     if options.tlimit is None:
-        Config.tlimit = '7200'
+        Config.tlimit = '250'
     else:
         Config.tlimit = options.tlimit
     # Time limit
@@ -597,7 +690,7 @@ def runs_init(Config, Opti, Obs, Paras, Site, options):
             if Config.mode == 'calib_MCruns':
                 #Config.PATH_EXEC = '/scratch/sylvain.kuppel/MCruns.'+Config.outdir+ \
                 Config.PATH_EXEC = Config.PATH_SCRATCH+'/MCruns.'+Config.outdir+ \
-                                   '_tmp'+Config.outnum
+                                   '_tmp'+Config.tasknum
             else:
                 #Config.PATH_EXEC = '/scratch/sylvain.kuppel/'+Config.outdir
                 Config.PATH_EXEC = Config.PATH_SCRATCH+'/'+Config.outdir
@@ -652,7 +745,7 @@ def runs_init(Config, Opti, Obs, Paras, Site, options):
         sys.exit('Error: the script need a template ech2o config file!')
 
     # (if needed) get the parallel job number, based on the output dir name
-    # Config.outnum = options.outdir.split('.')[::-1][0]
+    # Config.tasknum = options.outdir.split('.')[::-1][0]
 
     # -- Tracking age and/or tracers?
     if not hasattr(Site, 'isTrck'):
@@ -736,6 +829,9 @@ def obs_init(Config, Opti, Obs):
             sys.exit('Error: the specified output slicing start+length ' +
                      'goes beyond simulation time!')
     # Report BasinSummary.txt
+    if not hasattr(Config, 'replog'):
+        Config.replog = 0        
+    # Report BasinSummary.txt
     if not hasattr(Obs, 'repBS'):
         Obs.repBS = 0        
     # Report BasinSummary.txt for lines at saveB and last line
@@ -748,11 +844,13 @@ def obs_init(Config, Opti, Obs):
     Config.treal = [Obs.simbeg+timedelta(days=x) for x in range(Obs.saveL)]
 
     if Config.mode in ['calib_MCruns','calib_SPOTPY']:
-
         # print('Reading measured datasets for calibration...')
 
         Opti.obs = {}  # np.full((Obs.nobs, Obs.saveL), np.nan)
-
+        Opti.obs2 = {}  # in case there's a second model-data fit window given
+        Opti.calib2 = {}  # in case there's a second model-data fit window given
+        Opti.iscalib2 = False
+        
         for oname in Obs.names:
 
             # print(oname)
@@ -768,7 +866,7 @@ def obs_init(Config, Opti, Obs):
             # Convert date column to datetime
             tmp['value'] = tmp['value'] * Obs.obs[oname]['obs_conv']
 
-            # Calibration period:
+            # -- Calibration period:
             # Check if specified, otherwise use the whole simulation
             # in any case, remove the spinup (it will be removed from
             # simulation outputs in post-processing)
@@ -777,20 +875,36 @@ def obs_init(Config, Opti, Obs):
                type(Obs.obs[oname]['fit_beg']) is not datetime.date:
                 fitbeg = Obs.simt[0]
             else:
-                fitbeg = max(Obs.obs[oname]['fit_beg'], Obs.simt[0])
+                fitbeg = max(Obs.obs[oname]['fit_beg'], Obs.simt[0])               
             if 'fit_end' not in Obs.obs[oname].keys() or \
                type(Obs.obs[oname]['fit_end']) is not datetime.date:
                 fitend = Obs.simt[Obs.saveL-1]
             else:
                 fitend = min(Obs.obs[oname]['fit_end'],
-                             Obs.simt[Obs.saveL-1])
-
+                             Obs.simt[Obs.saveL-1])         
             # Crop obs between desired time frame
-            tmp = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
+            tmp2 = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
+            Opti.obs[oname] = tmp2.dropna(how='all')
 
-            Opti.obs[oname] = tmp.dropna(how='all')
-
-
+            # -- Second calibration period?
+            if 'fit_beg2' in Obs.obs[oname].keys() and \
+               'fit_end2' in Obs.obs[oname].keys() :
+                print(type(Obs.obs[oname]['fit_beg2']))
+                print(type(Obs.obs[oname]['fit_end2']))
+                if type(Obs.obs[oname]['fit_beg2']) is datetime and \
+                   type(Obs.obs[oname]['fit_end2']) is datetime:
+                    fitbeg2 = max(Obs.obs[oname]['fit_beg2'], Obs.simt[0])
+                    fitend2 = min(Obs.obs[oname]['fit_end2'], Obs.simt[Obs.saveL-1])         
+                    # Crop obs between desired time frame
+                    tmp2 = tmp.loc[(tmp.Date >= fitbeg2) & (tmp.Date <= fitend2)]
+                    Opti.obs2[oname] = tmp2.dropna(how='all')
+                    Opti.calib2[oname] = True
+                    Opti.iscalib2 = True
+                else:
+                    Opti.calib2[oname] = False
+            else:
+                Opti.calib2[oname] = False
+                
     if Config.mode == 'calib_MCruns':
         # -- Group the output files in one across simulations,
         #    separating by observations points and veg type where it applies
@@ -807,20 +921,35 @@ def obs_init(Config, Opti, Obs):
             Opti.GOFs = tmp
             Opti.nGOF = len(Opti.GOFs)
             Opti.GOFfiles = {}
+            if Opti.iscalib2 is True:
+                Opti.GOFfiles2 = {}
+            
             for gof in Opti.GOFs:
                 # Historic time series file names
-                Opti.GOFfiles[gof] = Config.PATH_OUTmain+'/'+gof+'.task'+Config.outnum+'.tab'
+                Opti.GOFfiles[gof] = Config.PATH_OUTmain+'/'+gof+'.task'+Config.tasknum+'.tab'
                 # Header of files
                 if Config.restart == 0:
+                    print('first period:',fitbeg,'to',fitend)
                     with open(Opti.GOFfiles[gof], 'w') as f_out:
                         f_out.write('Sample,'+','.join(Obs.names)+'\n')
+                # Second calibration period
+                if Opti.iscalib2 is True:
+                    # Historic time series file names
+                    Opti.GOFfiles2[gof] = Config.PATH_OUTmain+'/'+gof+'_p2.task'+ \
+                                          Config.tasknum+'.tab'
+                    # Header of files
+                    if Config.restart == 0:
+                        print('second period:',fitbeg2,'to',fitend2)
+                        with open(Opti.GOFfiles2[gof], 'w') as f_out:
+                            f_out.write('Sample,'+','.join(Obs.names)+'\n')
 
+                
         # -- Optional: group the BasinSummary files in one across simulations
         if Opti.repBS_interval == 1:
             # Interval start (saveB)
-            Opti.BSfile_tb = Config.PATH_OUTmain+'/BasinBudget_tb.task'+Config.outnum+'.tab'
+            Opti.BSfile_tb = Config.PATH_OUTmain+'/BasinBudget_tb.task'+Config.tasknum+'.tab'
             # Interval start (saveB+lsim)
-            Opti.BSfile_te = Config.PATH_OUTmain+'/BasinBudget_te.task'+Config.outnum+'.tab'
+            Opti.BSfile_te = Config.PATH_OUTmain+'/BasinBudget_te.task'+Config.tasknum+'.tab'
             
 
 # ==========================================================================
@@ -1154,7 +1283,7 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
     Opti.begfail = 0
     
     # Initial clean up, if not restarting
-    f_failpar = Config.PATH_OUTmain+'/Parameters_fail.task'+Config.outnum+'.txt'
+    f_failpar = Config.PATH_OUTmain+'/Parameters_fail.task'+Config.tasknum+'.txt'
     if len(glob.glob(f_failpar)) != 0 and Config.restart == 0:
         os.system('rm -f '+f_failpar)
 
@@ -1195,7 +1324,7 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
             os.chdir(Config.PATH_EXEC)
             # Still not running properly? Report and move on
             if runOK(Obs, Opti, Config, mode='verbose') == 0:
-                f_failpar = Config.PATH_OUTmain+'/Parameters_fail.task'+Config.outnum+'.txt'
+                f_failpar = Config.PATH_OUTmain+'/Parameters_fail.task'+Config.tasknum+'.txt'
                 if len(glob.glob(f_failpar)) == 0:
                     with open(f_failpar, 'w') as f_in:
                         f_in.write('Sample,'+','.join(Opti.names)+'\n')
@@ -1229,6 +1358,9 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
         # Clean up
         os.system('rm -f '+Config.PATH_EXEC+'/*.tab')
         os.system('rm -f '+Config.PATH_EXEC+'/Basin*.txt')
+
+    # Final cleanup
+    os.system('rm -fr '+Config.PATH_EXEC)
 
 
 def forward_runs(Config, Opti, Obs, Paras, Site, options):
@@ -1279,9 +1411,10 @@ def forward_runs(Config, Opti, Obs, Paras, Site, options):
             # Group outputs
             # outputs.store_sim(Obs, Opti, Config, Site, it)
 
-        # Store log (in case)
-        os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
-                  Config.PATH_OUT + '/ech2o_run'+str(it+1)+'.log')
+        # Store log, if requested
+        if Config.replog == 1:
+            os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
+                      Config.PATH_OUT + '/ech2o_run'+str(it+1)+'.log')
     # Clean up
     os.system('rm -f '+Config.PATH_EXEC+'/*')
 
@@ -1449,28 +1582,55 @@ def restart(Config, Opti, Obs):
         # Get last referenced index (i.e. run number) that worked (without NaN)
         tmp = pd.read_csv(Opti.GOFfiles[gof]).set_index('Sample')
         tmp2 = tmp.dropna()
-        it += [tmp2.index[-1]+1]
+        if len(tmp2)==0:
+            it += [0]
+        else:
+            it += [tmp2.index[-1]+1]
     # in case this index is different, take minimum
     Config.itres = min(it)
-    print('...but directly restarting from iter. ', Config.itres)
 
-    # Rewrite the GOF files: to evenize between variable last it or 
-    # remove the final NaN lines (but not those in between "good" runs)
-    for gof in Opti.GOFs:
-        #print(gof)
-        # Get last referenced index (i.e. run number) that worked (without NaN)
-        tmp = pd.read_csv(Opti.GOFfiles[gof]).set_index('Sample').loc[1:Config.itres-1]
-        tmp.to_csv(Opti.GOFfiles[gof], na_rep="nan")
+    if Config.itres > 0 :
 
-    # Rewrite the BSfile (if needed): to evenize between variable last it or 
-    # remove the final NaN lines (but not those in between "good" runs)
-    if Opti.repBS_interval == 1:
-        # Get last referenced index (i.e. run number) that worked (without NaN)
-        tmp = pd.read_csv(Opti.BSfile_tb).set_index('Sample').loc[1:Config.itres-1]
-        tmp.to_csv(Opti.BSfile_tb, na_rep="nan")
-        tmp = pd.read_csv(Opti.BSfile_te).set_index('Sample').loc[1:Config.itres-1]
-        tmp.to_csv(Opti.BSfile_te, na_rep="nan")
+        # There's something to keep for previous jobs
+        print('...but directly restarting from iter. ', Config.itres)
+        
+        # Rewrite the GOF files: to evenize between variable last it or 
+        # remove the final NaN lines (but not those in between "good" runs)
+        for gof in Opti.GOFs:
+            #print(gof)
+            # Get last referenced index (i.e. run number) that worked (without NaN)
+            tmp = pd.read_csv(Opti.GOFfiles[gof]).set_index('Sample').loc[1:Config.itres-1]
+            tmp.to_csv(Opti.GOFfiles[gof], na_rep="nan")
+            if Opti.iscalib2 is True:
+                tmp2 = pd.read_csv(Opti.GOFfiles2[gof]).set_index('Sample').loc[1:Config.itres-1]
+                tmp2.to_csv(Opti.GOFfiles2[gof], na_rep="nan")
+            
+        # Rewrite the BSfile (if needed): to evenize between variable last it or 
+        # remove the final NaN lines (but not those in between "good" runs)
+        if Opti.repBS_interval == 1:
+            Config.restart2 = 2
+            # Get last referenced index (i.e. run number) that worked (without NaN)
+            tmp = pd.read_csv(Opti.BSfile_tb).set_index('Sample').loc[1:Config.itres-1]
+            tmp.to_csv(Opti.BSfile_tb, na_rep="nan")
+            tmp = pd.read_csv(Opti.BSfile_te).set_index('Sample').loc[1:Config.itres-1]
+            tmp.to_csv(Opti.BSfile_te, na_rep="nan")
 
+            
+
+    else:
+        # Nothing worth saving from previous job(s): reinitialize files
+        for gof in Opti.GOFs:
+            with open(Opti.GOFfiles[gof], 'w') as f_out:
+                f_out.write('Sample,'+','.join(Obs.names)+'\n')
+            if Opti.iscalib2 is True:
+                with open(Opti.GOFfiles2[gof], 'w') as f_out:
+                    f_out.write('Sample,'+','.join(Obs.names)+'\n')
+                
+
+        # For RepBS files, it's done elsewhere
+        if Opti.repBS_interval == 1:
+            Config.restart2 = 1
+ 
     # # -- Some cleaning for parameters
     # Config.f_par = Config.PATH_OUT+'/Parameters.txt'
     # # Read grouped simulations
@@ -1542,7 +1702,7 @@ def param_store(Opti, Config, it):
     if Config.initpar == 0:
         if Config.mode == 'calib_MCruns':
             Config.f_par = Config.PATH_OUTmain+'/Parameters.task' + \
-                Config.outnum+'.txt'
+                Config.tasknum+'.txt'
         else:
             Config.f_par = Config.PATH_OUT+'/Parameters.txt'
 
@@ -1592,41 +1752,57 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
 
     for pname in Paras.names:
 
-        # print(pname)
+        #print(pname)
 
         # - Mapped parameters
         if Paras.ref[pname]['map'] == 1:
 
             # Soil unit dependence
-            if Paras.ref[pname]['soil'] == 1:
+            if Paras.ref[pname]['soil'] != 0:
                 # print 'Soil dependent !!'
 
-                outmap = Site.bmaps['unit']*0
+                # Full soil dependence 
+                if Paras.ref[pname]['soil'] == 1:
+                    # Start from 0 map
+                    outmap = Site.bmaps['unit']*0
+                    # Read each soil map unit and apply param value
+                    for im in range(Site.ns):
+                        outmap += Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im]]
 
-                # Read each soil map unit and apply param value
-                for im in range(Site.ns):
-                    outmap += \
-                        Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im]]
+                # Heterogeneous soil unit dependence
+                elif type(Paras.ref[pname]['soil']) == list:
+                    # print 'Soil dependent !!'
 
-                # if Site.simRock == 1:
-                #     # Taking into account rock/scree: micro-topsoil,
-                #     low poros and fixed anisotropy
-                #     if pname == 'HLayer1':
-                #         outmap = \
-                #             outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
-                #             Site.bmaps['rock']*0.001
-                #     # if pname=='Porosity':
-                #     #    outmap = \
-                #         # outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
-                #         # Site.bmaps['rock']*0.25
-                #     if pname == 'Khoriz':
-                #         outmap = \
-                #             outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
-                #             Site.bmaps['rock']*0.000001
-                #     if pname == 'Anisotropy':
-                #         outmap = \
-                #             outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
-                #             Site.bmaps['rock']*0.1
+                    # Import reference map (default values)
+                    outmap = pcr.readmap(Config.PATH_SPA+'/'+Paras.ref[pname]['file']+'.map')
+                    # Change the value based on param name correspondance
+                    im2 = 0
+                    # Only pick the calibrated map/soil units
+                    for im in Paras.comp[pname]:
+                        outmap = pcr.ifthenelse(Site.bmaps['unit'] == Site.bmaps[Site.soils[im]],
+                                                Opti.x[Paras.ind[pname][im2]], outmap)
+                        #outmap += Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im2]]
+                        im2 += 1
+
+            # if Site.simRock == 1:
+            #     # Taking into account rock/scree: micro-topsoil,
+            #     low poros and fixed anisotropy
+            #     if pname == 'HLayer1':
+            #         outmap = \
+            #             outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
+            #             Site.bmaps['rock']*0.001
+            #     # if pname=='Porosity':
+            #     #    outmap = \
+            #         # outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
+            #         # Site.bmaps['rock']*0.25
+            #     if pname == 'Khoriz':
+            #         outmap = \
+            #             outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
+            #             Site.bmaps['rock']*0.000001
+            #     if pname == 'Anisotropy':
+            #         outmap = \
+            #             outmap*(Site.bmaps['unit']-Site.bmaps['rock']) +\
+            #             Site.bmaps['rock']*0.1
 
             # No spatial
             else:
@@ -1714,10 +1890,21 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
         porosL2 = pcr.readmap(path_spa+'/' + Site.f_porosL2)
         porosL3 = pcr.readmap(path_spa+'/' + Site.f_porosL3)
 
-    # Finally, use a fraction of these porosities as initial soil moisture
-    pcr.report(porosL1*Site.frac_SWC1, path_spa + '/' + Site.f_initSWC1)
-    pcr.report(porosL2*Site.frac_SWC2, path_spa + '/' + Site.f_initSWC2)
-    pcr.report(porosL3*Site.frac_SWC3, path_spa + '/' + Site.f_initSWC3)
+    # Finally, prescribe initial soil moisture depending on user's choice
+    if hasattr(Site, 'SWC1init'):
+        pcr.report(Site.SWC1init*Site.bmaps['unit'], path_spa+'/'+Site.f_initSWC1)
+    else:
+        pcr.report(porosL1*Site.frac_SWC1, path_spa+'/'+Site.f_initSWC1)
+        
+    if hasattr(Site, 'SWC2init'):
+        pcr.report(Site.SWC2init*Site.bmaps['unit'], path_spa+'/'+Site.f_initSWC2)
+    else:
+        pcr.report(porosL2*Site.frac_SWC2, path_spa+'/'+Site.f_initSWC1)
+    if hasattr(Site, 'SWC3init'):
+        pcr.report(Site.SWC3init*Site.bmaps['unit'], path_spa+'/'+Site.f_initSWC3)
+    else:
+        pcr.report(porosL3*Site.frac_SWC3, path_spa + '/' + Site.f_initSWC3)
+
 
 # ==================================================================================
 # Functions for outputs management
@@ -1861,6 +2048,8 @@ def store_sim(Obs, Opti, Config, Site, it):
                 # Read
                 sim = pd.read_table(Obs.obs[oname]['sim_file'],#error_bad_lines=False,
                                     skiprows=hskip, header=None).set_index(0)
+
+                
                 # Check if it ran properly (sometimes some time steps are skipped in *tab...)
                 # If steps are missing but the series is long enough, let's replace with nan
                 if len(sim) < Obs.lsim and len(sim) > 365:
@@ -2045,7 +2234,7 @@ def store_sim(Obs, Opti, Config, Site, it):
                     print("Warning: some of the demanded "+oname +
                           " maps are missing") #, before t=", itOK[0])
                     print("(that's normal if maps output does not start " +
-                          "at t=saveBmap or if map interval>86400"+
+                          "at t=saveBmap or \nif map interval>86400 "+
                           "in EcH2O config file)")
                 else:
                     print("Warning: all of the demanded "+oname +
@@ -2173,21 +2362,24 @@ def store_BS_interval(Obs, Opti, Config, it):
     # Basin*Summary.txt files don't have an index
     sim = sim.set_axis([str(i) for i in np.arange(1, sim.shape[0]+1)])
 
-    # Get observation lines, at beginning and end
-    sim_tb = sim.iloc[Obs.saveB-1, :]
-    sim_te = sim.iloc[Obs.lsim-1, :]
-    #print(sim_tb)
-    #print(sim_te)
-
     # Header
-    if (it == 0 or Opti.begfail == 1) and Config.restart == 0:
+    if (it == 0 or Opti.begfail == 1) and (Config.restart == 0 or
+                                           (Config.restart==1 and Config.restart2==1)):
         with open(Opti.BSfile_tb, 'w') as f_out:
             f_out.write('Sample,'+','.join([j for j in sim.columns])+'\n')
         with open(Opti.BSfile_te, 'w') as f_out:
             f_out.write('Sample,'+','.join([j for j in sim.columns])+'\n')
 
+            
     # Write values at given intervals
     if runOK(Obs, Opti, Config, 'silent') == 1:
+
+        # Get observation lines, at beginning and end
+        sim_tb = sim.iloc[Obs.saveB-1, :]
+        sim_te = sim.iloc[Obs.lsim-1, :]
+        #print(sim_tb)
+        #print(sim_te)
+        
         # Simulation, or nan
         with open(Opti.BSfile_tb, 'a') as f_out:
             f_out.write(str(it+1)+','+
@@ -2206,7 +2398,7 @@ def store_BS_interval(Obs, Opti, Config, it):
 
 def store_GOF(Obs, Opti, Config, Site, it):
     # -- Store goodness-of-fit using using several metrics:
-    #    NSE, KGE, RMSE, MAE
+    #    NSE, KGE, RMSE, MAE...
 
     # Did it run OK?
     if runOK(Obs, Opti, Config, mode='verbose') == 1:
@@ -2227,80 +2419,104 @@ def store_GOF(Obs, Opti, Config, Site, it):
                 # ', expected:', Obs.saveL)
                 #     simulations[i][:] = [np.nan] * Obs.saveL
 
+        
         for i in range(Obs.nobs):
 
             oname = Obs.names[i]
 
-            # Have obervation and simulations matching the same time period
-            # obs: already pre-processed
-            tobs = pd.to_datetime(Opti.obs[oname]['Date'].values)
-            o = np.asanyarray(Opti.obs[oname]['value'].values)
-
-            # First step for sim: trim sim to obs timespan
-            # + only keep dates with obs (even if nan)
-            # print(sim)
-            # print(sim.shape)
-            if Obs.nobs == 1:
-                s = np.asanyarray([simulations[j] for j in range(Obs.saveL)
-                                   if Obs.simt[j] in tobs])
+            # Check if there is one or two calibration periods
+            if Opti.calib2[oname] is True:
+                ncalib = 2
             else:
-                s = np.asanyarray([simulations[i][j] for j in range(Obs.saveL)
-                                   if Obs.simt[j] in tobs])
-            # Second step (both o and s): remove nan due to gaps in obs
-            # (or missing steps in sims...)
-            tmp = s*o
-            s = np.asanyarray([s[k] for k in range(len(tmp)) if not
-                               np.isnan(tmp[k])])
-            o = np.asanyarray([o[j] for j in range(len(tmp)) if not
-                               np.isnan(tmp[j])])
-            # Prepare lists of GOFs
-            if i == 0:
-                gofs = {}
-                for gof in Opti.GOFs:
-                    gofs[gof] = []
+                ncalib = 1
 
-            # Another sanity check: any data/sim left after nan screening?
-            if s.__len__() == 0 or o.__len__() == 0:
-                print('Warning: nothing to compare to after date trimming!')
-                # Add nan
-                for gof in Opti.GOFs:
-                    gofs[gof] += [np.nan]
-            else:
-                # Now use your favorite likelihood estimator for each obs type
-                for gof in Opti.GOFs:
-                    if gof == 'corr':  # pearson correlation coefficient
-                        gofs[gof] += [GOFs.corr(s, o)]
-                    if gof == 'rstd':  # ratio of standard deviations
-                        gofs[gof] += [GOFs.rstd(s, o)]
-                    if gof == 'rmu':  # ratio of mean
-                        gofs[gof] += [GOFs.rmu(s, o)]
-                    if gof == 'NSE':  # NSE
-                        gofs[gof] += [GOFs.nash_sutcliffe(s, o)]
-                    if gof == 'KGE':  # KGE 2009
-                        gofs[gof] += [GOFs.kling_gupta(s, o)]
-                    if gof == 'KGE2012':  # KGE 2012
-                        gofs[gof] += [GOFs.kling_gupta(s, o,
-                                                       method='2012')]
-                    if gof == 'RMSE':  # RMSE
-                        gofs[gof] += [GOFs.rmse(s, o)]
-                    if gof == 'MAE':  # MAE
-                        gofs[gof] += [GOFs.meanabs(s, o)]
-                    if gof == 'KGEc':  # mean-centered KGE
-                        gofs[gof] += [GOFs.kling_gupta(s-np.mean(s), o-np.mean(o))]
-                    if gof == 'KGE2012c':  # mean-centered KGE2012
-                        gofs[gof] += [GOFs.kling_gupta(s-np.mean(s),
-                                                       o-np.mean(o),
-                                                       method='2012')]
-                    if gof == 'RMSEc':  # mean-centered RMSE
-                        gofs[gof] += [GOFs.rmse(s-np.mean(s), o-np.mean(o))]
-                    if gof == 'MAEc':  # mean-centered MAE
-                        gofs[gof] += [GOFs.meanabs(s-np.mean(s), o-np.mean(o))]
-                    if gof == 'gauL':  # Gaussian likelihood, measurement error out
-                        gofs[gof] += [spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)]
-                    if gof == 'logL':  # Log likelihood
-                        gofs[gof] += [spotpy.likelihoods.logLikelihood(o, s)]
-                    if gof == 'gauLerr':  # Gaussian likelihood
-                        gofs[gof] += [spotpy.likelihoods.gaussianLikelihoodHomoHeteroDataError(o, s)]
+            for ic in range(ncalib):
+                
+                # Have obervation and simulations matching the same time period
+                # obs: already pre-processed
+                if ic == 0:
+                    tobs = pd.to_datetime(Opti.obs[oname]['Date'].values)
+                    o = np.asanyarray(Opti.obs[oname]['value'].values)
+                if ic == 1:
+                    tobs = pd.to_datetime(Opti.obs2[oname]['Date'].values)
+                    o = np.asanyarray(Opti.obs2[oname]['value'].values)
+                    
+                # First step for sim: trim sim to obs timespan
+                # + only keep dates with obs (even if nan)
+                # print(sim)
+                # print(sim.shape)
+                if Obs.nobs == 1:
+                    s = np.asanyarray([simulations[j] for j in range(Obs.saveL)
+                                       if Obs.simt[j] in tobs])
+                else:
+                    s = np.asanyarray([simulations[i][j] for j in range(Obs.saveL)
+                                       if Obs.simt[j] in tobs])
+                # Second step (both o and s): remove nan due to gaps in obs
+                # (or missing steps in sims...)
+                tmp = s*o
+                s = np.asanyarray([s[k] for k in range(len(tmp)) if not
+                                   np.isnan(tmp[k])])
+                o = np.asanyarray([o[j] for j in range(len(tmp)) if not
+                                   np.isnan(tmp[j])])
+                # Prepare lists of GOFs
+                if i == 0 and ic == 0:
+                    gofs = {}
+                    for gof in Opti.GOFs:
+                        gofs[gof] = []
+                if i == 0 and ic == 1:
+                    gofs2 = {}
+                    for gof in Opti.GOFs:
+                        gofs2[gof] = []
+
+                # Another sanity check: any data/sim left after nan screening?
+                if s.__len__() == 0 or o.__len__() == 0:
+                    print('Warning: nothing to compare to after date trimming!')
+                    # Add nan
+                    for gof in Opti.GOFs:
+                        if ic == 0:
+                            gofs[gof] += [np.nan]
+                        if ic == 1:
+                            gofs2[gof] += [np.nan]
+
+                else:
+                    # Now use your favorite likelihood estimator for each obs type
+                    for gof in Opti.GOFs:
+                        if gof == 'corr':  # pearson correlation coefficient
+                            tmp = GOFs.corr(s, o)
+                        if gof == 'rstd':  # ratio of standard deviations
+                            tmp = GOFs.rstd(s, o)
+                        if gof == 'rmu':  # ratio of mean
+                            tmp = GOFs.rmu(s, o)
+                        if gof == 'NSE':  # NSE
+                            tmp = GOFs.nash_sutcliffe(s, o)
+                        if gof == 'KGE':  # KGE 2009
+                            tmp = GOFs.kling_gupta(s, o)
+                        if gof == 'KGE2012':  # KGE 2012
+                            tmp = GOFs.kling_gupta(s, o, method='2012')
+                        if gof == 'RMSE':  # RMSE
+                            tmp = GOFs.rmse(s, o)
+                        if gof == 'MAE':  # MAE
+                            tmp = GOFs.meanabs(s, o)
+                        if gof == 'KGEc':  # mean-centered KGE
+                            tmp = GOFs.kling_gupta(s-np.mean(s), o-np.mean(o))
+                        if gof == 'KGE2012c':  # mean-centered KGE2012
+                            tmp = GOFs.kling_gupta(s-np.mean(s),o-np.mean(o), method='2012')
+                        if gof == 'RMSEc':  # mean-centered RMSE
+                            tmp = GOFs.rmse(s-np.mean(s), o-np.mean(o))
+                        if gof == 'MAEc':  # mean-centered MAE
+                            tmp = GOFs.meanabs(s-np.mean(s), o-np.mean(o))
+                        if gof == 'gauL':  # Gaussian likelihood, measurement error out
+                            tmp = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
+                        if gof == 'logL':  # Log likelihood
+                            tmp = spotpy.likelihoods.logLikelihood(o, s)
+                        if gof == 'gauLerr':  # Gaussian likelihood
+                            tmp = spotpy.likelihoods.gaussianLikelihoodHomoHeteroDataError(o, s)
+
+                        # Add to the gof, depending on calibration period
+                        if ic == 0:
+                            gofs[gof] += [tmp]
+                        if ic == 1:
+                            gofs2[gof] += [tmp]
 
         # Store goodnesses of fit, one files per GOF
         for gof in Opti.GOFs:
@@ -2308,6 +2524,11 @@ def store_GOF(Obs, Opti, Config, Site, it):
             with open(Opti.GOFfiles[gof], 'a') as f_out:
                 f_out.write(str(it+1)+',' +
                             ','.join([str(x) for x in gofs[gof]])+'\n')
+            # Where applicable, GOF second period
+            if Opti.iscalib2 is True:
+                with open(Opti.GOFfiles2[gof], 'a') as f_out:
+                    f_out.write(str(it+1)+',' +
+                                ','.join([str(x) for x in gofs2[gof]])+'\n')
 
     else:
         # Write NaN
@@ -2315,6 +2536,13 @@ def store_GOF(Obs, Opti, Config, Site, it):
             with open(Opti.GOFfiles[gof], 'a') as f_out:
                 f_out.write(str(it+1)+',' +
                             ','.join(list(np.repeat('nan', Obs.nobs)))+'\n')
+            # Where applicable, nan is GOF second period
+            if Opti.iscalib2 is True:
+                with open(Opti.GOFfiles2[gof], 'a') as f_out:
+                    f_out.write(str(it+1)+',' +
+                                ','.join(list(np.repeat('nan', Obs.nobs)))+'\n')
+
+        
 # ==================================================================================
 # Functions for variable sampling
 
