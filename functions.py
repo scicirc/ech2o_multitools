@@ -141,10 +141,6 @@ def config_init(options):
         if Config.restart > 1:
             sys.exit('Wrong value for restart')
 
-    # -- Resolution (default 50m, used with reference Spatial folder)
-    # if not hasattr(Site.Resol):
-    #     Site.Resol = '50m'
-
     # -- MS init: many things don't happen if it is the case
     if Config.mode == 'sensi_morris':
         # if options.MSinit is None:
@@ -832,7 +828,7 @@ def obs_init(Config, Opti, Obs):
         if Obs.saveL > Obs.lsim - Obs.saveB + 1:
             sys.exit('Error: the specified output slicing start+length ' +
                      'goes beyond simulation time!')
-    # Report BasinSummary.txt
+    # Report ech2o.log files
     if not hasattr(Config, 'replog'):
         Config.replog = 0        
     # Report BasinSummary.txt
@@ -891,8 +887,8 @@ def obs_init(Config, Opti, Obs):
             # -- Second calibration period?
             if 'fit_beg2' in Obs.obs[oname].keys() and \
                'fit_end2' in Obs.obs[oname].keys() :
-                print(type(Obs.obs[oname]['fit_beg2']))
-                print(type(Obs.obs[oname]['fit_end2']))
+                #print(type(Obs.obs[oname]['fit_beg2']))
+                #print(type(Obs.obs[oname]['fit_end2']))
                 if type(Obs.obs[oname]['fit_beg2']) is datetime and \
                    type(Obs.obs[oname]['fit_end2']) is datetime:
                     fitbeg2 = max(Obs.obs[oname]['fit_beg2'], Obs.simt[0])
@@ -931,7 +927,7 @@ def obs_init(Config, Opti, Obs):
                 Opti.GOFfiles[gof] = Config.PATH_OUTmain+'/'+gof+'.task'+Config.tasknum+'.tab'
                 # Header of files
                 if Config.restart == 0:
-                    print('first period:',fitbeg,'to',fitend)
+                    #print('first period:',fitbeg,'to',fitend)
                     with open(Opti.GOFfiles[gof], 'w') as f_out:
                         f_out.write('Sample,'+','.join(Obs.names)+'\n')
                 # Second calibration period
@@ -941,7 +937,7 @@ def obs_init(Config, Opti, Obs):
                                           Config.tasknum+'.tab'
                     # Header of files
                     if Config.restart == 0:
-                        print('second period:',fitbeg2,'to',fitend2)
+                        #print('second period:',fitbeg2,'to',fitend2)
                         with open(Opti.GOFfiles2[gof], 'w') as f_out:
                             f_out.write('Sample,'+','.join(Obs.names)+'\n')
 
@@ -1044,8 +1040,6 @@ def files_init(Config, Opti, Paras, Site):
             with open(Config.FILE_CFGdest, 'a') as fw:
                 fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
                 fw.write('Clim_Maps_Folder = '+Config.PATH_CLIM+'\n')
-                # fw.write('ClimateZones = ClimZones_'+Site.Resol+'.map\n')
-                # fw.write('Isohyet_map = isohyet_'+Site.Resol+'.map\n')
                 # Further edit regarding tracking
                 if Site.isTrck == 1:
                     fw.write('Tracking = 1\n')
@@ -1939,7 +1933,7 @@ def read_sim(Config, Obs, oname, it=0):
                       Config.PATH_OUT+'/'+Obs.obs[oname]['sim_file']+ 
                       '.run'+str(it+1)+'.txt')
 
-    # Integrated variables (in BasinSummary.txt) -----------------
+    # Integrated variables (in Basin*Summary.txt) -----------------
     elif Obs.obs[oname]['type'] == 'Total':
         idx = Obs.obs[oname]['sim_pts']-1
         # Read
@@ -2000,7 +1994,7 @@ def store_sim(Obs, Opti, Config, Site, it):
             mode = 'silent'
 
         # Time series ---------------------------------------------------------
-        # Integrated variables (in BasinSummary.txt)
+        # Integrated variables (in Basin*Summary.txt)
 
         if Obs.obs[oname]['type'] == 'Total':
 
@@ -2017,9 +2011,10 @@ def store_sim(Obs, Opti, Config, Site, it):
                 sim = sim.iloc[:, idx] * Obs.obs[oname]['sim_conv']
                 # Trim (spinup, transient state, etc.)
                 # Index starts at 0
-                if Obs.obs[oname]['sim_file'] in ['BasinSummary.txt', 'BasinAgeSummary.txt',
-                                                  'BasincClSummary.txt', 'Basind2HSummary.txt',
-                                                  'Basind18OSummary.txt']:
+                if Obs.obs[oname]['sim_file'] in ['BasinSummary.txt',
+                                                  'BasinVegSummary.txt',
+                                                  'BasinAgeSummary.txt', 'BasincClSummary.txt',
+                                                  'Basind2HSummary.txt', 'Basind18OSummary.txt']:
                     sim = sim[Obs.saveB-1:Obs.saveB+Obs.saveL-1]
                 else:
                     #sim = sim.loc[Obs.saveB-1:Obs.saveB+Obs.saveL-2]
@@ -2334,6 +2329,12 @@ def store_sim(Obs, Opti, Config, Site, it):
         os.system('cp '+Config.PATH_EXEC+'/BasinSummary.txt ' +
                   Config.PATH_OUT+'/BasinSummary_run'+str(it+1)+'.txt')
 
+        # Vegetation summary
+        if len(glob.glob(Config.PATH_EXEC+'/BasinVegSummary.txt')) != 0:
+            os.system('cp '+Config.PATH_EXEC + '/BasinVegSummary.txt ' +
+                      Config.PATH_OUT+'/BasinVegSummary_run' +
+                      str(it+1)+'.txt')
+
         if Site.isTrck == 1:
             # deuterium summary
             if len(glob.glob(Config.PATH_EXEC+'/Basind2HSummary.txt')) != 0:
@@ -2445,7 +2446,7 @@ def store_GOF(Obs, Opti, Config, Site, it):
                 if ic == 1:
                     tobs = pd.to_datetime(Opti.obs2[oname]['Date'].values)
                     o = np.asanyarray(Opti.obs2[oname]['value'].values)
-                    
+
                 # First step for sim: trim sim to obs timespan
                 # + only keep dates with obs (even if nan)
                 # print(sim)
@@ -2964,42 +2965,75 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
             else:
                 # Now use your favorite likelihood estimator for each obs type
 
-                # Specific treatment for different obs types?
-                if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
-                    # print(oname, 'remove mean')
-                    # s -= np.mean(s)
-                    # o -= np.mean(o)
-                    # Kling-gupta
-                    # L = spotpy.objectivefunctions.kge(o, s)
-                    # Log Gaussian likelihood without error
+                if obs[oname]['gof'] == 'corr':  # pearson correlation coefficient
+                    L = GOFs.corr(s, o)
+                elif obs[oname]['gof'] == 'rstd':  # ratio of standard deviations
+                    L = GOFs.rstd(s, o)
+                elif obs[oname]['gof'] == 'rmu':  # ratio of mean
+                    L = GOFs.rmu(s, o)
+                elif obs[oname]['gof'] == 'NSE':  # NSE
+                    L = GOFs.nash_sutcliffe(s, o)
+                elif obs[oname]['gof'] == 'KGE':  # KGE 2009
+                    L = GOFs.kling_gupta(s, o)
+                elif obs[oname]['gof'] == 'KGE2012':  # KGE 2012
+                    L = GOFs.kling_gupta(s, o, method='2012')
+                elif obs[oname]['gof'] == 'RMSE':  # RMSE
+                    L = GOFs.rmse(s, o)
+                elif obs[oname]['gof'] == 'MAE':  # MAE
+                    L = GOFs.meanabs(s, o)
+                elif obs[oname]['gof'] == 'KGEc':  # mean-centered KGE
+                    L = GOFs.kling_gupta(s-np.mean(s), o-np.mean(o))
+                elif obs[oname]['gof'] == 'KGE2012c':  # mean-centered KGE2012
+                    L = GOFs.kling_gupta(s-np.mean(s),o-np.mean(o), method='2012')
+                elif obs[oname]['gof'] == 'RMSEc':  # mean-centered RMSE
+                    L = GOFs.rmse(s-np.mean(s), o-np.mean(o))
+                elif obs[oname]['gof'] == 'MAEc':  # mean-centered MAE
+                    L = GOFs.meanabs(s-np.mean(s), o-np.mean(o))
+                elif obs[oname]['gof'] == 'gauL':  # Gaussian likelihood, measurement error out
                     L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
-                    #   *  1 / np.mean(o)
-                    # Log Gaussian with error set using std
-                    # LogLikehood as used in Vrugt et al. (2016)
-                    # Using standard deviation as indicator of error
-                    # o_err = 0.5*np.std(o) + 0.1*o
-                    # res = o - s
-                    # cor = np.corrcoef(res[:-1],res[1:])[1,0]
-                    # o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
-                    #                   res.__len__())
-                    # L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
+                elif obs[oname]['gof'] == 'logL':  # Log likelihood
+                    L = spotpy.likelihoods.logLikelihood(o, s)
+                elif obs[oname]['gof'] == 'gauLerr':  # Gaussian likelihood
+                    L = spotpy.likelihoods.gaussianLikelihoodHomoHeteroDataError(o, s)
                 else:
-                    # Mean absolute error
-                    L = spotpy.objectivefunctions.mae(o, s) / mean(o)
-                    # Log Gaussian likelihood without error
-                    # L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
-                    #     1 / np.mean(o)
-                    # Log Gaussian with error set using std
-                    # LogLikehood as used in Vrugt et al. (2016)
-                    # Using standard deviation as indicator of error...
-                    # o_err = np.std(o) + 0.25*o
-                    # res = o - s
-                    # cor = np.corrcoef(res[:-1],res[1:])[1,0]
-                    # o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
-                    #                   res.__len__())
-                    # L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
-                # Normalize by data length
-                # L /= o.__len__()
+                    sys.exit('ERROR: unvalid gof for ', oname)
+
+                # # Specific treatment for different obs types?
+                # if oname.split('_')[0] in ['GWD', 'WTD', 'GWL', 'WTL']:
+                #     # print(oname, 'remove mean')
+                #     # s -= np.mean(s)
+                #     # o -= np.mean(o)
+                #     # Kling-gupta
+                #     # L = spotpy.objectivefunctions.kge(o, s)
+                #     # Log Gaussian likelihood without error
+                #     L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
+                #     #   *  1 / np.mean(o)
+                #     # Log Gaussian with error set using std
+                #     # LogLikehood as used in Vrugt et al. (2016)
+                #     # Using standard deviation as indicator of error
+                #     # o_err = 0.5*np.std(o) + 0.1*o
+                #     # res = o - s
+                #     # cor = np.corrcoef(res[:-1],res[1:])[1,0]
+                #     # o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
+                #     #                   res.__len__())
+                #     # L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
+                # else:
+                #     # Mean absolute error
+                #     L = spotpy.objectivefunctions.mae(o, s) / mean(o)
+                #     # Log Gaussian likelihood without error
+                #     # L = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s) * \
+                #     #     1 / np.mean(o)
+                #     # Log Gaussian with error set using std
+                #     # LogLikehood as used in Vrugt et al. (2016)
+                #     # Using standard deviation as indicator of error...
+                #     # o_err = np.std(o) + 0.25*o
+                #     # res = o - s
+                #     # cor = np.corrcoef(res[:-1],res[1:])[1,0]
+                #     # o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
+                #     #                   res.__len__())
+                #     # L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
+                # # Normalize by data length
+                # # L /= o.__len__()
 
             Ltot += [L]  # list of all likelihoods
             like += L  # "main" likelihood (used by algorithm)
