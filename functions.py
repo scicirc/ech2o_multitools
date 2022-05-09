@@ -213,7 +213,7 @@ def config_init(options):
 
         if Config.mode == 'calib_MCsampling':
             Config.FILE_PAR = Config.PATH_PAR+'/'+Config.outdir + '_parameters.'
-        
+
         if Config.mode == 'calib_MCruns':
             Config.FILE_PAR = Config.PATH_PAR+'/'+Config.indir + '_parameters.' + \
                               Config.tasknum2+'.txt'
@@ -294,7 +294,7 @@ def param_init(Config, Opti, Paras, Site, options):
     for par in Paras.names:
 
         # print(par)
-        
+
         # Default
         if 'soil' not in Paras.ref[par].keys():
             Paras.ref[par]['soil'] = 0
@@ -351,7 +351,7 @@ def param_init(Config, Opti, Paras, Site, options):
                                                    '+'.join(Site.soils[j] for
                                                             j in range(Site.ns) if
                                                             Paras.ref[par]['soil'][j] == i)]
-                # component, here, rows indices in reference SpeciesParams.tab param file 
+                # component, here, rows indices in reference SpeciesParams.tab param file
                 Paras.comp[par] = [i for i in range(Site.ns) if
                                    Paras.ref[par]['soil'][i] > 0                                ]
             else:
@@ -393,7 +393,7 @@ def param_init(Config, Opti, Paras, Site, options):
                                                    '+'.join(Site.vegs[j] for
                                                             j in range(Site.nv) if
                                                             Paras.ref[par]['veg'][j] == i)]
-                # component, here, rows indices in reference SpeciesParams.tab param file 
+                # component, here, rows indices in reference SpeciesParams.tab param file
                 Paras.comp[par] = [i for i in range(Site.nv) if
                                    Paras.ref[par]['veg'][i] > 0                                ]
             else:
@@ -406,7 +406,7 @@ def param_init(Config, Opti, Paras, Site, options):
         Opti.ind += list(np.repeat(ipar, nr))
         # Vice versa: which Opti.* indice(s) correspond to a given par?
         if nr>1 or type(Paras.comp[par]) == list :
-            
+
             # If there are as many component as there are different soil/species calibrated
             if len(Paras.comp[par]) == nr:
                 Paras.ind[par] = list(np.arange(ipar2, ipar2+nr, 1))
@@ -422,11 +422,11 @@ def param_init(Config, Opti, Paras, Site, options):
                     tmp = [i for i in Paras.ref[par]['veg'] if i > 0]
                 else:
                     sys.exit('Error when mapping parameter '+par+' to optimization vector')
-                    
+
                 Paras.ind[par] = []
                 for i in range(nr):
                     Paras.ind[par] += [i+ipar2 for j in tmp if j==np.unique(tmp)[i]]
-                
+
         else:
             Paras.ind[par] = [ipar2]
 
@@ -830,10 +830,10 @@ def obs_init(Config, Opti, Obs):
                      'goes beyond simulation time!')
     # Report ech2o.log files
     if not hasattr(Config, 'replog'):
-        Config.replog = 0        
+        Config.replog = 0
     # Report BasinSummary.txt
     if not hasattr(Obs, 'repBS'):
-        Obs.repBS = 0        
+        Obs.repBS = 0
     # Report BasinSummary.txt for lines at saveB and last line
     if not hasattr(Opti, 'repBS_interval'):
         Opti.repBS_interval = 0
@@ -848,17 +848,23 @@ def obs_init(Config, Opti, Obs):
         Opti.obs2 = {}  # in case there's a second model-data fit window given
         Opti.calib2 = {}  # in case there's a second model-data fit window given
         Opti.iscalib2 = False
-        
+
+        # Use derivate-based GOFs ?
+        Opti.gof_d1 = False
+        for gof in Opti.GOFs:
+            if 'd1' in gof:
+                Opti.gof_d1 = True
+
         for oname in Obs.names:
 
-            # print(oname)
+            print(oname)
             # -- Get the obs
             f_obs = Config.PATH_OBS + '/' + Obs.obs[oname]['obs_file']
 
             # Read the file, keeping only the data and relevant TS columns
             tmp = pd.read_csv(f_obs, sep=';').iloc[
                 :, [0, Obs.obs[oname]['obs_col']-1]]
-            tmp.columns.values[:] = ['Date', 'value']
+            tmp.columns = ['Date', 'value']
             # Convert date column to datetime
             tmp['Date'] = pd.to_datetime(tmp['Date'])
             # Convert date column to datetime
@@ -873,16 +879,16 @@ def obs_init(Config, Opti, Obs):
                type(Obs.obs[oname]['fit_beg']) is not datetime.date:
                 fitbeg = Obs.simt[0]
             else:
-                fitbeg = max(Obs.obs[oname]['fit_beg'], Obs.simt[0])               
+                fitbeg = max(Obs.obs[oname]['fit_beg'], Obs.simt[0])
             if 'fit_end' not in Obs.obs[oname].keys() or \
                type(Obs.obs[oname]['fit_end']) is not datetime.date:
                 fitend = Obs.simt[Obs.saveL-1]
             else:
                 fitend = min(Obs.obs[oname]['fit_end'],
-                             Obs.simt[Obs.saveL-1])         
+                             Obs.simt[Obs.saveL-1])
             # Crop obs between desired time frame
             tmp2 = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
-            Opti.obs[oname] = tmp2.dropna(how='all')
+            Opti.obs[oname] = tmp2.dropna(how='any')
 
             # -- Second calibration period?
             if 'fit_beg2' in Obs.obs[oname].keys() and \
@@ -892,21 +898,48 @@ def obs_init(Config, Opti, Obs):
                 if type(Obs.obs[oname]['fit_beg2']) is datetime and \
                    type(Obs.obs[oname]['fit_end2']) is datetime:
                     fitbeg2 = max(Obs.obs[oname]['fit_beg2'], Obs.simt[0])
-                    fitend2 = min(Obs.obs[oname]['fit_end2'], Obs.simt[Obs.saveL-1])         
+                    fitend2 = min(Obs.obs[oname]['fit_end2'], Obs.simt[Obs.saveL-1])
                     # Crop obs between desired time frame
                     tmp2 = tmp.loc[(tmp.Date >= fitbeg2) & (tmp.Date <= fitend2)]
-                    Opti.obs2[oname] = tmp2.dropna(how='all')
+                    Opti.obs2[oname] = tmp2.dropna(how='any')
                     Opti.calib2[oname] = True
                     Opti.iscalib2 = True
                 else:
                     Opti.calib2[oname] = False
             else:
                 Opti.calib2[oname] = False
-                
+
+            # # -- Get derivative if needed for GOFs
+            # if Opti.gof_d1 is True:
+            #     # between available data points
+            #     # with can be longer than simulation resolution
+            #     tmp3 = Opti.obs[oname].diff()[1::] # interval & delta value
+            #     # tmp3.rename(columns={'Date':'Dt', 'value':'DY'}, inplace=True)
+            #     tmp3.columns = ['Dt', 'DY']
+            #     # starting date for Dt
+            #     tmp3['tbeg'] = Opti.obs[oname]['Date'].loc[tmp3.index] - tmp3['Dt']
+            #     # actual rate in (ObsUnit) per second
+            #     tmp3['value'] = tmp3['DY'] / tmp3['Dt'].dt.total_seconds()
+            #     Opti.obs[oname+'_d1'] = copy.copy(tmp3[['tbeg','value','Dt']])
+            #
+            #     # Same for second calibration period, if needed
+            #     if Opti.calib2[oname] is True:
+            #         tmp3 = Opti.obs2[oname].diff()[1::] # interval & delta value
+            #         tmp3.columns = ['Dt', 'DY']
+            #         # starting date for Dt
+            #         tmp3['tbeg'] = Opti.obs2[oname]['Date'].loc[tmp3.index] - tmp3['Dt']
+            #         # actual rate in (ObsUnit) per second
+            #         tmp3['value'] = tmp3['DY'] / tmp3['Dt'].dt.total_seconds()
+            #         Opti.obs2[oname+'_d1'] = copy.copy(tmp3[['tbeg','value','Dt']])
+
+
+
     if Config.mode == 'calib_MCruns':
         # -- Group the output files in one across simulations,
         #    separating by observations points and veg type where it applies
-        GOFref = ['NSE','KGE','KGE2012','RMSE','MAE','KGEc','KGE2012c','RMSEc','MAEc',
+        GOFref = ['NSE','KGE','KGE2012','RMSE','MAE', # classic
+                'KGEc','KGE2012c','RMSEc','MAEc', # mean-centered
+                'RMSE_d1','MAE_d1', # using derivatives
                   'gauL','gauLerr','logL','corr','rstd','rmu']
         # Check that use-defined GOFs are in the reference list
         tmp = []
@@ -921,7 +954,7 @@ def obs_init(Config, Opti, Obs):
             Opti.GOFfiles = {}
             if Opti.iscalib2 is True:
                 Opti.GOFfiles2 = {}
-            
+
             for gof in Opti.GOFs:
                 # Historic time series file names
                 Opti.GOFfiles[gof] = Config.PATH_OUTmain+'/'+gof+'.task'+Config.tasknum+'.tab'
@@ -941,14 +974,14 @@ def obs_init(Config, Opti, Obs):
                         with open(Opti.GOFfiles2[gof], 'w') as f_out:
                             f_out.write('Sample,'+','.join(Obs.names)+'\n')
 
-                
+
         # -- Optional: group the BasinSummary files in one across simulations
         if Opti.repBS_interval == 1:
             # Interval start (saveB)
             Opti.BSfile_tb = Config.PATH_OUTmain+'/BasinBudget_tb.task'+Config.tasknum+'.tab'
             # Interval start (saveB+lsim)
             Opti.BSfile_te = Config.PATH_OUTmain+'/BasinBudget_te.task'+Config.tasknum+'.tab'
-            
+
 
 # ==========================================================================
 
@@ -1055,7 +1088,7 @@ def files_init(Config, Opti, Paras, Site):
 
                 # Vegetation parameter files to be used
                 fw.write('Species_Parameters = '+Site.vfile+'\n')
-                
+
             # If tracking, copy template configTrck file for EcH2O
             if Site.isTrck == 1:
                 copy_file(Config.FILE_CFGtrck,
@@ -1214,7 +1247,7 @@ def files_init(Config, Opti, Paras, Site):
         #         # 2H tracking ?
         #         if 'sw_Age =' in line:
         #             Site.sw_Age = int(line.split('=')[1].strip())
-        
+
         # if Config.isTrck == 1:
         #     os.system('cp '+Config.PATH_SPA+'/d2H_snowpack.map '+Config.PATH_SPA+
         # '/d2H.snowpack.map')
@@ -1228,7 +1261,7 @@ def files_init(Config, Opti, Paras, Site):
         # '/d2H.L3.map')
         #     os.system('cp '+Config.PATH_SPA+'/d2H_groundwater.map '+
         # Config.PATH_SPA+'/d2H.GW.map')
-        
+
         #     os.system('cp '+Config.PATH_SPA+'/d18O_snowpack.map '+
         # Config.PATH_SPA+'/d18O.snowpack.map')
         #     os.system('cp '+Config.PATH_SPA+'/d18O_surface.map '+
@@ -1241,7 +1274,7 @@ def files_init(Config, Opti, Paras, Site):
         # '/d18O.L3.map')
         #     os.system('cp '+Config.PATH_SPA+'/d18O_groundwater.map '+
         # Config.PATH_SPA+'/d18O.GW.map')
-        
+
         #     os.system('cp '+Config.PATH_SPA+'/Age_snowpack.map '+
         # Config.PATH_SPA+'/Age.snowpack.map')
         #     os.system('cp '+Config.PATH_SPA+'/Age_surface.map '+
@@ -1277,7 +1310,7 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
     Config.initpar = 0
     Config.initobs = 0
     Opti.begfail = 0
-    
+
     # Initial clean up, if not restarting
     f_failpar = Config.PATH_OUTmain+'/Parameters_fail.task'+Config.tasknum+'.txt'
     if len(glob.glob(f_failpar)) != 0 and Config.restart == 0:
@@ -1345,7 +1378,7 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
         # Store BasinSummary.txt at intervals if asked (and if the simulation worked)
         if Opti.repBS_interval == 1:
             store_BS_interval(Obs, Opti, Config, it)
-        
+
         # os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
         #           Config.PATH_EXEC + '/ech2o.run'+Opti.itout+'.log')
 
@@ -1433,7 +1466,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
     f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
     if len(glob.glob(f_failpar)) != 0:
         os.system('rm -f '+f_failpar)
-    
+
     for itraj in range(Opti.nr):
 
         print('======================================')
@@ -1441,7 +1474,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
         print('--------------------------------------')
 
         # Array of parameters for this trajectory
-        Opti.xpar = np.transpose(Opti.Bstar[:, :, itraj]) 
+        Opti.xpar = np.transpose(Opti.Bstar[:, :, itraj])
 
         # There are npara+1 runs for each trajectory
         for irun in range(Opti.nvar+1):
@@ -1481,7 +1514,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
 
             if runOK(Obs, Opti, Config, mode='silent') == 0:
                 # else:  # Not running properly? Report
-                
+
                 if len(glob.glob(f_failpar)) == 0:
                     with open(f_failpar, 'w') as f_in:
                         f_in.write('Trajectory/RadPoint,Sample,'+','.join(Opti.names)+'\n')
@@ -1589,8 +1622,8 @@ def restart(Config, Opti, Obs):
 
         # There's something to keep for previous jobs
         print('...but directly restarting from iter. ', Config.itres)
-        
-        # Rewrite the GOF files: to evenize between variable last it or 
+
+        # Rewrite the GOF files: to evenize between variable last it or
         # remove the final NaN lines (but not those in between "good" runs)
         for gof in Opti.GOFs:
             #print(gof)
@@ -1600,8 +1633,8 @@ def restart(Config, Opti, Obs):
             if Opti.iscalib2 is True:
                 tmp2 = pd.read_csv(Opti.GOFfiles2[gof]).set_index('Sample').loc[1:Config.itres-1]
                 tmp2.to_csv(Opti.GOFfiles2[gof], na_rep="nan")
-            
-        # Rewrite the BSfile (if needed): to evenize between variable last it or 
+
+        # Rewrite the BSfile (if needed): to evenize between variable last it or
         # remove the final NaN lines (but not those in between "good" runs)
         if Opti.repBS_interval == 1:
             Config.restart2 = 2
@@ -1611,7 +1644,7 @@ def restart(Config, Opti, Obs):
             tmp = pd.read_csv(Opti.BSfile_te).set_index('Sample').loc[1:Config.itres-1]
             tmp.to_csv(Opti.BSfile_te, na_rep="nan")
 
-            
+
 
     else:
         # Nothing worth saving from previous job(s): reinitialize files
@@ -1621,12 +1654,12 @@ def restart(Config, Opti, Obs):
             if Opti.iscalib2 is True:
                 with open(Opti.GOFfiles2[gof], 'w') as f_out:
                     f_out.write('Sample,'+','.join(Obs.names)+'\n')
-                
+
 
         # For RepBS files, it's done elsewhere
         if Opti.repBS_interval == 1:
             Config.restart2 = 1
- 
+
     # # -- Some cleaning for parameters
     # Config.f_par = Config.PATH_OUT+'/Parameters.txt'
     # # Read grouped simulations
@@ -1760,7 +1793,7 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
             if Paras.ref[pname]['soil'] != 0:
                 # print 'Soil dependent !!'
 
-                # Full soil dependence 
+                # Full soil dependence
                 if Paras.ref[pname]['soil'] == 1:
                     # Start from 0 map
                     outmap = Site.bmaps['unit']*0
@@ -1858,8 +1891,8 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
     # sys.exit()
 
     # ------------------------------------------------------------------------------
-    # Finalizing the preps....    
-   
+    # Finalizing the preps....
+
     # Initial soil water content: needs porosity profile and depth to have
     # consistent initial soil moisture for each layer
 
@@ -1894,7 +1927,7 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
         pcr.report(Site.SWC1init*Site.bmaps['unit'], path_spa+'/'+Site.f_initSWC1)
     else:
         pcr.report(porosL1*Site.frac_SWC1, path_spa+'/'+Site.f_initSWC1)
-        
+
     if hasattr(Site, 'SWC2init'):
         pcr.report(Site.SWC2init*Site.bmaps['unit'], path_spa+'/'+Site.f_initSWC2)
     else:
@@ -1930,7 +1963,7 @@ def read_sim(Config, Obs, oname, it=0):
             print("Warning: some steps were missing in", Obs.obs[oname]['sim_file'],
                   '(',','.join([str(x) for x in list(pd.isnull(sim[1]).nonzero()[0]+1)]))
             copy_file(Obs.obs[oname]['sim_file'],
-                      Config.PATH_OUT+'/'+Obs.obs[oname]['sim_file']+ 
+                      Config.PATH_OUT+'/'+Obs.obs[oname]['sim_file']+
                       '.run'+str(it+1)+'.txt')
 
     # Integrated variables (in Basin*Summary.txt) -----------------
@@ -1949,7 +1982,7 @@ def read_sim(Config, Obs, oname, it=0):
     #print(len(sim),'(3', Obs.saveB, Obs.saveB+Obs.saveL-1,')')
 
     if len(sim) != Obs.saveL:
-        print("Warning: problem with "+oname+" trim: read length is " + 
+        print("Warning: problem with "+oname+" trim: read length is " +
               str(len(sim)) + ' instead of '+str(Obs.saveL))
         sim = [np.nan] * Obs.saveL
 
@@ -1957,7 +1990,7 @@ def read_sim(Config, Obs, oname, it=0):
     #     sim = sim[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
     #     # print(len(sim))
     # #print(sim)
-    
+
     return list(sim)
 
 
@@ -2049,7 +2082,7 @@ def store_sim(Obs, Opti, Config, Site, it):
                 sim = pd.read_table(Obs.obs[oname]['sim_file'],#error_bad_lines=False,
                                     skiprows=hskip, header=None).set_index(0)
 
-                
+
                 # Check if it ran properly (sometimes some time steps are skipped in *tab...)
                 # If steps are missing but the series is long enough, let's replace with nan
                 if len(sim) < Obs.lsim:  # and len(sim) > 365:
@@ -2058,7 +2091,7 @@ def store_sim(Obs, Opti, Config, Site, it):
                     print("Warning: some steps were missing in", Obs.obs[oname]['sim_file'],
                           '(',','.join([str(x) for x in list(pd.isnull(sim[1]).nonzero()[0]+1)]))
                     copy_file(Obs.obs[oname]['sim_file'],
-                              Config.PATH_OUT+'/'+Obs.obs[oname]['sim_file']+ 
+                              Config.PATH_OUT+'/'+Obs.obs[oname]['sim_file']+
                               '.run'+str(it+1)+'.txt')
 
                 # Get observation column
@@ -2376,7 +2409,7 @@ def store_BS_interval(Obs, Opti, Config, it):
         with open(Opti.BSfile_te, 'w') as f_out:
             f_out.write('Sample,'+','.join([j for j in sim.columns])+'\n')
 
-            
+
     # Write values at given intervals
     if runOK(Obs, Opti, Config, 'silent') == 1:
 
@@ -2385,7 +2418,7 @@ def store_BS_interval(Obs, Opti, Config, it):
         sim_te = sim.iloc[Obs.lsim-1, :]
         #print(sim_tb)
         #print(sim_te)
-        
+
         # Simulation, or nan
         with open(Opti.BSfile_tb, 'a') as f_out:
             f_out.write(str(it+1)+','+
@@ -2401,6 +2434,8 @@ def store_BS_interval(Obs, Opti, Config, it):
         with open(Opti.BSfile_te, 'a') as f_out:
             f_out.write(str(it+1)+','+
                         ','.join(list(np.repeat('nan', 22)))+'\n')
+# -----------------------------------------------------------------------
+
 
 def store_GOF(Obs, Opti, Config, Site, it):
     # -- Store goodness-of-fit using using several metrics:
@@ -2425,7 +2460,8 @@ def store_GOF(Obs, Opti, Config, Site, it):
                 # ', expected:', Obs.saveL)
                 #     simulations[i][:] = [np.nan] * Obs.saveL
 
-        
+        Opti.tmp = copy.copy(simulations)
+
         for i in range(Obs.nobs):
 
             oname = Obs.names[i]
@@ -2437,32 +2473,52 @@ def store_GOF(Obs, Opti, Config, Site, it):
                 ncalib = 1
 
             for ic in range(ncalib):
-                
+
                 # Have obervation and simulations matching the same time period
                 # obs: already pre-processed
                 if ic == 0:
                     tobs = pd.to_datetime(Opti.obs[oname]['Date'].values)
-                    o = np.asanyarray(Opti.obs[oname]['value'].values)
+                    # o = np.asanyarray(Opti.obs[oname]['value'].values)
+                    o = Opti.obs[oname].reset_index(drop=True)
+                    # if Opti.gof_d1 is True: # Derivative
+                    #     o_d1 = np.asanyarray(Opti.obs[oname+'_d1']['value'].values)
                 if ic == 1:
                     tobs = pd.to_datetime(Opti.obs2[oname]['Date'].values)
-                    o = np.asanyarray(Opti.obs2[oname]['value'].values)
+                    # o = np.asanyarray(Opti.obs2[oname]['value'].values)
+                    o = Opti.obs2[oname].reset_index(drop=True)
+                    # if Opti.gof_d1 is True: # Derivative
+                    #     o_d1 = np.asanyarray(Opti.obs2[oname+'_d1']['value'].values)
+
 
                 # First step for sim: trim sim to obs timespan
                 # + only keep dates with obs (even if nan)
                 # print(sim)
                 # print(sim.shape)
                 if Obs.nobs == 1:
-                    s = np.asanyarray([simulations[j] for j in range(Obs.saveL)
-                                       if Obs.simt[j] in tobs])
+                    # s = np.asanyarray([simulations[j] for j in range(Obs.saveL)
+                    #                    if Obs.simt[j] in tobs])
+                    s = pd.Series([simulations[j] for j in range(Obs.saveL)
+                            if Obs.simt[j] in tobs]).reset_index(drop=True)
                 else:
-                    s = np.asanyarray([simulations[i][j] for j in range(Obs.saveL)
-                                       if Obs.simt[j] in tobs])
+                    # s = np.asanyarray([simulations[i][j] for j in range(Obs.saveL)
+                    #                    if Obs.simt[j] in tobs])
+                    s = pd.Series([simulations[i][j] for j in range(Obs.saveL)
+                            if Obs.simt[j] in tobs]).reset_index(drop=True)
+
+                if Opti.gof_d1 is True: # Derivative
+                    dt = tobs.to_series().reset_index(drop=True).diff().dt.total_seconds()[1::]
+                    o_d1 = o['value'].diff()[1::] / dt
+                    s_d1 = s.diff()[1::] / dt
+                # print(s)
+                # print(s_d1)
+                # #sys.exit()
+
                 # Second step (both o and s): remove nan due to gaps in obs
                 # (or missing steps in sims...)
-                tmp = s*o
-                s = np.asanyarray([s[k] for k in range(len(tmp)) if not
+                tmp = s.values*o['value'].values
+                s = np.asanyarray([s.values[k] for k in range(len(tmp)) if not
                                    np.isnan(tmp[k])])
-                o = np.asanyarray([o[j] for j in range(len(tmp)) if not
+                o = np.asanyarray([o['value'].values[j] for j in range(len(tmp)) if not
                                    np.isnan(tmp[j])])
                 # Prepare lists of GOFs
                 if i == 0 and ic == 0:
@@ -2489,35 +2545,40 @@ def store_GOF(Obs, Opti, Config, Site, it):
                     for gof in Opti.GOFs:
                         if gof == 'corr':  # pearson correlation coefficient
                             tmp = GOFs.corr(s, o)
-                        if gof == 'rstd':  # ratio of standard deviations
+                        elif gof == 'rstd':  # ratio of standard deviations
                             tmp = GOFs.rstd(s, o)
-                        if gof == 'rmu':  # ratio of mean
+                        elif gof == 'rmu':  # ratio of mean
                             tmp = GOFs.rmu(s, o)
-                        if gof == 'NSE':  # NSE
+                        elif gof == 'NSE':  # NSE
                             tmp = GOFs.nash_sutcliffe(s, o)
-                        if gof == 'KGE':  # KGE 2009
+                        elif gof == 'KGE':  # KGE 2009
                             tmp = GOFs.kling_gupta(s, o)
-                        if gof == 'KGE2012':  # KGE 2012
+                        elif gof == 'KGE2012':  # KGE 2012
                             tmp = GOFs.kling_gupta(s, o, method='2012')
-                        if gof == 'RMSE':  # RMSE
+                        elif gof == 'RMSE':  # RMSE
                             tmp = GOFs.rmse(s, o)
-                        if gof == 'MAE':  # MAE
+                        elif gof == 'MAE':  # MAE
                             tmp = GOFs.meanabs(s, o)
-                        if gof == 'KGEc':  # mean-centered KGE
+                        elif gof == 'KGEc':  # mean-centered KGE
                             tmp = GOFs.kling_gupta(s-np.mean(s), o-np.mean(o))
-                        if gof == 'KGE2012c':  # mean-centered KGE2012
+                        elif gof == 'KGE2012c':  # mean-centered KGE2012
                             tmp = GOFs.kling_gupta(s-np.mean(s),o-np.mean(o), method='2012')
-                        if gof == 'RMSEc':  # mean-centered RMSE
+                        elif gof == 'RMSEc':  # mean-centered RMSE
                             tmp = GOFs.rmse(s-np.mean(s), o-np.mean(o))
-                        if gof == 'MAEc':  # mean-centered MAE
+                        elif gof == 'MAEc':  # mean-centered MAE
                             tmp = GOFs.meanabs(s-np.mean(s), o-np.mean(o))
-                        if gof == 'gauL':  # Gaussian likelihood, measurement error out
+                        elif gof == 'RMSE_d1':  # RMSE
+                            tmp = GOFs.rmse(s_d1, o_d1)
+                        elif gof == 'MAE_d1':  # RMSE
+                            tmp = GOFs.meanabs(s_d1, o_d1)
+                        elif gof == 'gauL':  # Gaussian likelihood, measurement error out
                             tmp = spotpy.likelihoods.gaussianLikelihoodMeasErrorOut(o, s)
-                        if gof == 'logL':  # Log likelihood
+                        elif gof == 'logL':  # Log likelihood
                             tmp = spotpy.likelihoods.logLikelihood(o, s)
-                        if gof == 'gauLerr':  # Gaussian likelihood
+                        elif gof == 'gauLerr':  # Gaussian likelihood
                             tmp = spotpy.likelihoods.gaussianLikelihoodHomoHeteroDataError(o, s)
-
+                        else:
+                            sys.exit('Error, this GOF is not treated (yet)')
                         # Add to the gof, depending on calibration period
                         if ic == 0:
                             gofs[gof] += [tmp]
@@ -2548,7 +2609,7 @@ def store_GOF(Obs, Opti, Config, Site, it):
                     f_out.write(str(it+1)+',' +
                                 ','.join(list(np.repeat('nan', Obs.nobs)))+'\n')
 
-        
+
 # ==================================================================================
 # Functions for variable sampling
 
@@ -2785,7 +2846,7 @@ def ee(Config, Obs, Opti, itraj):
 
     firstObs = 0
     numObs = 0
-    outObs = []
+    outObs = ['Parameter']
 
     trajnb = str(itraj+1)
 
@@ -2798,6 +2859,11 @@ def ee(Config, Obs, Opti, itraj):
             # Read file
             f_in = Obs.obs[oname]['sim_hist']
             df_sim = pd.read_csv(f_in).iloc[itraj*(Opti.nvar+1)::, ]
+            # Derivative (per sec)
+            df_simd1 = df_sim.iloc[:,1:].diff(axis=1).transpose()/\
+                pd.Series(Obs.simt).diff().dt.total_seconds().transpose()
+
+            sys.exit()
 
             # Diff between sims
             if Opti.MSspace == 'trajectory':
@@ -2957,7 +3023,7 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
                                np.isnan(tmp[k])])
             o = np.asanyarray([o[j] for j in range(len(tmp)) if not
                                np.isnan(tmp[j])])
-        
+
             # Another sanity check: any data/sim left after nan screening?
             if s.__len__() == 0 or o.__len__() == 0:
                 L = np.nan
@@ -3014,7 +3080,7 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
                 #     # o_err = 0.5*np.std(o) + 0.1*o
                 #     # res = o - s
                 #     # cor = np.corrcoef(res[:-1],res[1:])[1,0]
-                #     # o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
+                #     # o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)),
                 #     #                   res.__len__())
                 #     # L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
                 # else:
@@ -3029,7 +3095,7 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
                 #     # o_err = np.std(o) + 0.25*o
                 #     # res = o - s
                 #     # cor = np.corrcoef(res[:-1],res[1:])[1,0]
-                #     # o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)), 
+                #     # o_err = np.repeat(np.std(res)*np.sqrt((1+cor)/(1-cor)),
                 #     #                   res.__len__())
                 #     # L = spotpy.likelihoods.logLikelihood(o, s, measerror=o_err)
                 # # Normalize by data length
