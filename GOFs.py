@@ -284,6 +284,31 @@ def medianabs(x1, x2, axis=0):
     return np.median(np.abs(x1-x2), axis=axis)
 
 
+def dstd(mod, obs):
+    """Difference of standard deviations of mod and obs, ignoring nan
+
+    Parameters
+    ----------
+    x1, x2 : array_like
+       The performance measure depends on the correlation between these two
+       arrays.
+
+    Returns
+    -------
+    dstd : float
+
+    """
+    mod = np.asanyarray(mod)
+    obs = np.asanyarray(obs)
+
+    # Remove nan
+    tmp = mod*obs
+    mod = np.asanyarray([mod[i] for i in range(len(mod)) if np.isnan(tmp[i])==False])
+    obs = np.asanyarray([obs[i] for i in range(len(obs)) if np.isnan(tmp[i])==False])
+
+    return np.std(mod) - np.std(obs)
+
+
 def bias(x1, x2, axis=0):
     """bias, mean error
 
@@ -892,5 +917,6 @@ def kling_gupta(mod, obs, axis=0, s=(1., 1., 1.), method='2009'):
 
 
 __all__ = [maxabs, meanabs, medianabs, medianbias, mse, rmse, stde, vare,
+           rstd, corr, dstd,
            aic, aic_sigma, aicc, aicc_sigma, bias, bic, bic_sigma,
            hqic, hqic_sigma, iqr]

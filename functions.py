@@ -940,7 +940,7 @@ def obs_init(Config, Opti, Obs):
         GOFref = ['NSE','KGE','KGE2012','RMSE','MAE', # classic
                 'KGEc','KGE2012c','RMSEc','MAEc', # mean-centered
                 'RMSE_d1','MAE_d1', # using derivatives
-                  'gauL','gauLerr','logL','corr','rstd','rmu']
+                  'gauL','gauLerr','logL','corr','rstd','rmu','bias','dstd']
         # Check that use-defined GOFs are in the reference list
         tmp = []
         for gof in Opti.GOFs:
@@ -2547,8 +2547,12 @@ def store_GOF(Obs, Opti, Config, Site, it):
                             tmp = GOFs.corr(s, o)
                         elif gof == 'rstd':  # ratio of standard deviations
                             tmp = GOFs.rstd(s, o)
+                        elif gof == 'dstd':  # difference of standard deviations
+                            tmp = GOFs.dstd(s, o)
                         elif gof == 'rmu':  # ratio of mean
                             tmp = GOFs.rmu(s, o)
+                        elif gof == 'bias':  # bias
+                            tmp = GOFs.bias(s, o)
                         elif gof == 'NSE':  # NSE
                             tmp = GOFs.nash_sutcliffe(s, o)
                         elif gof == 'KGE':  # KGE 2009
@@ -2846,7 +2850,7 @@ def ee(Config, Obs, Opti, itraj):
 
     firstObs = 0
     numObs = 0
-    outObs = ['Parameter']
+    outObs = []#['Parameter']
 
     trajnb = str(itraj+1)
 
@@ -2859,11 +2863,6 @@ def ee(Config, Obs, Opti, itraj):
             # Read file
             f_in = Obs.obs[oname]['sim_hist']
             df_sim = pd.read_csv(f_in).iloc[itraj*(Opti.nvar+1)::, ]
-            # Derivative (per sec)
-            df_simd1 = df_sim.iloc[:,1:].diff(axis=1).transpose()/\
-                pd.Series(Obs.simt).diff().dt.total_seconds().transpose()
-
-            sys.exit()
 
             # Diff between sims
             if Opti.MSspace == 'trajectory':
