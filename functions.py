@@ -283,7 +283,8 @@ def param_init(Config, Opti, Paras, Site, options):
     ipar = 0
     ipar2 = 0
     Paras.Veg = 0 # report if at least one param is veg-dependent
-    Paras.Spa = 0 # report if at least one param is map-unit-dependent
+    Paras.Spa1 = 0 # report if at least one param is soil-unit-dependent
+    Paras.Spa2 = 0 # report if at least one param is geol-unit-dependent
 
     # Initial Sampling type (for DREAM)
     if not hasattr(Opti, 'initSample'):
@@ -298,16 +299,19 @@ def param_init(Config, Opti, Paras, Site, options):
         # Default
         if 'soil' not in Paras.ref[par].keys():
             Paras.ref[par]['soil'] = 0
+        if 'geol' not in Paras.ref[par].keys():
+            Paras.ref[par]['geol'] = 0
         if 'veg' not in Paras.ref[par].keys():
             Paras.ref[par]['veg'] = 0
 
-        # Number of components for this parameters : depends on soil or
+        # Number of components for this parameters : depends on soil, geology or
         # veg dependence (veg can be not all species present), default 1
-        # Opti.names: unique name using par + component (none, soil/veg type)
+        # Opti.names: unique name using par + component (none, soil/geol/veg type)
         # Opti.comp: which of the component are calibrated? (none, all, some)
-        if Paras.ref[par]['soil'] == 0 and Paras.ref[par]['veg'] == 0:
+        if Paras.ref[par]['soil'] == 0 and Paras.ref[par]['geol'] == 0 and \
+           Paras.ref[par]['veg'] == 0:
 
-            # No soil or vegetation dependance
+            # No soil, geol nor vegetation dependance
             nr = 1
             Opti.names = Opti.names + [par]
             Paras.comp[par] = 0
@@ -316,7 +320,7 @@ def param_init(Config, Opti, Paras, Site, options):
         elif Paras.ref[par]['soil'] != 0:
 
             Paras.ref[par]['map'] = 1
-            Paras.Spa = 1
+            Paras.Spa1 = 1
 
             # Case where mapped parameters are distributed
             # over all the soil units listed in the def file
@@ -345,17 +349,62 @@ def param_init(Config, Opti, Paras, Site, options):
                         Opti.names = Opti.names + [par + '_' + Site.soils[j] for
                                                    j in range(Site.ns) if
                                                    Paras.ref[par]['soil'][j] == i]
-                    # param_VegName1+VegName2+... if more than one
+                    # param_SoilUnit1+SoilUnit2+... if more than one
                     if sum(j==i for j in Paras.ref[par]['soil'])>1:
                         Opti.names = Opti.names + [par + '_' +
                                                    '+'.join(Site.soils[j] for
                                                             j in range(Site.ns) if
                                                             Paras.ref[par]['soil'][j] == i)]
-                # component, here, rows indices in reference SpeciesParams.tab param file
+                # component, here, rows indices
                 Paras.comp[par] = [i for i in range(Site.ns) if
                                    Paras.ref[par]['soil'][i] > 0                                ]
             else:
                 sys.exit('Invalid soil dependence for parameter '+par)
+
+        
+        elif Paras.ref[par]['geol'] != 0:
+
+            Paras.ref[par]['map'] = 1
+            Paras.Spa2 = 1
+
+            # Case where mapped parameters are distributed
+            # over all the geological (or deep soil) units listed in the def file
+            if Paras.ref[par]['geol'] ==1:
+                nr = Site.ng
+                Opti.names = Opti.names + [par + '_' + g for g in Site.geols]
+                Paras.comp[par] = range(Site.ng)
+
+            # Case where mapped parameters either:
+            # - don't have component calibrated in some geological units
+            # [..,0,...] for that component and/or
+            # - some component are shared across various 1 or more geol units
+            # e.g. [0,1,2,2,0] mean that out of 5 possible geol components,
+            # 1st and 5th are not calibrated, 2nd is one component,
+            # 3st and 4st is one 2nd component shared across 3st and 4st geol units
+            elif type(Paras.ref[par]['geol']) == list:
+                # The length of the list must match that of geol units
+                if len(Paras.ref[par]['geol']) != Site.ng:
+                    sys.exit('Invalid geol dependence for parameter '+par)
+                # number of components
+                nr = sum(i>0 for i in np.unique(Paras.ref[par]['geol']))
+                # name
+                for i in range(1,nr+1):
+                    # param_GeolUnit if one component
+                    if sum(j==i for j in Paras.ref[par]['geol'])==1:
+                        Opti.names = Opti.names + [par + '_' + Site.geols[j] for
+                                                   j in range(Site.ng) if
+                                                   Paras.ref[par]['geol'][j] == i]
+                    # param_GeolUnit1+GeolUnit2+... if more than one
+                    if sum(j==i for j in Paras.ref[par]['geol'])>1:
+                        Opti.names = Opti.names + [par + '_' +
+                                                   '+'.join(Site.geols[j] for
+                                                            j in range(Site.ng) if
+                                                            Paras.ref[par]['geol'][j] == i)]
+                # component, here, rows indices
+                Paras.comp[par] = [i for i in range(Site.ng) if
+                                   Paras.ref[par]['geol'][i] > 0                                ]
+            else:
+                sys.exit('Invalid geol dependence for parameter '+par)
 
         elif Paras.ref[par]['veg'] != 0:
 
@@ -407,7 +456,7 @@ def param_init(Config, Opti, Paras, Site, options):
         # Vice versa: which Opti.* indice(s) correspond to a given par?
         if nr>1 or type(Paras.comp[par]) == list :
 
-            # If there are as many component as there are different soil/species calibrated
+            # If there are as many component as there are different soil/geol/species calibrated
             if len(Paras.comp[par]) == nr:
                 Paras.ind[par] = list(np.arange(ipar2, ipar2+nr, 1))
 
@@ -417,6 +466,9 @@ def param_init(Config, Opti, Paras, Site, options):
                 if type(Paras.ref[par]['soil']) == list:
                     # soil parameter case
                     tmp = [i for i in Paras.ref[par]['soil'] if i > 0]
+                elif type(Paras.ref[par]['geol']) == list:
+                    # geol parameter case
+                    tmp = [i for i in Paras.ref[par]['geol'] if i > 0]
                 elif type(Paras.ref[par]['veg']) == list:
                     # vegetation parameter case
                     tmp = [i for i in Paras.ref[par]['veg'] if i > 0]
@@ -449,7 +501,7 @@ def param_init(Config, Opti, Paras, Site, options):
                     Opti.max += Paras.ref[par]['max']
                 else:
                     sys.exit('Wrong "min" or "max" format for '+par+
-                             ',maybe check soil units in def file?')
+                             ',maybe check soil/geol/veg units in def file?')
             else:
                 Opti.min += list(np.repeat(np.nan, nr))
                 Opti.max += list(np.repeat(np.nan, nr))
@@ -1130,15 +1182,19 @@ def files_init(Config, Opti, Paras, Site):
     # === (for all processes)
 
     if Config.runECH2O == 1:
-        # -- Soils / units maps
+        # -- Soils / geologies / units maps
         # Initialization by cloning base map
         Config.cloneMap = pcr.boolean(pcr.readmap(Config.PATH_SPA+'/base.map'))
         pcr.setclone(Config.PATH_SPA+'/base.map')
         Site.bmaps = {}
-        if(Paras.Spa == 1):
+        if(Paras.Spa1 == 1):
             for im in range(Site.ns):
                 Site.bmaps[Site.soils[im]] = pcr.readmap(Config.PATH_SPA+'/' +
                                                          Site.sfiles[im])
+        if(Paras.Spa2 == 1):
+            for im in range(Site.ng):
+                Site.bmaps[Site.geols[im]] = pcr.readmap(Config.PATH_SPA+'/' +
+                                                         Site.gfiles[im])
         Site.bmaps['unit'] = pcr.readmap(Config.PATH_SPA+'/unit.map')
         # Stream network
         Site.bmaps['chanmask'] = pcr.readmap(Config.PATH_SPA+'/chanmask.map')
@@ -1170,7 +1226,7 @@ def files_init(Config, Opti, Paras, Site):
             if 'Porosity_profile =' in line:
                 Site.poros_mode = int(line.split('=')[1].strip())
             # Files names needed in any case
-            if 'Top-of-profile_Porosity =' in line:
+            if 'Porosity =' in line:
                 Site.f_poros = line.split('=')[1].strip()
             if 'Soil_moisture_1' in line:
                 Site.f_initSWC1 = line.split('=')[1].strip()
@@ -1816,6 +1872,33 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                         #outmap += Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im2]]
                         im2 += 1
 
+            # Geological / deeper soil unit dependence
+            if Paras.ref[pname]['geol'] != 0:
+                # print 'Geol dependent !!'
+
+                # Full geol dependence
+                if Paras.ref[pname]['geol'] == 1:
+                    # Start from 0 map
+                    outmap = Site.bmaps['unit']*0
+                    # Read each geol map unit and apply param value
+                    for im in range(Site.ng):
+                        outmap += Site.bmaps[Site.geols[im]]*Opti.x[Paras.ind[pname][im]]
+
+                # Heterogeneous geol unit dependence
+                elif type(Paras.ref[pname]['geol']) == list:
+                    # print 'Geol dependent !!'
+
+                    # Import reference map (default values)
+                    outmap = pcr.readmap(Config.PATH_SPA+'/'+Paras.ref[pname]['file']+'.map')
+                    # Change the value based on param name correspondance
+                    im2 = 0
+                    # Only pick the calibrated map/geol units
+                    for im in Paras.comp[pname]:
+                        outmap = pcr.ifthenelse(Site.bmaps['unit'] == Site.bmaps[Site.geols[im]],
+                                                Opti.x[Paras.ind[pname][im2]], outmap)
+                        #outmap += Site.bmaps[Site.geols[im]]*Opti.x[Paras.ind[pname][im2]]
+                        im2 += 1
+
             # if Site.simRock == 1:
             #     # Taking into account rock/scree: micro-topsoil,
             #     low poros and fixed anisotropy
@@ -1869,7 +1952,7 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                 iv2 += 1
 
         else:
-            sys.exit('Error: invalid soil/veg flags to update parameter '+pname)
+            sys.exit('Error: invalid soil/geol/veg flags to update parameter '+pname)
 
     # - Write the vegetation parameterization
     if sw_veg == 1:
