@@ -283,8 +283,9 @@ def param_init(Config, Opti, Paras, Site, options):
     ipar = 0
     ipar2 = 0
     Paras.Veg = 0 # report if at least one param is veg-dependent
-    Paras.Spa1 = 0 # report if at least one param is soil-unit-dependent
-    Paras.Spa2 = 0 # report if at least one param is geol-unit-dependent
+    Paras.spa1 = 0 # report if at least one param is soil-unit-dependent
+    Paras.spa2 = 0 # report if at least one param is geol-unit-dependent
+    Paras.spa3 = 0 # report if at least one param is geol-unit-dependent
 
     # Initial Sampling type (for DREAM)
     if not hasattr(Opti, 'initSample'):
@@ -297,114 +298,161 @@ def param_init(Config, Opti, Paras, Site, options):
         # print(par)
 
         # Default
-        if 'soil' not in Paras.ref[par].keys():
-            Paras.ref[par]['soil'] = 0
-        if 'geol' not in Paras.ref[par].keys():
-            Paras.ref[par]['geol'] = 0
+        if 'map1' not in Paras.ref[par].keys():
+            Paras.ref[par]['map1'] = 0
+        if 'map2' not in Paras.ref[par].keys():
+            Paras.ref[par]['map2'] = 0
+        if 'map3' not in Paras.ref[par].keys():
+            Paras.ref[par]['map3'] = 0
         if 'veg' not in Paras.ref[par].keys():
             Paras.ref[par]['veg'] = 0
 
-        # Number of components for this parameters : depends on soil, geology or
+        # Number of components for this parameters : depends on map1, map2 or map3 &
         # veg dependence (veg can be not all species present), default 1
         # Opti.names: unique name using par + component (none, soil/geol/veg type)
         # Opti.comp: which of the component are calibrated? (none, all, some)
-        if Paras.ref[par]['soil'] == 0 and Paras.ref[par]['geol'] == 0 and \
-           Paras.ref[par]['veg'] == 0:
+        if Paras.ref[par]['map1'] == 0 and Paras.ref[par]['map2'] == 0 and \
+           Paras.ref[par]['map3'] == 0 and Paras.ref[par]['veg'] == 0:
 
-            # No soil, geol nor vegetation dependance
+            # No mapped nor vegetation dependance
             nr = 1
             Opti.names = Opti.names + [par]
             Paras.comp[par] = 0
-            Paras.ref[par]['map'] = 1
+            Paras.ref[par]['map'] = 0
 
-        elif Paras.ref[par]['soil'] != 0:
+        elif Paras.ref[par]['map1'] != 0:
 
             Paras.ref[par]['map'] = 1
-            Paras.Spa1 = 1
+            Paras.spa1 = 1
 
             # Case where mapped parameters are distributed
-            # over all the soil units listed in the def file
-            if Paras.ref[par]['soil'] ==1:
-                nr = Site.ns
-                Opti.names = Opti.names + [par + '_' + s for s in Site.soils]
-                Paras.comp[par] = range(Site.ns)
+            # over all the map1 units listed in the def file
+            if Paras.ref[par]['map1'] ==1:
+                nr = Site.nmap1
+                Opti.names = Opti.names + [par + '_' + m for m in Site.map1]
+                Paras.comp[par] = range(Site.nmap1)
 
             # Case where mapped parameters either:
-            # - don't have component calibrated in some soil units
+            # - don't have component calibrated in some map1 units
             # [..,0,...] for that component and/or
-            # - some component are shared across various 1 or more soil units
-            # e.g. [0,1,2,2,0] mean that out of 5 possible soil components,
+            # - some component are shared across various 1 or more map1 units
+            # e.g. [0,1,2,2,0] mean that out of 5 possible map1 components,
             # 1st and 5th are not calibrated, 2nd is one component,
-            # 3st and 4st is one 2nd component shared across 3st and 4st soil units
-            elif type(Paras.ref[par]['soil']) == list:
-                # The length of the list must match that of soil units
-                if len(Paras.ref[par]['soil']) != Site.ns:
-                    sys.exit('Invalid soil dependence for parameter '+par)
+            # 3st and 4st is one 2nd component shared across 3st and 4st map1 units
+            elif type(Paras.ref[par]['map1']) == list:
+                # The length of the list must match that of map1 units
+                if len(Paras.ref[par]['map2']) != Site.nmap1:
+                    sys.exit('Invalid spatalized (#1) dependence for parameter '+par)
                 # number of components
-                nr = sum(i>0 for i in np.unique(Paras.ref[par]['soil']))
+                nr = sum(i>0 for i in np.unique(Paras.ref[par]['map1']))
                 # name
                 for i in range(1,nr+1):
-                    # param_SoilUnit if one component
-                    if sum(j==i for j in Paras.ref[par]['soil'])==1:
-                        Opti.names = Opti.names + [par + '_' + Site.soils[j] for
-                                                   j in range(Site.ns) if
-                                                   Paras.ref[par]['soil'][j] == i]
-                    # param_SoilUnit1+SoilUnit2+... if more than one
-                    if sum(j==i for j in Paras.ref[par]['soil'])>1:
+                    # param_map1Unit if one component
+                    if sum(j==i for j in Paras.ref[par]['map1'])==1:
+                        Opti.names = Opti.names + [par + '_' + Site.map1[j] for
+                                                   j in range(Site.nmap1) if
+                                                   Paras.ref[par]['map1'][j] == i]
+                    # param_map1Unit1+map2Unit2+... if more than one
+                    if sum(j==i for j in Paras.ref[par]['map1'])>1:
                         Opti.names = Opti.names + [par + '_' +
-                                                   '+'.join(Site.soils[j] for
-                                                            j in range(Site.ns) if
-                                                            Paras.ref[par]['soil'][j] == i)]
+                                                   '+'.join(Site.map1[j] for
+                                                            j in range(Site.nmap1) if
+                                                            Paras.ref[par]['map1'][j] == i)]
                 # component, here, rows indices
-                Paras.comp[par] = [i for i in range(Site.ns) if
-                                   Paras.ref[par]['soil'][i] > 0                                ]
+                Paras.comp[par] = [i for i in range(Site.nmap1) if
+                                   Paras.ref[par]['map1'][i] > 0                                ]
             else:
-                sys.exit('Invalid soil dependence for parameter '+par)
+                sys.exit('Invalid spatialized (#1) dependence for parameter '+par)
 
-        
-        elif Paras.ref[par]['geol'] != 0:
+
+        elif Paras.ref[par]['map2'] != 0:
 
             Paras.ref[par]['map'] = 1
-            Paras.Spa2 = 1
+            Paras.spa2 = 1
 
             # Case where mapped parameters are distributed
-            # over all the geological (or deep soil) units listed in the def file
-            if Paras.ref[par]['geol'] ==1:
-                nr = Site.ng
-                Opti.names = Opti.names + [par + '_' + g for g in Site.geols]
-                Paras.comp[par] = range(Site.ng)
+            # over all the map2 units listed in the def file
+            if Paras.ref[par]['map2'] ==1:
+                nr = Site.nmap2
+                Opti.names = Opti.names + [par + '_' + m for m in Site.map2]
+                Paras.comp[par] = range(Site.nmap2)
 
             # Case where mapped parameters either:
-            # - don't have component calibrated in some geological units
+            # - don't have component calibrated in some map2 units
             # [..,0,...] for that component and/or
-            # - some component are shared across various 1 or more geol units
-            # e.g. [0,1,2,2,0] mean that out of 5 possible geol components,
+            # - some component are shared across various 1 or more map2 units
+            # e.g. [0,1,2,2,0] mean that out of 5 possible map2 components,
             # 1st and 5th are not calibrated, 2nd is one component,
-            # 3st and 4st is one 2nd component shared across 3st and 4st geol units
-            elif type(Paras.ref[par]['geol']) == list:
-                # The length of the list must match that of geol units
-                if len(Paras.ref[par]['geol']) != Site.ng:
-                    sys.exit('Invalid geol dependence for parameter '+par)
+            # 3st and 4st is one 2nd component shared across 3st and 4st map2 units
+            elif type(Paras.ref[par]['map2']) == list:
+                # The length of the list must match that of map2 units
+                if len(Paras.ref[par]['map2']) != Site.nmap2:
+                    sys.exit('Invalid spatalized (#2) dependence for parameter '+par)
                 # number of components
-                nr = sum(i>0 for i in np.unique(Paras.ref[par]['geol']))
+                nr = sum(i>0 for i in np.unique(Paras.ref[par]['map2']))
                 # name
                 for i in range(1,nr+1):
-                    # param_GeolUnit if one component
-                    if sum(j==i for j in Paras.ref[par]['geol'])==1:
-                        Opti.names = Opti.names + [par + '_' + Site.geols[j] for
-                                                   j in range(Site.ng) if
-                                                   Paras.ref[par]['geol'][j] == i]
-                    # param_GeolUnit1+GeolUnit2+... if more than one
-                    if sum(j==i for j in Paras.ref[par]['geol'])>1:
+                    # param_map2Unit if one component
+                    if sum(j==i for j in Paras.ref[par]['map2'])==1:
+                        Opti.names = Opti.names + [par + '_' + Site.map2[j] for
+                                                   j in range(Site.nmap2) if
+                                                   Paras.ref[par]['map2'][j] == i]
+                    # param_map2Unit1+map2Unit2+... if more than one
+                    if sum(j==i for j in Paras.ref[par]['map2'])>1:
                         Opti.names = Opti.names + [par + '_' +
-                                                   '+'.join(Site.geols[j] for
-                                                            j in range(Site.ng) if
-                                                            Paras.ref[par]['geol'][j] == i)]
+                                                   '+'.join(Site.map2[j] for
+                                                            j in range(Site.nmap2) if
+                                                            Paras.ref[par]['map2'][j] == i)]
                 # component, here, rows indices
-                Paras.comp[par] = [i for i in range(Site.ng) if
-                                   Paras.ref[par]['geol'][i] > 0                                ]
+                Paras.comp[par] = [i for i in range(Site.nmap2) if
+                                   Paras.ref[par]['map2'][i] > 0                                ]
             else:
-                sys.exit('Invalid geol dependence for parameter '+par)
+                sys.exit('Invalid spatialized (#2) dependence for parameter '+par)
+
+        elif Paras.ref[par]['map3'] != 0:
+
+            Paras.ref[par]['map'] = 1
+            Paras.spa3 = 1
+
+            # Case where mapped parameters are distributed
+            # over all the map3 units listed in the def file
+            if Paras.ref[par]['map3'] ==1:
+                nr = Site.nmap3
+                Opti.names = Opti.names + [par + '_' + m for m in Site.map3]
+                Paras.comp[par] = range(Site.nmap3)
+
+            # Case where mapped parameters either:
+            # - don't have component calibrated in some map3 units
+            # [..,0,...] for that component and/or
+            # - some component are shared across various 1 or more map3 units
+            # e.g. [0,1,2,2,0] mean that out of 5 possible map3 components,
+            # 1st and 5th are not calibrated, 2nd is one component,
+            # 3st and 4st is one 2nd component shared across 3st and 4st map3 units
+            elif type(Paras.ref[par]['map3']) == list:
+                # The length of the list must match that of map3 units
+                if len(Paras.ref[par]['map3']) != Site.nmap3:
+                    sys.exit('Invalid spatalized (#3) dependence for parameter '+par)
+                # number of components
+                nr = sum(i>0 for i in np.unique(Paras.ref[par]['map3']))
+                # name
+                for i in range(1,nr+1):
+                    # param_map3Unit if one component
+                    if sum(j==i for j in Paras.ref[par]['map3'])==1:
+                        Opti.names = Opti.names + [par + '_' + Site.map3[j] for
+                                                   j in range(Site.nmap3) if
+                                                   Paras.ref[par]['map3'][j] == i]
+                    # param_map3Unit1+map2Unit2+... if more than one
+                    if sum(j==i for j in Paras.ref[par]['map3'])>1:
+                        Opti.names = Opti.names + [par + '_' +
+                                                   '+'.join(Site.map3[j] for
+                                                            j in range(Site.nmap3) if
+                                                            Paras.ref[par]['map3'][j] == i)]
+                # component, here, rows indices
+                Paras.comp[par] = [i for i in range(Site.nmap3) if
+                                   Paras.ref[par]['map3'][i] > 0                                ]
+            else:
+                sys.exit('Invalid spatialized (#3) dependence for parameter '+par)
+
 
         elif Paras.ref[par]['veg'] != 0:
 
@@ -463,12 +511,15 @@ def param_init(Config, Opti, Paras, Site, options):
             # Else if there are one component covering several veg types
             if len(Paras.comp[par]) > nr:
 
-                if type(Paras.ref[par]['soil']) == list:
+                if type(Paras.ref[par]['map1']) == list:
                     # soil parameter case
-                    tmp = [i for i in Paras.ref[par]['soil'] if i > 0]
-                elif type(Paras.ref[par]['geol']) == list:
+                    tmp = [i for i in Paras.ref[par]['map1'] if i > 0]
+                elif type(Paras.ref[par]['map2']) == list:
                     # geol parameter case
-                    tmp = [i for i in Paras.ref[par]['geol'] if i > 0]
+                    tmp = [i for i in Paras.ref[par]['map2'] if i > 0]
+                elif type(Paras.ref[par]['map3']) == list:
+                    # geol parameter case
+                    tmp = [i for i in Paras.ref[par]['map3'] if i > 0]
                 elif type(Paras.ref[par]['veg']) == list:
                     # vegetation parameter case
                     tmp = [i for i in Paras.ref[par]['veg'] if i > 0]
@@ -1187,14 +1238,19 @@ def files_init(Config, Opti, Paras, Site):
         Config.cloneMap = pcr.boolean(pcr.readmap(Config.PATH_SPA+'/base.map'))
         pcr.setclone(Config.PATH_SPA+'/base.map')
         Site.bmaps = {}
-        if(Paras.Spa1 == 1):
-            for im in range(Site.ns):
-                Site.bmaps[Site.soils[im]] = pcr.readmap(Config.PATH_SPA+'/' +
-                                                         Site.sfiles[im])
-        if(Paras.Spa2 == 1):
-            for im in range(Site.ng):
-                Site.bmaps[Site.geols[im]] = pcr.readmap(Config.PATH_SPA+'/' +
-                                                         Site.gfiles[im])
+        if(Paras.spa1 == 1):
+            for im in range(Site.nmap1):
+                Site.bmaps[Site.maps1[im]] = pcr.readmap(Config.PATH_SPA+'/' +
+                                                         Site.map1files[im])
+        if(Paras.spa2 == 1):
+            for im in range(Site.nmap2):
+                Site.bmaps[Site.maps2[im]] = pcr.readmap(Config.PATH_SPA+'/' +
+                                                         Site.map2files[im])
+        if(Paras.spa3 == 1):
+            for im in range(Site.nmap3):
+                Site.bmaps[Site.maps3[im]] = pcr.readmap(Config.PATH_SPA+'/' +
+                                                        Site.map3files[im])
+
         Site.bmaps['unit'] = pcr.readmap(Config.PATH_SPA+'/unit.map')
         # Stream network
         Site.bmaps['chanmask'] = pcr.readmap(Config.PATH_SPA+'/chanmask.map')
@@ -1845,20 +1901,20 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
         # - Mapped parameters
         if Paras.ref[pname]['map'] == 1:
 
-            # Soil unit dependence
-            if Paras.ref[pname]['soil'] != 0:
+            # Map1 unit dependence
+            if Paras.ref[pname]['map1'] != 0:
                 # print 'Soil dependent !!'
 
                 # Full soil dependence
-                if Paras.ref[pname]['soil'] == 1:
+                if Paras.ref[pname]['map1'] == 1:
                     # Start from 0 map
                     outmap = Site.bmaps['unit']*0
                     # Read each soil map unit and apply param value
-                    for im in range(Site.ns):
-                        outmap += Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im]]
+                    for im in range(Site.nmap1):
+                        outmap += Site.bmaps[Site.maps1[im]]*Opti.x[Paras.ind[pname][im]]
 
                 # Heterogeneous soil unit dependence
-                elif type(Paras.ref[pname]['soil']) == list:
+                elif type(Paras.ref[pname]['map1']) == list:
                     # print 'Soil dependent !!'
 
                     # Import reference map (default values)
@@ -1867,36 +1923,63 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                     im2 = 0
                     # Only pick the calibrated map/soil units
                     for im in Paras.comp[pname]:
-                        outmap = pcr.ifthenelse(Site.bmaps['unit'] == Site.bmaps[Site.soils[im]],
+                        outmap = pcr.ifthenelse(Site.bmaps['unit'] == Site.bmaps[Site.maps1[im]],
                                                 Opti.x[Paras.ind[pname][im2]], outmap)
                         #outmap += Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im2]]
                         im2 += 1
 
-            # Geological / deeper soil unit dependence
-            if Paras.ref[pname]['geol'] != 0:
-                # print 'Geol dependent !!'
+            # Map1 unit dependence
+            if Paras.ref[pname]['map2'] != 0:
+                # print 'Soil dependent !!'
 
-                # Full geol dependence
-                if Paras.ref[pname]['geol'] == 1:
+                # Full soil dependence
+                if Paras.ref[pname]['map2'] == 1:
                     # Start from 0 map
                     outmap = Site.bmaps['unit']*0
-                    # Read each geol map unit and apply param value
-                    for im in range(Site.ng):
-                        outmap += Site.bmaps[Site.geols[im]]*Opti.x[Paras.ind[pname][im]]
+                    # Read each soil map unit and apply param value
+                    for im in range(Site.nmap2):
+                        outmap += Site.bmaps[Site.maps2[im]]*Opti.x[Paras.ind[pname][im]]
 
-                # Heterogeneous geol unit dependence
-                elif type(Paras.ref[pname]['geol']) == list:
-                    # print 'Geol dependent !!'
+                # Heterogeneous soil unit dependence
+                elif type(Paras.ref[pname]['map2']) == list:
+                    # print 'Soil dependent !!'
 
                     # Import reference map (default values)
                     outmap = pcr.readmap(Config.PATH_SPA+'/'+Paras.ref[pname]['file']+'.map')
                     # Change the value based on param name correspondance
                     im2 = 0
-                    # Only pick the calibrated map/geol units
+                    # Only pick the calibrated map/soil units
                     for im in Paras.comp[pname]:
-                        outmap = pcr.ifthenelse(Site.bmaps['unit'] == Site.bmaps[Site.geols[im]],
+                        outmap = pcr.ifthenelse(Site.bmaps['unit'] == Site.bmaps[Site.maps2[im]],
                                                 Opti.x[Paras.ind[pname][im2]], outmap)
-                        #outmap += Site.bmaps[Site.geols[im]]*Opti.x[Paras.ind[pname][im2]]
+                        #outmap += Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im2]]
+                        im2 += 1
+
+            # Map1 unit dependence
+            if Paras.ref[pname]['map3'] != 0:
+                # print 'Soil dependent !!'
+
+                # Full soil dependence
+                if Paras.ref[pname]['map3'] == 1:
+                    # Start from 0 map
+                    outmap = Site.bmaps['unit']*0
+                    # Read each soil map unit and apply param value
+                    for im in range(Site.nmap3):
+                        outmap += Site.bmaps[Site.maps3[im]]*Opti.x[Paras.ind[pname][im]]
+
+                # Heterogeneous soil unit dependence
+                elif type(Paras.ref[pname]['map3']) == list:
+                    # print 'Soil dependent !!'
+
+                    # Import reference map (default values)
+                    outmap = pcr.readmap(Config.PATH_SPA+'/'+Paras.ref[pname]['file']+'.map')
+                    # Change the value based on param name correspondance
+                    im2 = 0
+                    # Only pick the calibrated map/soil units
+                    for im in Paras.comp[pname]:
+                        outmap = pcr.ifthenelse(Site.bmaps['unit'] == Site.bmaps[Site.maps3[im]],
+                                                Opti.x[Paras.ind[pname][im2]], outmap)
+                        #outmap += Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im2]]
                         im2 += 1
 
             # if Site.simRock == 1:

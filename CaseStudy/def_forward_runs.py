@@ -58,9 +58,9 @@ class Site:
     # Enable water tracking (isotopes, ages, ...)
     isTrck = 1
     # -- Soil
-    soils = ['VrtS', 'VrtD', 'FrlD', 'FrlS']
-    ns = len(soils)
-    sfiles = ['unit.soil_' + s + '.map' for s in soils]
+    maps1 = ['VrtS', 'VrtD', 'FrlD', 'FrlS']
+    nmap1 = len(maps1)
+    map1files = ['unit.soil_' + s + '.map' for s in maps1]
     # sfiles = ['unit.map']
     # -- Vegetation
     vegs = ['Tree', 'Grass']
