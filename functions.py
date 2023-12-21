@@ -929,7 +929,13 @@ def obs_init(Config, Opti, Obs):
         Obs.saveL = Obs.lsim - Obs.saveB + 1
     else:
         if Obs.saveL > Obs.lsim - Obs.saveB + 1:
-            sys.exit('Error: the specified output slicing start+length ' +
+            sys.exit('Error: the specified time series slicing start+length ' +
+                     'goes beyond simulation time!')
+    if not hasattr(Obs, 'saveLmap'):
+        Obs.saveLmap = Obs.lsim - Obs.saveBmap + 1
+    else:
+        if Obs.saveLmap > Obs.lsim - Obs.saveBmap + 1:
+            sys.exit('Error: the specified map slicing start+length ' +
                      'goes beyond simulation time!')
     # Report ech2o.log files
     if not hasattr(Config, 'replog'):
@@ -943,7 +949,15 @@ def obs_init(Config, Opti, Obs):
 
     # Date vector of the simulations timesteps
     Obs.simt = [Obs.simbeg + timedelta(seconds=Obs.simres*x) for x in range(Obs.saveL)]
+    Obs.simtmap = [Obs.simbeg + timedelta(seconds=Obs.simres*x) for x in range(Obs.saveLmap)]
 
+    # Default values obs & sim converter = 1
+    for oname in Obs.names:
+        if not 'obs_conv' in Obs.obs[oname]:
+            Obs.obs[oname]['obs_conv'] = 1
+        if not 'sim_conv' in Obs.obs[oname]:
+            Obs.obs[oname]['sim_conv'] = 1
+            
     if Config.mode in ['calib_MCruns','calib_SPOTPY']:
         # print('Reading measured datasets for calibration...')
 
@@ -954,13 +968,13 @@ def obs_init(Config, Opti, Obs):
 
         # Use derivate-based GOFs ?
         Opti.gof_d1 = False
-        for gof in Opti.GOFs:
-            if 'd1' in gof:
-                Opti.gof_d1 = True
+        if Config.mode == 'calib_MCruns':
+            for gof in Opti.GOFs:
+                if 'd1' in gof:
+                    Opti.gof_d1 = True
 
         for oname in Obs.names:
 
-            print(oname)
             # -- Get the obs
             f_obs = Config.PATH_OBS + '/' + Obs.obs[oname]['obs_file']
 
@@ -1043,7 +1057,7 @@ def obs_init(Config, Opti, Obs):
         GOFref = ['NSE','KGE','KGE2012','RMSE','MAE', # classic
                 'KGEc','KGE2012c','RMSEc','MAEc', # mean-centered
                 'RMSE_d1','MAE_d1', # using derivatives
-                  'gauL','gauLerr','logL','corr','rstd','rmu','bias','dstd']
+                  'gauL','gauLerr','logL','corr','rstd','rmu','bias','dstd','sprmn']
         # Check that use-defined GOFs are in the reference list
         tmp = []
         for gof in Opti.GOFs:
@@ -1903,9 +1917,9 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
 
             # Map1 unit dependence
             if Paras.ref[pname]['map1'] != 0:
-                # print 'Soil dependent !!'
+                # print 'Map1 dependent !!'
 
-                # Full soil dependence
+                # Full map1 dependence
                 if Paras.ref[pname]['map1'] == 1:
                     # Start from 0 map
                     outmap = Site.bmaps['unit']*0
@@ -1913,7 +1927,7 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                     for im in range(Site.nmap1):
                         outmap += Site.bmaps[Site.maps1[im]]*Opti.x[Paras.ind[pname][im]]
 
-                # Heterogeneous soil unit dependence
+                # Heterogeneous map1 unit dependence
                 elif type(Paras.ref[pname]['map1']) == list:
                     # print 'Soil dependent !!'
 
@@ -1928,19 +1942,23 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                         #outmap += Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im2]]
                         im2 += 1
 
-            # Map1 unit dependence
-            if Paras.ref[pname]['map2'] != 0:
-                # print 'Soil dependent !!'
+            # Map2 unit dependence
+            elif Paras.ref[pname]['map2'] != 0:
+                # print 'Map2 dependent !!'
 
-                # Full soil dependence
+                # Full map2 dependence
                 if Paras.ref[pname]['map2'] == 1:
                     # Start from 0 map
                     outmap = Site.bmaps['unit']*0
                     # Read each soil map unit and apply param value
                     for im in range(Site.nmap2):
+                        # print(pname)
+                        # print(im)
+                        # print(Site.maps2[im])
+                        # print(Opti.x[Paras.ind[pname][im]])
                         outmap += Site.bmaps[Site.maps2[im]]*Opti.x[Paras.ind[pname][im]]
 
-                # Heterogeneous soil unit dependence
+                # Heterogeneous map2 unit dependence
                 elif type(Paras.ref[pname]['map2']) == list:
                     # print 'Soil dependent !!'
 
@@ -1955,19 +1973,19 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
                         #outmap += Site.bmaps[Site.soils[im]]*Opti.x[Paras.ind[pname][im2]]
                         im2 += 1
 
-            # Map1 unit dependence
-            if Paras.ref[pname]['map3'] != 0:
-                # print 'Soil dependent !!'
-
-                # Full soil dependence
+            # Map3 unit dependence
+            elif Paras.ref[pname]['map3'] != 0:
+                # print 'Map3 dependent !!'
+                
+                # Full map3 dependence
                 if Paras.ref[pname]['map3'] == 1:
                     # Start from 0 map
                     outmap = Site.bmaps['unit']*0
-                    # Read each soil map unit and apply param value
+                    # Read each map3 map unit and apply param value
                     for im in range(Site.nmap3):
                         outmap += Site.bmaps[Site.maps3[im]]*Opti.x[Paras.ind[pname][im]]
 
-                # Heterogeneous soil unit dependence
+                # Heterogeneous map3 unit dependence
                 elif type(Paras.ref[pname]['map3']) == list:
                     # print 'Soil dependent !!'
 
@@ -2004,14 +2022,14 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
 
             # No spatial
             else:
-                # print 'Not dependent !!'
+                # print 'Not map dependent !!'
                 # Channel stuff (redundant?)
-                if Paras.ref[pname]['file'] in \
-                   ['chanwidth', 'chanmanningn', 'chanparam']:
-                    outmap = Site.bmaps['chanmask']*Opti.x[Paras.ind[pname][0]]
-                else:
+                # if Paras.ref[pname]['file'] in \
+                #    ['chanwidth', 'chanmanningn', 'chanparam']:
+                #     outmap = Site.bmaps['chanmask']*Opti.x[Paras.ind[pname][0]]
+                # else:
                     # print(type(Opti.x[Paras.ind[pname][0]]))
-                    outmap = Site.bmaps['unit']*Opti.x[Paras.ind[pname][0]]
+                outmap = Site.bmaps['unit']*Opti.x[Paras.ind[pname][0]]
 
             # Create map
             pcr.report(outmap,
@@ -2213,7 +2231,12 @@ def store_sim(Obs, Opti, Config, Site, it):
                 if Obs.obs[oname]['sim_file'] in ['BasinSummary.txt',
                                                   'BasinVegSummary.txt',
                                                   'BasinAgeSummary.txt', 'BasincClSummary.txt',
-                                                  'Basind2HSummary.txt', 'Basind18OSummary.txt']:
+                                                  'Basind2HSummary.txt', 'Basind18OSummary.txt',
+                                                  'BasinfMeltSummary.txt',
+                                                  'BasinfGWlat1Summary.txt','BasinfGWlat2Summary.txt','BasinfGWlat3Summary.txt',
+                                                  'BasinfGWlatSummary.txt',
+                                                  'BasinfGWseep1Summary.txt','BasinfGWseep2Summary.txt','BasinfGWseep3Summary.txt',
+                                                  'BasinfGWseepSummary.txt']:
                     sim = sim[Obs.saveB-1:Obs.saveB+Obs.saveL-1]
                 else:
                     #sim = sim.loc[Obs.saveB-1:Obs.saveB+Obs.saveL-2]
@@ -2365,7 +2388,7 @@ def store_sim(Obs, Opti, Config, Site, it):
 
                 # Only save files beyond the spinup/transient period (if any)
                 if it2 >= Obs.saveBmap and \
-                   it2 < Obs.saveBmap+Obs.saveL:
+                   it2 < Obs.saveBmap+Obs.saveLmap:
 
                     # The basic format of maps outputs is XXXXXXXX.xxx
                     # where xxx is the iteration number below 1000.
@@ -2418,7 +2441,8 @@ def store_sim(Obs, Opti, Config, Site, it):
                         # print(f_m)
 
             # Time values for netCDF output
-            var_t = np.array([(Obs.simt[x-Obs.saveBmap] -
+            print(len(Obs.simt))
+            var_t = np.array([(Obs.simtmap[x-Obs.saveBmap] -
                                datetime(1901, 1, 1, 0, 0)).days for x in itOK])
 
             if(len(itOK) == 0):
@@ -2555,6 +2579,51 @@ def store_sim(Obs, Opti, Config, Site, it):
                 os.system('cp '+Config.PATH_EXEC + '/BasinAgeSummary.txt ' +
                           Config.PATH_OUT+'/BasinAgeSummary_run' +
                           str(it+1)+'.txt')
+            # fMelt summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinfMeltSummary.txt')) != 0:
+                os.system('cp '+Config.PATH_EXEC + '/BasinfMeltSummary.txt ' +
+                          Config.PATH_OUT+'/BasinfMeltSummary_run' +
+                          str(it+1)+'.txt')
+            # fMelt summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinfGWlat1Summary.txt')) != 0:
+                os.system('cp '+Config.PATH_EXEC + '/BasinfGWlat1Summary.txt ' +
+                          Config.PATH_OUT+'/BasinfGWlat1Summary_run' +
+                          str(it+1)+'.txt')
+            # fMelt summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinfGWlat2Summary.txt')) != 0:
+                os.system('cp '+Config.PATH_EXEC + '/BasinfGWlat2Summary.txt ' +
+                          Config.PATH_OUT+'/BasinfGWlat2Summary_run' +
+                          str(it+1)+'.txt')
+            # fMelt summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinfGWlat3Summary.txt')) != 0:
+                os.system('cp '+Config.PATH_EXEC + '/BasinfGWlat3Summary.txt ' +
+                          Config.PATH_OUT+'/BasinfGWlat3Summary_run' +
+                          str(it+1)+'.txt')
+            # fMelt summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinfGWlatSummary.txt')) != 0:
+                os.system('cp '+Config.PATH_EXEC + '/BasinfGWlatSummary.txt ' +
+                          Config.PATH_OUT+'/BasinfGWlatSummary_run' +
+                          str(it+1)+'.txt')
+            # fMelt summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinfGWseep1Summary.txt')) != 0:
+                os.system('cp '+Config.PATH_EXEC + '/BasinfGWseep1Summary.txt ' +
+                          Config.PATH_OUT+'/BasinfGWseep1Summary_run' +
+                          str(it+1)+'.txt')
+            # fMelt summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinfGWseep2Summary.txt')) != 0:
+                os.system('cp '+Config.PATH_EXEC + '/BasinfGWseep2Summary.txt ' +
+                          Config.PATH_OUT+'/BasinfGWseep2Summary_run' +
+                          str(it+1)+'.txt')
+            # fMelt summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinfGWseep3Summary.txt')) != 0:
+                os.system('cp '+Config.PATH_EXEC + '/BasinfGWseep3Summary.txt ' +
+                          Config.PATH_OUT+'/BasinfGWseep3Summary_run' +
+                          str(it+1)+'.txt')
+            # fMelt summary
+            if len(glob.glob(Config.PATH_EXEC + '/BasinfGWseepSummary.txt')) != 0:
+                os.system('cp '+Config.PATH_EXEC + '/BasinfGWseepSummary.txt ' +
+                          Config.PATH_OUT+'/BasinfGWseepSummary_run' +
+                          str(it+1)+'.txt')
 
 def store_BS_interval(Obs, Opti, Config, it):
     # -- Store in files for later use
@@ -2655,7 +2724,6 @@ def store_GOF(Obs, Opti, Config, Site, it):
                     # if Opti.gof_d1 is True: # Derivative
                     #     o_d1 = np.asanyarray(Opti.obs2[oname+'_d1']['value'].values)
 
-
                 # First step for sim: trim sim to obs timespan
                 # + only keep dates with obs (even if nan)
                 # print(sim)
@@ -2686,6 +2754,13 @@ def store_GOF(Obs, Opti, Config, Site, it):
                                    np.isnan(tmp[k])])
                 o = np.asanyarray([o['value'].values[j] for j in range(len(tmp)) if not
                                    np.isnan(tmp[j])])
+
+                # print(oname)
+                # print('obs')
+                # print(o)
+                # print('sim')
+                # print(s)
+                
                 # Prepare lists of GOFs
                 if i == 0 and ic == 0:
                     gofs = {}
@@ -2711,6 +2786,8 @@ def store_GOF(Obs, Opti, Config, Site, it):
                     for gof in Opti.GOFs:
                         if gof == 'corr':  # pearson correlation coefficient
                             tmp = GOFs.corr(s, o)
+                        elif gof == 'sprmn': # separman's rank correlation
+                            tmp = np.array(pd.DataFrame(data={'x':s, 'y':o}).corr(method='spearman'))[0,1]
                         elif gof == 'rstd':  # ratio of standard deviations
                             tmp = GOFs.rstd(s, o)
                         elif gof == 'dstd':  # difference of standard deviations
@@ -2868,7 +2945,7 @@ def MC_sample(Opti, Config):
 
     # -- Reshape for output
     # Opti.xtot = np.transpose(Opti.xtot)#.shape((Opti.nvar,Opti)
-    print(Opti.xtot.shape)
+    # print(Opti.xtot.shape)
 
     print
     print('Writing in '+Config.ncpu+' files...('+str(Opti.nit)+' sets each)')
@@ -3037,13 +3114,17 @@ def ee(Config, Obs, Opti, itraj):
                 df_diff = df_sim.set_index('Sample').iloc[1::] - \
                           df_sim.set_index('Sample').iloc[0]
 
-            print(df_diff.shape)
-            # Get bias
-            bias = df_diff.mean(axis=1)
-            print(bias.shape)
-            print(Opti.stepN.shape)
-            # Get RMSE
-            RMSE = np.sqrt((df_diff**2).mean(axis=1))
+            # print(df_diff.shape)
+            # Get bias, normalized by 80%-spread of the time series
+            qt90 = df_sim.set_index('Sample').iloc[1::].quantile(0.9, axis=1)
+            qt10 = df_sim.set_index('Sample').iloc[1::].quantile(0.1, axis=1)
+            bias = df_diff.mean(axis=1) / (qt90-qt10)
+            # print(bias.shape)
+            # print(Opti.stepN.shape)
+            # Get RMSE, normalized by 80% spread of the (origin) time series
+            qt90 = df_sim.set_index('Sample').iloc[0].quantile(0.9)
+            qt10 = df_sim.set_index('Sample').iloc[0].quantile(0.1)
+            RMSE = np.sqrt((df_diff**2).mean(axis=1)) / (qt90 - qt10)
             # Get corresponding (normalized) elementary effect
             bias_ee = bias / Opti.stepN
             RMSE_ee = RMSE / Opti.stepN
@@ -3198,10 +3279,14 @@ def MultiObj(obs, sim, Obs, Opti, w=False):
 
                 if obs[oname]['gof'] == 'corr':  # pearson correlation coefficient
                     L = GOFs.corr(s, o)
+                elif obs[oname]['gof'] == 'sprmn': # spearman's rank correlation
+                    L = np.array(pd.DataFrame(data={'x':s, 'y':o}).corr(method='spearman'))[0,1]
                 elif obs[oname]['gof'] == 'rstd':  # ratio of standard deviations
                     L = GOFs.rstd(s, o)
                 elif obs[oname]['gof'] == 'rmu':  # ratio of mean
                     L = GOFs.rmu(s, o)
+                elif obs[oname]['gof'] == 'bias':  # bias
+                    L = GOFs.bias(s, o)
                 elif obs[oname]['gof'] == 'NSE':  # NSE
                     L = GOFs.nash_sutcliffe(s, o)
                 elif obs[oname]['gof'] == 'KGE':  # KGE 2009
