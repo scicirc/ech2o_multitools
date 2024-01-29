@@ -318,7 +318,7 @@ def param_init(Config, Opti, Paras, Site, options):
             nr = 1
             Opti.names = Opti.names + [par]
             Paras.comp[par] = 0
-            Paras.ref[par]['map'] = 0
+            Paras.ref[par]['map'] = 1
 
         elif Paras.ref[par]['map1'] != 0:
 
@@ -329,7 +329,7 @@ def param_init(Config, Opti, Paras, Site, options):
             # over all the map1 units listed in the def file
             if Paras.ref[par]['map1'] ==1:
                 nr = Site.nmap1
-                Opti.names = Opti.names + [par + '_' + m for m in Site.map1]
+                Opti.names = Opti.names + [par + '_' + m for m in Site.maps1]
                 Paras.comp[par] = range(Site.nmap1)
 
             # Case where mapped parameters either:
@@ -349,13 +349,13 @@ def param_init(Config, Opti, Paras, Site, options):
                 for i in range(1,nr+1):
                     # param_map1Unit if one component
                     if sum(j==i for j in Paras.ref[par]['map1'])==1:
-                        Opti.names = Opti.names + [par + '_' + Site.map1[j] for
+                        Opti.names = Opti.names + [par + '_' + Site.maps1[j] for
                                                    j in range(Site.nmap1) if
                                                    Paras.ref[par]['map1'][j] == i]
                     # param_map1Unit1+map2Unit2+... if more than one
                     if sum(j==i for j in Paras.ref[par]['map1'])>1:
                         Opti.names = Opti.names + [par + '_' +
-                                                   '+'.join(Site.map1[j] for
+                                                   '+'.join(Site.maps1[j] for
                                                             j in range(Site.nmap1) if
                                                             Paras.ref[par]['map1'][j] == i)]
                 # component, here, rows indices
@@ -374,7 +374,7 @@ def param_init(Config, Opti, Paras, Site, options):
             # over all the map2 units listed in the def file
             if Paras.ref[par]['map2'] ==1:
                 nr = Site.nmap2
-                Opti.names = Opti.names + [par + '_' + m for m in Site.map2]
+                Opti.names = Opti.names + [par + '_' + m for m in Site.maps2]
                 Paras.comp[par] = range(Site.nmap2)
 
             # Case where mapped parameters either:
@@ -394,13 +394,13 @@ def param_init(Config, Opti, Paras, Site, options):
                 for i in range(1,nr+1):
                     # param_map2Unit if one component
                     if sum(j==i for j in Paras.ref[par]['map2'])==1:
-                        Opti.names = Opti.names + [par + '_' + Site.map2[j] for
+                        Opti.names = Opti.names + [par + '_' + Site.maps2[j] for
                                                    j in range(Site.nmap2) if
                                                    Paras.ref[par]['map2'][j] == i]
                     # param_map2Unit1+map2Unit2+... if more than one
                     if sum(j==i for j in Paras.ref[par]['map2'])>1:
                         Opti.names = Opti.names + [par + '_' +
-                                                   '+'.join(Site.map2[j] for
+                                                   '+'.join(Site.maps2[j] for
                                                             j in range(Site.nmap2) if
                                                             Paras.ref[par]['map2'][j] == i)]
                 # component, here, rows indices
@@ -418,7 +418,7 @@ def param_init(Config, Opti, Paras, Site, options):
             # over all the map3 units listed in the def file
             if Paras.ref[par]['map3'] ==1:
                 nr = Site.nmap3
-                Opti.names = Opti.names + [par + '_' + m for m in Site.map3]
+                Opti.names = Opti.names + [par + '_' + m for m in Site.maps3]
                 Paras.comp[par] = range(Site.nmap3)
 
             # Case where mapped parameters either:
@@ -438,13 +438,13 @@ def param_init(Config, Opti, Paras, Site, options):
                 for i in range(1,nr+1):
                     # param_map3Unit if one component
                     if sum(j==i for j in Paras.ref[par]['map3'])==1:
-                        Opti.names = Opti.names + [par + '_' + Site.map3[j] for
+                        Opti.names = Opti.names + [par + '_' + Site.maps3[j] for
                                                    j in range(Site.nmap3) if
                                                    Paras.ref[par]['map3'][j] == i]
                     # param_map3Unit1+map2Unit2+... if more than one
                     if sum(j==i for j in Paras.ref[par]['map3'])>1:
                         Opti.names = Opti.names + [par + '_' +
-                                                   '+'.join(Site.map3[j] for
+                                                   '+'.join(Site.maps3[j] for
                                                             j in range(Site.nmap3) if
                                                             Paras.ref[par]['map3'][j] == i)]
                 # component, here, rows indices
@@ -975,56 +975,73 @@ def obs_init(Config, Opti, Obs):
 
         for oname in Obs.names:
 
+            # print(oname)
+            
             # -- Get the obs
             f_obs = Config.PATH_OBS + '/' + Obs.obs[oname]['obs_file']
 
-            # Read the file, keeping only the data and relevant TS columns
-            tmp = pd.read_csv(f_obs, sep=';').iloc[
-                :, [0, Obs.obs[oname]['obs_col']-1]]
-            tmp.columns = ['Date', 'value']
-            # Convert date column to datetime
-            tmp['Date'] = pd.to_datetime(tmp['Date'])
-            # Convert date column to datetime
-            tmp['value'] = tmp['value'] * Obs.obs[oname]['obs_conv']
+            # Time series (point or domain-scale) ---------------------------
+            if Obs.obs[oname]['type'] == 'Ts' or Obs.obs[oname]['type'] == 'Total':
 
-            # -- Calibration period:
-            # Check if specified, otherwise use the whole simulation
-            # in any case, remove the spinup (it will be removed from
-            # simulation outputs in post-processing)
-            # (no need of Obs.saveB because simt starts at saveB)
-            if 'fit_beg' not in Obs.obs[oname].keys() or \
-               type(Obs.obs[oname]['fit_beg']) is not datetime.date:
-                fitbeg = Obs.simt[0]
-            else:
-                fitbeg = max(Obs.obs[oname]['fit_beg'], Obs.simt[0])
-            if 'fit_end' not in Obs.obs[oname].keys() or \
-               type(Obs.obs[oname]['fit_end']) is not datetime.date:
-                fitend = Obs.simt[Obs.saveL-1]
-            else:
-                fitend = min(Obs.obs[oname]['fit_end'],
-                             Obs.simt[Obs.saveL-1])
-            # Crop obs between desired time frame
-            tmp2 = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
-            Opti.obs[oname] = tmp2.dropna(how='any')
+                # Read the file, keeping only the data and relevant TS columns
+                tmp = pd.read_csv(f_obs, sep=';').iloc[
+                    :, [0, Obs.obs[oname]['obs_col']-1]]
+                tmp.columns = ['Date', 'value']
+                # Convert date column to datetime
+                tmp['Date'] = pd.to_datetime(tmp['Date'])
+                # Convert date column to datetime
+                tmp['value'] = tmp['value'] * Obs.obs[oname]['obs_conv']
 
-            # -- Second calibration period?
-            if 'fit_beg2' in Obs.obs[oname].keys() and \
-               'fit_end2' in Obs.obs[oname].keys() :
-                #print(type(Obs.obs[oname]['fit_beg2']))
-                #print(type(Obs.obs[oname]['fit_end2']))
-                if type(Obs.obs[oname]['fit_beg2']) is datetime and \
-                   type(Obs.obs[oname]['fit_end2']) is datetime:
-                    fitbeg2 = max(Obs.obs[oname]['fit_beg2'], Obs.simt[0])
-                    fitend2 = min(Obs.obs[oname]['fit_end2'], Obs.simt[Obs.saveL-1])
-                    # Crop obs between desired time frame
-                    tmp2 = tmp.loc[(tmp.Date >= fitbeg2) & (tmp.Date <= fitend2)]
-                    Opti.obs2[oname] = tmp2.dropna(how='any')
-                    Opti.calib2[oname] = True
-                    Opti.iscalib2 = True
+                # -- Calibration period:
+                # Check if specified, otherwise use the whole simulation
+                # in any case, remove the spinup (it will be removed from
+                # simulation outputs in post-processing)
+                # (no need of Obs.saveB because simt starts at saveB)
+                if 'fit_beg' not in Obs.obs[oname].keys() or \
+                   type(Obs.obs[oname]['fit_beg']) is not datetime.date:
+                    fitbeg = Obs.simt[0]
+                else:
+                    fitbeg = max(Obs.obs[oname]['fit_beg'], Obs.simt[0])
+                if 'fit_end' not in Obs.obs[oname].keys() or \
+                   type(Obs.obs[oname]['fit_end']) is not datetime.date:
+                    fitend = Obs.simt[Obs.saveL-1]
+                else:
+                    fitend = min(Obs.obs[oname]['fit_end'],
+                                 Obs.simt[Obs.saveL-1])
+                # Crop obs between desired time frame
+                tmp2 = tmp.loc[(tmp.Date >= fitbeg) & (tmp.Date <= fitend)]
+                Opti.obs[oname] = tmp2.dropna(how='any')
+
+                # -- Second calibration period?
+                if 'fit_beg2' in Obs.obs[oname].keys() and \
+                   'fit_end2' in Obs.obs[oname].keys() :
+                    #print(type(Obs.obs[oname]['fit_beg2']))
+                    #print(type(Obs.obs[oname]['fit_end2']))
+                    if type(Obs.obs[oname]['fit_beg2']) is datetime and \
+                       type(Obs.obs[oname]['fit_end2']) is datetime:
+                        fitbeg2 = max(Obs.obs[oname]['fit_beg2'], Obs.simt[0])
+                        fitend2 = min(Obs.obs[oname]['fit_end2'], Obs.simt[Obs.saveL-1])
+                        # Crop obs between desired time frame
+                        tmp2 = tmp.loc[(tmp.Date >= fitbeg2) & (tmp.Date <= fitend2)]
+                        Opti.obs2[oname] = tmp2.dropna(how='any')
+                        Opti.calib2[oname] = True
+                        Opti.iscalib2 = True
+                    else:
+                        Opti.calib2[oname] = False
                 else:
                     Opti.calib2[oname] = False
-            else:
-                Opti.calib2[oname] = False
+
+            # Snapshot maps (reading one time step) --------------------------
+            elif Obs.obs[oname]['type'] == 'mapStep':
+
+                # Read map, convert to array using a missing value (-9999)
+                try:
+                    tmp = pcr.pcr2numpy(pcr.readmap(f_obs),
+                                        np.nan)*Obs.obs[oname]['sim_conv']
+                    Opti.obs[oname] = tmp[~np.isnan(tmp)]
+                    #print(tmp)
+                except RuntimeError:
+                    print('Warning: RuntimeError - could not read ',f_obs)
 
             # # -- Get derivative if needed for GOFs
             # if Opti.gof_d1 is True:
@@ -1089,7 +1106,10 @@ def obs_init(Config, Opti, Obs):
                     if Config.restart == 0:
                         #print('second period:',fitbeg2,'to',fitend2)
                         with open(Opti.GOFfiles2[gof], 'w') as f_out:
-                            f_out.write('Sample,'+','.join(Obs.names)+'\n')
+                            f_out.write('Sample,'+
+                                        ','.join([Obs.names[i]
+                                                  for i in range(Obs.nobs)
+                                                  if Obs.obs[Obs.names[i]]['type'] != 'mapStep'])+'\n')
 
 
         # -- Optional: group the BasinSummary files in one across simulations
@@ -1515,6 +1535,7 @@ def calibMC_runs(Config, Opti, Obs, Paras, Site):
         os.system('rm -f '+Config.PATH_EXEC+'/Basin*.txt')
 
     # Final cleanup
+    os.system('rm -f '+Config.PATH_EXEC+'/*')
     os.system('rm -fr '+Config.PATH_EXEC)
 
 
@@ -1570,8 +1591,14 @@ def forward_runs(Config, Opti, Obs, Paras, Site, options):
         if Config.replog == 1:
             os.system('mv '+Config.PATH_EXEC+'/ech2o.log ' +
                       Config.PATH_OUT + '/ech2o_run'+str(it+1)+'.log')
+
+        # Intermediate clean up
+        os.system('rm -f '+Config.PATH_EXEC+'/*.tab')
+        os.system('rm -f '+Config.PATH_EXEC+'/Basin*.txt')
+
     # Clean up
     os.system('rm -f '+Config.PATH_EXEC+'/*')
+    os.system('rm -fr '+Config.PATH_EXEC)
 
 
 def morris_runs(Config, Opti, Obs, Paras, Site):
@@ -1586,7 +1613,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
     Config.initobs = 0
     Opti.begfail = 0
 
-    irun_tot = 0
+    # irun_tot = 0
 
     # Initial clean up
     f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
@@ -1631,7 +1658,9 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
 
             # Check if it ran properly
             os.chdir(Config.PATH_EXEC)
-            store_sim(Obs, Opti, Config, Site, irun_tot)
+
+            # Store_simulations for elementary effects calculations at the end
+            store_sim(Obs, Opti, Config, Site, irun, itraj) #_tot)
 
             # if runOK(Obs, Opti, Config) == 1:
                 # Group outputs
@@ -1654,21 +1683,29 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
                 os.system('mv '+Config.PATH_EXEC+'/ech2o.log '+Config.PATH_OUT +
                     '/ech2o_traj'+str(itraj+1)+'_run'+str(irun+1)+'.log')
 
-            irun_tot += 1
+            # Intermediate clean up
+            os.system('rm -f '+Config.PATH_EXEC+'/*.tab')
+            os.system('rm -f '+Config.PATH_EXEC+'/Basin*.txt')
 
-        # Clean up
-        os.system('rm -f '+Config.PATH_EXEC+'/*')
+            # irun_tot += 1
 
         # print(Obs.obs)
         # Only for debugging ------------------------------------------------------
-        for oname in Obs.names:
-            if Obs.obs[oname]['type'] != 'map':
-                Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
+        # for oname in Obs.names:
+        #     if Obs.obs[oname]['type'] == 'Ts' or Obs.obs[oname]['type'] == 'Total':
+        #         Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
         # ----------------------------------------------------------------------------
 
         # Calculate and output the elementary effects
         ee(Config, Obs, Opti, itraj)
 
+        # Clean up after trajectory/radial point
+        os.system('rm -f '+Config.PATH_EXEC+'/*')
+        # for oname in Obs.names:
+        #     os.system('rm -f '+Obs.obs[oname]['sim_hist'])
+
+    os.system('rm -fr '+Config.PATH_EXEC)
+                    
 
 def runOK(Obs, Opti, Config, mode='silent'):
     # -- Check if ECH2O ran properly
@@ -1910,7 +1947,8 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
 
     for pname in Paras.names:
 
-        #print(pname)
+        # print(pname)
+        # print(Paras.ref[pname])
 
         # - Mapped parameters
         if Paras.ref[pname]['map'] == 1:
@@ -2082,6 +2120,10 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
 
     # In any case, get base porosity
     poros = pcr.readmap(path_spa+'/' + Site.f_poros)
+    # use it to get number of non-nan pixels
+    tmp = pcr.pcr2numpy(poros, np.nan)
+    Site.npix = len(list(tmp[~np.isnan(tmp)]))
+
     # Depending on porosity profile mode, different ways to each layer's porosity
     if Site.poros_mode == 0:
         # Constant profile
@@ -2129,75 +2171,118 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
 def read_sim(Config, Obs, oname, it=0):
     # -- Read a given simulation output (time series only)
 
-    # print(oname)
-    # Point-scale time series -------------------------------------
-    if Obs.obs[oname]['type'] == 'Ts':
-        # print(Obs.obs[oname]['sim_file'])
-        # HEader in EcH2O files
-        hskip = Obs.nts+3
-        idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]['sim_pts']-1]
-        # Read
-        sim = pd.read_table(Obs.obs[oname]['sim_file'],#error_bad_lines=False,
+    print(oname)
+
+    # Time series ---------------------------------------------------
+    if Obs.obs[oname]['type'] == 'Ts' or Obs.obs[oname]['type'] == 'Total':
+        
+        # Point-scale
+        if Obs.obs[oname]['type'] == 'Ts':
+            # print(Obs.obs[oname]['sim_file'])
+            # HEader in EcH2O files
+            hskip = Obs.nts+3
+            # column, factoring in the "custom point sorting" of EcH2O, using
+            # the sim_order vector
+            idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]['sim_pts']-1]
+            # Read
+            sim = pd.read_table(Obs.obs[oname]['sim_file'],#error_bad_lines=False,
                             skiprows=hskip, header=None).set_index(0)
-        # Check if it ran properly (sometimes some time steps are skipped in *tab...)
-        # If steps are missing but the series is long enough, let's replace with nan
-        if len(sim) < Obs.lsim:  # and len(sim) > 365:
-            idx2 = np.arange(1,Obs.lsim+1)
-            sim = sim.reindex(idx2)
-            print("Warning: some steps were missing in", Obs.obs[oname]['sim_file'],
-                  '(',','.join([str(x) for x in list(pd.isnull(sim[1]).nonzero()[0]+1)]))
-            copy_file(Obs.obs[oname]['sim_file'],
-                      Config.PATH_OUT+'/'+Obs.obs[oname]['sim_file']+
-                      '.run'+str(it+1)+'.txt')
-
-    # Integrated variables (in Basin*Summary.txt) -----------------
-    elif Obs.obs[oname]['type'] == 'Total':
-        idx = Obs.obs[oname]['sim_pts']-1
-        # Read
-        sim = pd.read_table(Obs.obs[oname]['sim_file'])  #, error_bad_lines=False)
-        sim = sim.set_axis([str(i) for i in np.arange(1,sim.shape[0]+1)])
+            # Check if it ran properly (sometimes some time steps are skipped in *tab...)
+            # If steps are missing but the series is long enough, let's replace with nan
+            if len(sim) < Obs.lsim:  # and len(sim) > 365:
+                idx2 = np.arange(1,Obs.lsim+1)
+                sim = sim.reindex(idx2)
+                print("Warning: some steps were missing in", Obs.obs[oname]['sim_file'],
+                      '(',','.join([str(x) for x in list(pd.isnull(sim[1]).nonzero()[0]+1)]))
+                copy_file(Obs.obs[oname]['sim_file'],
+                          Config.PATH_OUT+'/'+Obs.obs[oname]['sim_file']+
+                          '.run'+str(it+1)+'.txt')
 
 
-    # Get observation column
-    sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv']
-    #print(len(sim),'(2)')
-    # Trim (spinup, transient state, etc.)
-    sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1]
-    #print(len(sim),'(3', Obs.saveB, Obs.saveB+Obs.saveL-1,')')
+        # Domain-scale (in Basin*Summary.txt) -----------------
+        if Obs.obs[oname]['type'] == 'Total':
+            # column
+            idx = Obs.obs[oname]['sim_pts']-1
+            # Read
+            sim = pd.read_table(Obs.obs[oname]['sim_file'])  #, error_bad_lines=False)
+            # Basin*Summary.txt files don't have an index
+            sim = sim.set_axis([str(i)
+                                for i in np.arange(1, sim.shape[0]+1)])
 
-    if len(sim) != Obs.saveL:
-        print("Warning: problem with "+oname+" trim: read length is " +
-              str(len(sim)) + ' instead of '+str(Obs.saveL))
-        sim = [np.nan] * Obs.saveL
+        # Get observation column
+        sim = sim.iloc[:,idx] * Obs.obs[oname]['sim_conv']
 
-    # if Obs.saveB > 1 or Obs.saveL < Obs.lsim:
-    #     sim = sim[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
-    #     # print(len(sim))
-    # #print(sim)
+        # If flux in BasinSummary.txt, convert from cumulative to "instantaneous"
+        if Obs.obs[oname]['type'] == 'Total' and Obs.obs[oname]['sim_file'] == 'BasinSummary.txt' and \
+           Obs.obs[oname]['sim_pts'] in [1, 2, 5, 7, 14, 15, 16, 17, 18, 19, 20,
+                                                 21, 22, 23, 24, 25, 26, 27]:
+            sim1 = sim.diff() # differences
+            sim1.iloc[0] = sim.iloc[0] # restore first value
+            sim = copy.copy(sim1)
+            
+        # print(len(sim),'(2)')
+        # Trim (spinup, transient state, etc.)
+        sim = sim[Obs.saveB-1:Obs.saveB+Obs.saveL-1]
+        #sim = sim.loc[Obs.saveB:Obs.saveB+Obs.saveL-1]
+        # print(len(sim),'(3', Obs.saveB, Obs.saveB+Obs.saveL-1,')')
+        
+        if len(sim) != Obs.saveL:
+            print("Warning: problem with "+oname+" trim: read length is " +
+                  str(len(sim)) + ' instead of '+str(Obs.saveL))
+            sim = [np.nan] * Obs.saveL
+
+        # if Obs.saveB > 1 or Obs.saveL < Obs.lsim:
+        #     sim = sim[Obs.saveB-1:Obs.saveB-1+Obs.saveL]
+        #     # print(len(sim))
+        # #print(sim)
+
+        
+    # Time-varying maps (reading one time step) --------------------------
+    elif Obs.obs[oname]['type'] == 'mapInit' or Obs.obs[oname]['type'] == 'mapStep' :
+        
+        # Read map, convert to vector and remove nan pixels
+        try:
+            sim = pcr.pcr2numpy(pcr.readmap(Obs.obs[oname]['sim_file']),
+                                np.nan)*Obs.obs[oname]['sim_conv']
+            sim = sim[~np.isnan(sim)]
+            #print(sim)
+        except RuntimeError:
+            print('Warning: RuntimeError - could not read ',
+                    Obs.obs[oname]['sim_file'])
+
 
     return list(sim)
 
 
-def store_sim(Obs, Opti, Config, Site, it):
+def store_sim(Obs, Opti, Config, Site, it, it2 = -1):
     # -- Store in files for later use
 
     mode = 'verbose'
 
-    # -- Group the output files in one across simulations,
+    # -- For time series, group the output files in one across simulations,
     #    separating by observations points and veg type where it applies
     for oname in Obs.names:
-        if Obs.obs[oname]['type'] != 'map' and \
-           Obs.obs[oname]['type'] != 'mapTs' and \
-                                     (it == 0 or
-                                      (Opti.begfail == 1 and
-                                       Config.mode != 'sensi_morris')):
+        if Obs.obs[oname]['type'] != 'mapTs' and \
+           (it == 0 or (Opti.begfail == 1 and Config.mode != 'sensi_morris')):
+            
             # Historic time series file names
-            Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
-            # Header of files
-            with open(Obs.obs[oname]['sim_hist'], 'w') as f_out:
-                f_out.write('Sample,'+','.join([str(i+1) for i in
-                                                range(Obs.saveL)])+'\n')
+            if Config.mode == 'sensi_morris':
+                Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_traj'+str(it2)+'.tab'
+            else:
+                Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
 
+            # Header of files
+            if Obs.obs[oname]['type'] == 'Ts' or Obs.obs[oname]['type'] == 'Total' :
+                with open(Obs.obs[oname]['sim_hist'], 'w') as f_out:
+                    f_out.write('Sample,'+','.join([str(i+1) for i in
+                                                    range(Obs.saveL)])+'\n')
+            elif Config.mode == 'sensi_morris':
+                # For initial or snapshot maps : only for morris (to get elementary effects)
+                with open(Obs.obs[oname]['sim_hist'], 'w') as f_out:
+                    f_out.write('Sample,'+','.join([str(i+1) for i in
+                                                    range(Site.npix)])+'\n')
+                
+                
     # Reinit begfail (otherwise will never write all!)
     Opti.begfail = 0
 
@@ -2226,16 +2311,31 @@ def store_sim(Obs, Opti, Config, Site, it):
                                     for i in np.arange(1, sim.shape[0]+1)])
                 # Get observation column
                 sim = sim.iloc[:, idx] * Obs.obs[oname]['sim_conv']
+
+                # If flux, convert from cumulative to "instantaneous"
+                if Obs.obs[oname]['sim_file'] == 'BasinSummary.txt' and \
+                   Obs.obs[oname]['sim_pts'] in [1, 2, 5, 7, 14, 15, 16, 17, 18, 19, 20,
+                                                 21, 22, 23, 24, 25, 26, 27]:
+                    sim1 = sim.diff() # differences
+                    sim1.iloc[0] = sim.iloc[0] # restore first value
+                    sim = copy.copy(sim1) 
+                
                 # Trim (spinup, transient state, etc.)
                 # Index starts at 0
                 if Obs.obs[oname]['sim_file'] in ['BasinSummary.txt',
                                                   'BasinVegSummary.txt',
-                                                  'BasinAgeSummary.txt', 'BasincClSummary.txt',
-                                                  'Basind2HSummary.txt', 'Basind18OSummary.txt',
+                                                  'BasinAgeSummary.txt',
+                                                  'BasincClSummary.txt',
+                                                  'Basind2HSummary.txt',
+                                                  'Basind18OSummary.txt',
                                                   'BasinfMeltSummary.txt',
-                                                  'BasinfGWlat1Summary.txt','BasinfGWlat2Summary.txt','BasinfGWlat3Summary.txt',
+                                                  'BasinfGWlat1Summary.txt',
+                                                  'BasinfGWlat2Summary.txt',
+                                                  'BasinfGWlat3Summary.txt',
                                                   'BasinfGWlatSummary.txt',
-                                                  'BasinfGWseep1Summary.txt','BasinfGWseep2Summary.txt','BasinfGWseep3Summary.txt',
+                                                  'BasinfGWseep1Summary.txt',
+                                                  'BasinfGWseep2Summary.txt',
+                                                  'BasinfGWseep3Summary.txt',
                                                   'BasinfGWseepSummary.txt']:
                     sim = sim[Obs.saveB-1:Obs.saveB+Obs.saveL-1]
                 else:
@@ -2263,6 +2363,7 @@ def store_sim(Obs, Opti, Config, Site, it):
         if Obs.obs[oname]['type'] == 'Ts':
 
             if runOK(Obs, Opti, Config, mode) == 1:
+
                 hskip = Obs.nts+3
                 idx = np.argsort(np.array(Obs.sim_order))[Obs.obs[oname]
                                                           ['sim_pts']-1]
@@ -2295,81 +2396,105 @@ def store_sim(Obs, Opti, Config, Site, it):
                           str(len(sim)) + ' instead of '+str(Obs.saveL))
 
                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
-                    f_out.write(str(it+1)+','+','.join([str(j) for j in
-                                                        list(sim)])+'\n')
+                    f_out.write(str(it+1)+','+
+                                ','.join([str(j) for j in list(sim)])+'\n')
             else:
                 # If run failed, write nan line
                 with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
-                    f_out.write(str(it+1)+','+','.join(list(np.repeat('nan',
-                                                                      Obs.saveL)))+'\n')
+                    f_out.write(str(it+1)+','+
+                                ','.join(list(np.repeat('nan',Obs.saveL)))+'\n')
 
         # Fixed-value (initial-value) maps ------------------------------------
-        if Obs.obs[oname]['type'] == 'map':
+        if Obs.obs[oname]['type'] == 'mapInit' or Obs.obs[oname]['type'] == 'mapStep' :
 
-            # Missing vaue for PCraster to numpy conversion
-            MV = -9999.
+            fail = 0
+            
+            # Output map name
+            if Obs.obs[oname]['type'] == 'mapInit':
+                f_m = Config.PATH_EXEC+'/'+Obs.obs[oname]['sim_file']+'.map'
+            else:
+                f_m = Config.PATH_EXEC+'/'+Obs.obs[oname]['sim_file']
 
-            f_m = Config.PATH_EXEC+'/'+Obs.obs[oname]['sim_file']+'.map'
-            if(len(glob.glob(f_m)) == 0):
+            # Read map
+            if len(glob.glob(f_m)) != 0 and runOK(Obs, Opti, Config, mode) == 1 :
+                # Now that we have what we need, read the PCraster map...
+                var_val = pcr.pcr2numpy(pcr.readmap(f_m), np.nan)*Obs.obs[oname]['sim_conv']
+            else :
                 print("Warning: the map " + f_m +
                       " seems to be missing from the EcH2O outputs...")
-                continue
+                var_val = np.nan
+                fail = 1
 
-            # Now that we have what we need, read the PCraster map...
-            var_val = \
-                pcr.pcr2numpy(pcr.readmap(f_m), MV)*Obs.obs[oname]['sim_conv']
-
-            # Write output NCDF file
-            ncFile = Config.PATH_OUT+'/'+oname+'_all.nc'
-            # -open nc dataset
-
-            # If first run, create file
-            if(it == 0):
-                # print('Creating '+ncFile+'...')
-                ncFile = Config.PATH_OUT+'/'+oname+'_all.nc'
-                rootgrp = spio.netcdf_file(ncFile, 'w')
-                rootgrp.createDimension('time', 0)
-                var_y = pcr.pcr2numpy(pcr.ycoordinate(
-                    Config.cloneMap), MV)[:, 1]
-                var_x = pcr.pcr2numpy(pcr.xcoordinate(
-                    Config.cloneMap), MV)[1, :]
-                rootgrp.createDimension('latitude', len(var_y))
-                rootgrp.createDimension('longitude', len(var_x))
-                rootgrp.createDimension('ensemble', Config.nEns)
-                lat = rootgrp.createVariable('latitude', 'f4', ('latitude',))
-                lat.standard_name = 'Latitude'
-                lat.long_name = 'Latitude cell centres'
-                lon = rootgrp.createVariable('longitude', 'f4', ('longitude',))
-                lon.standard_name = 'Longitude'
-                lon.long_name = 'Longitude cell centres'
-                ens = rootgrp.createVariable('ensemble', 'i', ('ensemble',))
-                ens.standard_name = 'Ensemble'
-                ens.long_name = 'Ensembles of runs'
-                # -assign lat and lon to variables
-                lat[:] = var_y
-                lon[:] = var_x
-                ens[:] = np.arange(Config.nEns)+1
-                # -set netCDF attribute
-                rootgrp.title = 'Maps of '+oname
-                rootgrp.institution = 'Gaia'
-                rootgrp.author = 'P. Camenzind'
-                rootgrp.history = 'Created on %s' % (datetime.now())
-                varStructure = ('latitude', 'longitude', 'ensemble')
-                ncVariable = rootgrp.createVariable(oname, 'f4', varStructure)
-                ncVariable.standard_name = oname
-                # -write to file
+            # In forward mode, store netCDF
+            if Config.mode == 'forward_runs':
+                
+                ncFile = Config.PATH_OUT+'/'+oname+'_all.nc'                
+                # Missing vaue for PCraster to numpy conversion
+                MV = -9999.
+                
+                # If first run, create file
+                if(it == 0):
+                    # print('Creating '+ncFile+'...')
+                    ncFile = Config.PATH_OUT+'/'+oname+'_all.nc'
+                    rootgrp = spio.netcdf_file(ncFile, 'w')
+                    rootgrp.createDimension('time', 0)
+                    var_y = pcr.pcr2numpy(pcr.ycoordinate(
+                        Config.cloneMap), MV)[:, 1]
+                    var_x = pcr.pcr2numpy(pcr.xcoordinate(
+                        Config.cloneMap), MV)[1, :]
+                    rootgrp.createDimension('latitude', len(var_y))
+                    rootgrp.createDimension('longitude', len(var_x))
+                    rootgrp.createDimension('ensemble', Config.nEns)
+                    lat = rootgrp.createVariable('latitude', 'f4', ('latitude',))
+                    lat.standard_name = 'Latitude'
+                    lat.long_name = 'Latitude cell centres'
+                    lon = rootgrp.createVariable('longitude', 'f4', ('longitude',))
+                    lon.standard_name = 'Longitude'
+                    lon.long_name = 'Longitude cell centres'
+                    ens = rootgrp.createVariable('ensemble', 'i', ('ensemble',))
+                    ens.standard_name = 'Ensemble'
+                    ens.long_name = 'Ensembles of runs'
+                    # -assign lat and lon to variables
+                    lat[:] = var_y
+                    lon[:] = var_x
+                    ens[:] = np.arange(Config.nEns)+1
+                    # -set netCDF attribute
+                    rootgrp.title = 'Maps of '+oname
+                    rootgrp.institution = 'Gaia'
+                    rootgrp.author = 'P. Camenzind'
+                    rootgrp.history = 'Created on %s' % (datetime.now())
+                    varStructure = ('latitude', 'longitude', 'ensemble')
+                    ncVariable = rootgrp.createVariable(oname, 'f4', varStructure)
+                    ncVariable.standard_name = oname
+                    # -write to file
+                    rootgrp.sync()
+                    rootgrp.close()
+                                                
+                # print('Appending to '+ncFile+'...')
+                # Write the actual values for this run
+                rootgrp = spio.netcdf_file(ncFile, 'a')
+                # - write data
+                ncVariable = rootgrp.variables[oname]
+                ncVariable[:, :, it] = var_val
+                # -update file and close
                 rootgrp.sync()
                 rootgrp.close()
 
-            # print('Appending to '+ncFile+'...')
-            # Write the actual values for this run
-            rootgrp = spio.netcdf_file(ncFile, 'a')
-            # - write data
-            ncVariable = rootgrp.variables[oname]
-            ncVariable[:, :, it] = var_val
-            # -update file and close
-            rootgrp.sync()
-            rootgrp.close()
+                
+            else: # If Morris mode, store in text file just for elementary effects
+
+                if fail == 0:
+                    var_val = var_val[~np.isnan(var_val)]
+                    if len(list(var_val)) == Site.npix:
+                        with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
+                            f_out.write(str(it+1)+','+
+                                        ','.join([str(j) for j in list(var_val)])+'\n')
+                else:
+                    # If run failed, write nan line
+                    with open(Obs.obs[oname]['sim_hist'], 'a') as f_out:
+                        f_out.write(str(it+1)+','+
+                                    ','.join(list(np.repeat('nan', Site.npix)))+'\n')
+
 
         # Time-varying maps ---------------------------------------------------
         if Obs.obs[oname]['type'] == 'mapTs':
@@ -2678,46 +2803,52 @@ def store_GOF(Obs, Opti, Config, Site, it):
 
     # Did it run OK?
     if runOK(Obs, Opti, Config, mode='verbose') == 1:
-        # Read outputs
-        if Obs.nobs == 1:
-            simulations = read_sim(Config, Obs, Obs.names[0], it)
-            # if(len(simulations) < Obs.saveL):
-            #     print('sim length:', len(simulations),
-            # ', expected:', Obs.saveL)
-            #     simulations = [np.nan] * Obs.saveL
-        else:
-            simulations = np.full((Obs.nobs, Obs.saveL), np.nan).tolist()
-            for i in range(Obs.nobs):
-                oname = Obs.names[i]
-                simulations[i][:] = read_sim(Config, Obs, oname, it)
-                # if(len(simulations[i]) < Obs.saveL):
-                #     print('sim length:', len(simulations[i]),
-                # ', expected:', Obs.saveL)
-                #     simulations[i][:] = [np.nan] * Obs.saveL
+        # # Read outputs
+        # if Obs.nobs == 1:
+        #     simulations = read_sim(Config, Obs, Obs.names[0], it)
+        #     # if(len(simulations) < Obs.saveL):
+        #     #     print('sim length:', len(simulations),
+        #     # ', expected:', Obs.saveL)
+        #     #     simulations = [np.nan] * Obs.saveL
+        # else:
+        #     simulations = np.full((Obs.nobs, Obs.saveL), np.nan).tolist()
+        #     for i in range(Obs.nobs):
+        #         oname = Obs.names[i]
+        #         simulations[i][:] = read_sim(Config, Obs, oname, it)
+        #         # if(len(simulations[i]) < Obs.saveL):
+        #         #     print('sim length:', len(simulations[i]),
+        #         # ', expected:', Obs.saveL)
+        #         #     simulations[i][:] = [np.nan] * Obs.saveL
 
-        Opti.tmp = copy.copy(simulations)
+        # Opti.tmp = copy.copy(simulations)
 
         for i in range(Obs.nobs):
 
             oname = Obs.names[i]
+            # Read outputs
+            simulation = read_sim(Config, Obs, oname, it)
 
-            # Check if there is one or two calibration periods
-            if Opti.calib2[oname] is True:
-                ncalib = 2
-            else:
-                ncalib = 1
+            ncalib = 1
+            
+            if Obs.obs[oname]['type'] != 'mapTs':
+                # Check if there is one or two calibration periods (except for maps)
+                if Opti.calib2[oname] is True:
+                    ncalib = 2
 
             for ic in range(ncalib):
 
                 # Have obervation and simulations matching the same time period
                 # obs: already pre-processed
                 if ic == 0:
-                    tobs = pd.to_datetime(Opti.obs[oname]['Date'].values)
-                    # o = np.asanyarray(Opti.obs[oname]['value'].values)
-                    o = Opti.obs[oname].reset_index(drop=True)
-                    # if Opti.gof_d1 is True: # Derivative
-                    #     o_d1 = np.asanyarray(Opti.obs[oname+'_d1']['value'].values)
-                if ic == 1:
+                    if Obs.obs[oname]['type'] != 'mapTs':
+                        tobs = pd.to_datetime(Opti.obs[oname]['Date'].values)
+                        # o = np.asanyarray(Opti.obs[oname]['value'].values)
+                        o = Opti.obs[oname].reset_index(drop=True)
+                        # if Opti.gof_d1 is True: # Derivative
+                        #     o_d1 = np.asanyarray(Opti.obs[oname+'_d1']['value'].values)
+                    else:
+                        o = pd.Series(Opti.obs[oname]).reset_index(drop=True)
+                if ic == 1: # ic always =0 for type=mapTs
                     tobs = pd.to_datetime(Opti.obs2[oname]['Date'].values)
                     # o = np.asanyarray(Opti.obs2[oname]['value'].values)
                     o = Opti.obs2[oname].reset_index(drop=True)
@@ -2728,32 +2859,36 @@ def store_GOF(Obs, Opti, Config, Site, it):
                 # + only keep dates with obs (even if nan)
                 # print(sim)
                 # print(sim.shape)
-                if Obs.nobs == 1:
-                    # s = np.asanyarray([simulations[j] for j in range(Obs.saveL)
-                    #                    if Obs.simt[j] in tobs])
-                    s = pd.Series([simulations[j] for j in range(Obs.saveL)
-                            if Obs.simt[j] in tobs]).reset_index(drop=True)
-                else:
-                    # s = np.asanyarray([simulations[i][j] for j in range(Obs.saveL)
-                    #                    if Obs.simt[j] in tobs])
-                    s = pd.Series([simulations[i][j] for j in range(Obs.saveL)
-                            if Obs.simt[j] in tobs]).reset_index(drop=True)
+                if Obs.obs[oname]['type'] != 'mapTs': # Time series
+                    s = pd.Series([simulation[j] for j in range(Obs.saveL)
+                                   if Obs.simt[j] in tobs]).reset_index(drop=True)
+                else: # Map (already with right number of non-NA pixels
+                    s = pd.Series(list(simulation)).reset_index(drop=True)
 
                 if Opti.gof_d1 is True: # Derivative
                     dt = tobs.to_series().reset_index(drop=True).diff().dt.total_seconds()[1::]
                     o_d1 = o['value'].diff()[1::] / dt
                     s_d1 = s.diff()[1::] / dt
+                    
                 # print(s)
+                # print(o)
                 # print(s_d1)
                 # #sys.exit()
 
                 # Second step (both o and s): remove nan due to gaps in obs
                 # (or missing steps in sims...)
-                tmp = s.values*o['value'].values
-                s = np.asanyarray([s.values[k] for k in range(len(tmp)) if not
-                                   np.isnan(tmp[k])])
-                o = np.asanyarray([o['value'].values[j] for j in range(len(tmp)) if not
-                                   np.isnan(tmp[j])])
+                if Obs.obs[oname]['type'] != 'mapTs':
+                    tmp = s.values*o['value'].values
+                    s = np.asanyarray([s.values[k] for k in range(len(tmp)) if not
+                                       np.isnan(tmp[k])])
+                    o = np.asanyarray([o['value'].values[j] for j in range(len(tmp)) if not
+                                       np.isnan(tmp[j])])
+                else:
+                    tmp = s.values*o.values
+                    s = np.asanyarray([s.values[k] for k in range(len(tmp)) if not
+                                       np.isnan(tmp[k])])
+                    o = np.asanyarray([o.values[j] for j in range(len(tmp)) if not
+                                       np.isnan(tmp[j])])
 
                 # print(oname)
                 # print('obs')
@@ -2773,7 +2908,7 @@ def store_GOF(Obs, Opti, Config, Site, it):
 
                 # Another sanity check: any data/sim left after nan screening?
                 if s.__len__() == 0 or o.__len__() == 0:
-                    print('Warning: nothing to compare to after date trimming!')
+                    print('Warning: nothing to compare to after trimming!')
                     # Add nan
                     for gof in Opti.GOFs:
                         if ic == 0:
@@ -3088,6 +3223,9 @@ def write_Btraj(Config, Obs, Opti, itraj):
 # EDIT : pandas available, has to be reverted to it
 # (in theory just uncomment previous code, but testing would be necessary)
 
+# NEW: it's used with summary time series/vectorized maps which are specific for
+# one trajcory / set of radial points (and not over all runs *nr), hence itraj
+# does not matter
 
 def ee(Config, Obs, Opti, itraj):
 
@@ -3099,83 +3237,85 @@ def ee(Config, Obs, Opti, itraj):
 
     for oname in Obs.names:
 
-        # Only look into time series
-        if Obs.obs[oname]['type'] == 'Ts' or \
-           Obs.obs[oname]['type'] == 'Total':
+        # Time series or snapshot maps
 
-            # Read file
-            f_in = Obs.obs[oname]['sim_hist']
-            df_sim = pd.read_csv(f_in).iloc[itraj*(Opti.nvar+1)::, ]
+        # Read file        
+        f_in = Obs.obs[oname]['sim_hist']
+        df_sim = pd.read_csv(f_in).set_index('Sample')#.iloc[itraj*(Opti.nvar+1)::, ]
 
-            # Diff between sims
-            if Opti.MSspace == 'trajectory':
-                df_diff = df_sim.set_index('Sample').diff().iloc[1::, ]
-            if Opti.MSspace == 'radial':
-                df_diff = df_sim.set_index('Sample').iloc[1::] - \
-                          df_sim.set_index('Sample').iloc[0]
+        # Diff between sims
+        if Opti.MSspace == 'trajectory':
+            df_diff = df_sim.diff().iloc[1::, ]
+        if Opti.MSspace == 'radial':
+            df_diff = df_sim.iloc[1::]-df_sim.iloc[0]
 
-            # print(df_diff.shape)
-            # Get bias, normalized by 80%-spread of the time series
-            qt90 = df_sim.set_index('Sample').iloc[1::].quantile(0.9, axis=1)
-            qt10 = df_sim.set_index('Sample').iloc[1::].quantile(0.1, axis=1)
-            bias = df_diff.mean(axis=1) / (qt90-qt10)
-            # print(bias.shape)
-            # print(Opti.stepN.shape)
-            # Get RMSE, normalized by 80% spread of the (origin) time series
-            qt90 = df_sim.set_index('Sample').iloc[0].quantile(0.9)
-            qt10 = df_sim.set_index('Sample').iloc[0].quantile(0.1)
-            RMSE = np.sqrt((df_diff**2).mean(axis=1)) / (qt90 - qt10)
-            # Get corresponding (normalized) elementary effect
-            bias_ee = bias / Opti.stepN
-            RMSE_ee = RMSE / Opti.stepN
-
-            # Associate the corresponding parameter being tested
-            # (the order if the basic parameter order)
-            bias_ee.index = Opti.names
-            RMSE_ee.index = Opti.names
-
-            # sim = np.genfromtxt(f_in, delimiter=',', skip_header=1,
-            #                     unpack=True)[1:Config.trimL+1, :]
-
-            # # Take into account accumulated fluxes
-            # if Obs.obs[oname]['type'] == 'Total' and \
-            #    Obs.obs[oname]['sim_pts'] in [1, 11, 12, 13, 14, 15, 16,
-            #                                   17, 18, 19, 20]:
-            #     sim = np.diff(sim, axis=0)
-
-            # # Diff between sims
-            # if(Opti.MSspace == 'trajectory'):
-            #     simd = np.diff(sim)
-            # elif(Opti.MSspace == 'radial'):
-            #     simd = sim[:, 1::] - sim[:, 0][..., None]
-
-            # # Elementary effect (keep direction of param change)
-            # bias_ee = np.zeros((Opti.nvar), np.float32)*np.nan
-            # RMSE_ee = np.zeros((Opti.nvar), np.float32)*np.nan
-            # for i in range(Opti.nvar):
-            #     bias_ee[i] = np.mean(simd[:, i]) / Opti.dx[i, i]
-            #     RMSE_ee[i] = np.sqrt(np.mean(simd[:, i]**2)) / Opti.dx[i, i]
-            # # bias_ee = bias / Opti.BnormstepN
-            # # RMSE_ee = RMSE / Opti.stepN
-
-            # Build the overall data frame
-            if(firstObs == 0):
-                # bias_ee_tot = bias_ee[..., None]  # Creates a (..,1) dimension
-                # RMSE_ee_tot = RMSE_ee[..., None]  # Creates a (..,1) dimension
-                bias_ee_tot = pd.DataFrame(bias_ee) #.assign(oname=bias_ee)
-                RMSE_ee_tot = pd.DataFrame(RMSE_ee) #.assign(oname=RMSE_ee)
+        # print(df_diff.shape)
+        # Normalization factor: 80%-spread of "reference" simulations
+        qt90 = np.quantile(df_sim.iloc[0], 0.9)
+        qt10 = np.quantile(df_sim.iloc[0], 0.1)
+        ynorm = qt90-qt10
+        if ynorm == 0:
+            if qt90 != 0:
+                ynorm = qt90
             else:
-                # bias_ee_tot = np.append(bias_ee_tot, bias_ee[..., None], 1)
-                # RMSE_ee_tot = np.append(RMSE_ee_tot, RMSE_ee[..., None], 1)
-                bias_ee_tot[str(numObs)] = bias_ee
-                RMSE_ee_tot[str(numObs)] = RMSE_ee
+                ynorm = 1
+            
+        bias = df_diff.mean(axis=1) / ynorm
+        # print(bias.shape)
+        # print(Opti.stepN.shape)
+        # Get RMSE, normalized by 80% spread of the (origin) time series
+        # qt90 = df_sim.set_index('Sample').iloc[0].quantile(0.9)
+        # qt10 = df_sim.set_index('Sample').iloc[0].quantile(0.1)
+        # qt90 = df_sim.set_index('Sample').quantile(0.9, axis=1)
+        # qt10 = df_sim.set_index('Sample').quantile(0.1, axis=1)
+        RMSE = np.sqrt((df_diff**2).mean(axis=1)) / ynorm
+        # Get corresponding (normalized) elementary effect
+        bias_ee = bias / Opti.stepN
+        RMSE_ee = RMSE / Opti.stepN
 
-            # Update
-            firstObs = 1
-            # Increment number of obs actually evaluated
-            numObs += 1
-            # Append name of obs actually evaluated
-            outObs = outObs + [oname]
+        # Associate the corresponding parameter being tested
+        # (the order if the basic parameter order)
+        bias_ee.index = Opti.names
+        RMSE_ee.index = Opti.names
+        
+        # sim = np.genfromtxt(f_in, delimiter=',', skip_header=1,
+        #                     unpack=True)[1:Config.trimL+1, :]
+        
+        # # Take into account accumulated fluxes
+
+        # # Diff between sims
+        # if(Opti.MSspace == 'trajectory'):
+        #     simd = np.diff(sim)
+        # elif(Opti.MSspace == 'radial'):
+        #     simd = sim[:, 1::] - sim[:, 0][..., None]
+        
+        # # Elementary effect (keep direction of param change)
+        # bias_ee = np.zeros((Opti.nvar), np.float32)*np.nan
+        # RMSE_ee = np.zeros((Opti.nvar), np.float32)*np.nan
+        # for i in range(Opti.nvar):
+        #     bias_ee[i] = np.mean(simd[:, i]) / Opti.dx[i, i]
+        #     RMSE_ee[i] = np.sqrt(np.mean(simd[:, i]**2)) / Opti.dx[i, i]
+        # # bias_ee = bias / Opti.BnormstepN
+        # # RMSE_ee = RMSE / Opti.stepN
+        
+        # Build the overall data frame
+        if(firstObs == 0):
+            # bias_ee_tot = bias_ee[..., None]  # Creates a (..,1) dimension
+            # RMSE_ee_tot = RMSE_ee[..., None]  # Creates a (..,1) dimension
+            bias_ee_tot = pd.DataFrame(bias_ee) #.assign(oname=bias_ee)
+            RMSE_ee_tot = pd.DataFrame(RMSE_ee) #.assign(oname=RMSE_ee)
+        else:
+            # bias_ee_tot = np.append(bias_ee_tot, bias_ee[..., None], 1)
+            # RMSE_ee_tot = np.append(RMSE_ee_tot, RMSE_ee[..., None], 1)
+            bias_ee_tot[str(numObs)] = bias_ee
+            RMSE_ee_tot[str(numObs)] = RMSE_ee
+
+        # Update
+        firstObs = 1
+        # Increment number of obs actually evaluated
+        numObs += 1
+        # Append name of obs actually evaluated
+        outObs = outObs + [oname]
 
     # Write outputs -----------------------------------------------------------
     bias_ee_tot.columns = outObs

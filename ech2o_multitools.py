@@ -42,7 +42,8 @@ What do you want to do ? ==> Specified by the "mode" in Config (def file)
  'forward_runs': runs the model for an ensemble of runs,
                  (usually the best configurations from the calibration.
                  Allows to look at observations not used in calibration)
- 'sensi_morris': performs a Morris sensitivity analysis
+ 'sensi_morris': performs a Morris sensitivity analysis, using trajectories
+                 or radial points
 '''
 
 # Other options: see subroutine in func_init.py
