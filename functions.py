@@ -1722,7 +1722,7 @@ def runOK(Obs, Opti, Config, mode='silent'):
     else:
         # for oname in Obs.names:
         #     # print oname
-        #     if Obs.obs[oname]['type'] != 'mapTs':
+        #     if Obs.obs[oname]['type'] != 'mapStep':
         #         if Obs.obs[oname]['type'] != 'map':
         #             f_test = Config.PATH_EXEC+'/'+Obs.obs[oname]['sim_file']
         #         else:
@@ -2830,8 +2830,8 @@ def store_GOF(Obs, Opti, Config, Site, it):
 
             ncalib = 1
             
-            if Obs.obs[oname]['type'] != 'mapTs':
-                # Check if there is one or two calibration periods (except for maps)
+            if Obs.obs[oname]['type'] != 'mapStep':
+                # Check if there is one or two calibration periods (except for snapshot maps)
                 if Opti.calib2[oname] is True:
                     ncalib = 2
 
@@ -2840,7 +2840,7 @@ def store_GOF(Obs, Opti, Config, Site, it):
                 # Have obervation and simulations matching the same time period
                 # obs: already pre-processed
                 if ic == 0:
-                    if Obs.obs[oname]['type'] != 'mapTs':
+                    if Obs.obs[oname]['type'] != 'mapStep':
                         tobs = pd.to_datetime(Opti.obs[oname]['Date'].values)
                         # o = np.asanyarray(Opti.obs[oname]['value'].values)
                         o = Opti.obs[oname].reset_index(drop=True)
@@ -2848,7 +2848,7 @@ def store_GOF(Obs, Opti, Config, Site, it):
                         #     o_d1 = np.asanyarray(Opti.obs[oname+'_d1']['value'].values)
                     else:
                         o = pd.Series(Opti.obs[oname]).reset_index(drop=True)
-                if ic == 1: # ic always =0 for type=mapTs
+                if ic == 1: # ic always =0 for type=mapStep
                     tobs = pd.to_datetime(Opti.obs2[oname]['Date'].values)
                     # o = np.asanyarray(Opti.obs2[oname]['value'].values)
                     o = Opti.obs2[oname].reset_index(drop=True)
@@ -2859,7 +2859,7 @@ def store_GOF(Obs, Opti, Config, Site, it):
                 # + only keep dates with obs (even if nan)
                 # print(sim)
                 # print(sim.shape)
-                if Obs.obs[oname]['type'] != 'mapTs': # Time series
+                if Obs.obs[oname]['type'] != 'mapStep': # Time series
                     s = pd.Series([simulation[j] for j in range(Obs.saveL)
                                    if Obs.simt[j] in tobs]).reset_index(drop=True)
                 else: # Map (already with right number of non-NA pixels
@@ -2877,7 +2877,7 @@ def store_GOF(Obs, Opti, Config, Site, it):
 
                 # Second step (both o and s): remove nan due to gaps in obs
                 # (or missing steps in sims...)
-                if Obs.obs[oname]['type'] != 'mapTs':
+                if Obs.obs[oname]['type'] != 'mapStep':
                     tmp = s.values*o['value'].values
                     s = np.asanyarray([s.values[k] for k in range(len(tmp)) if not
                                        np.isnan(tmp[k])])
