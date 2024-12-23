@@ -71,6 +71,23 @@ def config_init(options):
     if not hasattr(Config, 'PATH_MAIN'):
         Config.PATH_MAIN = cwd_tmp
 
+    # -- MS init: many things don't happen if it is the case
+    Config.SA_init = 0
+    if Config.mode == 'sensi_morris':
+        if options.SA_init is None:
+            sys.exit("Please state if you're initializating the MS sampling")
+        else:
+            Config.SA_init = int(options.SA_init)
+            
+        if not hasattr(Opti, 'MSspace'):
+            Opti.MSspace = 'trajectory'
+        elif Opti.MSspace not in ['trajectory', 'radial']:
+            sys.exit('Wrong specification of morris walking mode in the' +
+                     "parameter space ('trajectory' or 'radial')")
+        # Number of trajectories -> even number determined form ncpu
+        if not hasattr(Opti, 'nr'):
+            Opti.nr = 10
+
     # -- Output directory
     # Base name
     if options.outdir is None:
@@ -90,9 +107,10 @@ def config_init(options):
     else:
         Config.outdir = copy.copy(options.outdir)
 
-    if Config.mode == 'calib_MCruns':
+    if Config.mode == 'calib_MCruns' or (Config.mode=='sensi_morris' and Config.SA_init==0):
         if options.task is not None:
             tmp = options.task.split('.')
+            print(tmp)
             if len(tmp) == 2:
                 Config.indir = tmp[0]
                 Config.tasknum = '%03i' % int(tmp[1])
@@ -129,6 +147,14 @@ def config_init(options):
         Config.PATH_OUT = \
             os.path.abspath(os.path.join(Config.PATH_OUTmain,
                                          'task' + Config.tasknum))
+    elif Config.mode == 'sensi_morris' and Config.SA_init == 0:
+        Config.PATH_OUTmain = \
+            os.path.abspath(os.path.join(Config.PATH_MAIN, Config.outdir))
+        if len(glob.glob(Config.PATH_OUTmain)) == 0:
+            mkpath(Config.PATH_OUTmain)
+        Config.PATH_OUT = \
+            os.path.abspath(os.path.join(Config.PATH_OUTmain,
+                                         'task' + Config.tasknum))
     else:
         Config.PATH_OUT = os.path.abspath(os.path.join(Config.PATH_MAIN,
                                                        Config.outdir))
@@ -141,26 +167,10 @@ def config_init(options):
         if Config.restart > 1:
             sys.exit('Wrong value for restart')
 
-    # -- MS init: many things don't happen if it is the case
-    if Config.mode == 'sensi_morris':
-        # if options.MSinit is None:
-        #     Config.MSinit = 1
-        #     sys.exit("Please state if you're initializating the MS sampling")
-        # else:
-        #     Config.MSinit = int(options.MSinit)
-        if not hasattr(Opti, 'MSspace'):
-            Opti.MSspace = 'trajectory'
-        elif Opti.MSspace not in ['trajectory', 'radial']:
-            sys.exit('Wrong specification of morris walking mode in the' +
-                     "parameter space ('trajectory' or 'radial')")
-        # Number of trajectories -> even number determined form ncpu
-        if not hasattr(Opti, 'nr'):
-            Opti.nr = 10
-
     # -- Run ECH2O?
     Config.runECH2O = 1
-    if Config.mode == 'calib_MCsampling':  # or
-        # (Config.mode == 'sensi_morris' and Config.MSinit == 1):
+    if Config.mode == 'calib_MCsampling' or \
+       (Config.mode == 'sensi_morris' and Config.SA_init == 1):
         Config.runECH2O = 0
     # Number of CPUs used in multi-threading: first check if it's given
     # in the options (may be the case for Slurm-type MPI mode), otherwise
@@ -235,31 +245,39 @@ def config_init(options):
                 os.path.abspath(os.path.join(Config.PATH_MAIN,
                                              'Calibration_Datasets'))
 
-    # -- Sensitivity: all parameter path
-    # if Config.mode == 'sensi_morris':
-        # print('')
-        # if(Opti.MSspace == 'trajectory'):
-        #     Config.PATH_TRAJ = os.path.abspath(os.path.join(Config.PATH_MAIN,
-        #                                                     'Trajectories'))
-        #     print("Trajectories directory:          ", Config.PATH_TRAJ)
-        # if(Opti.MSspace == 'radial'):
-        #     Config.PATH_TRAJ = os.path.abspath(os.path.join(Config.PATH_MAIN,
-        #                                                     'RadialPoints'))
-        #     print("Radial points directory:         ", Config.PATH_TRAJ)
-
-        # Config.FILE_TRAJ = Config.PATH_OUT+'/'+options.outdir.split('.')[0]
-        # # -- Creation of output directory
-        # if len(glob.glob(Config.PATH_TRAJ)) == 0:
-        #     mkpath(Config.PATH_TRAJ)
-
-        # -- Output of elementary effects
-        # if(Config.MSinit == 0):
-        # Config.PATH_EE = os.path.abspath(os.path.join(Config.PATH_MAIN,
-        #                                               'ElementaryEffects'))
+            # -- Output of elementary effects
+            # if(Config.SA_init == 0):
+            # Config.PATH_EE = os.path.abspath(os.path.join(Config.PATH_MAIN,
+            #                                               'ElementaryEffects'))
         # print("Elementary effects directory:          ", Config.PATH_EE)
         # Config.FILE_EE = Config.PATH_OUT+'/'+options.outdir.split('.')[0]
 
     # print('')
+
+    # -- Morris sensitivity: parameter sets to use
+    if Config.mode == 'sensi_morris':
+        if not hasattr(Config, 'PATH_PAR'):
+            print('Warning: path to parameter samples / trajectories not specified, ' +
+                  'set to default')
+            Config.PATH_PAR = os.path.abspath(os.path.join(Config.PATH_MAIN,
+                                                           'Sensitivity_ParameterSets'))
+
+        if Config.SA_init == 1:
+            if Opti.MSspace == 'trajectory':
+                Config.FILE_PAR = Config.PATH_PAR+'/'+Config.outdir + '_parameters.traj'
+            if Opti.MSspace == 'radial':
+                Config.FILE_PAR = Config.PATH_PAR+'/'+Config.outdir + '_parameters.rad'
+        else :
+            if Opti.MSspace == 'trajectory':
+                Config.FILE_PAR = Config.PATH_PAR+'/'+Config.indir + '_parameters.traj' + \
+                                  Config.tasknum2+'_values.txt'
+            if Opti.MSspace == 'radial':
+                Config.FILE_PAR = Config.PATH_PAR+'/'+Config.indir + '_parameters.rad' + \
+                                  Config.tasknum2+'_values.txt'
+
+        # -- Creation of output directory
+        if len(glob.glob(Config.PATH_PAR)) == 0:
+            mkpath(Config.PATH_PAR)
 
     # ---------------------------------------------------------------------------
     # Return the classes read in the definition file
@@ -534,7 +552,7 @@ def param_init(Config, Opti, Paras, Site, options):
             Paras.ind[par] = [ipar2]
 
         # Build vectors used in the optimisation
-        if Config.mode not in ['calib_MCruns', 'forward_runs']:
+        if Config.mode not in ['calib_MCruns', 'forward_runs'] or Config.SA_init == 1 :
 
             # Log-sampling ?
             if 'log' not in Paras.ref[par].keys():
@@ -622,63 +640,28 @@ def param_init(Config, Opti, Paras, Site, options):
         param_get(Opti, Config, options)
 
     # -- Sensitivity analysis: generate morris trajectories
+    # (SA_init = 1) or read them from files (SA_init = 0)
     if Config.mode == 'sensi_morris':
 
-        # Normalized step: plus-minus 0.5 of the normalized range of
-        # each parameter
-        Opti.stepN = np.zeros((Opti.nvar), np.float64) + 0.5
+        if Config.SA_init == 1 :
+            
+            trajs(Config, Opti)
+            print('Parameters trajectory generation done.')
 
-        # if Config.MSinit == 1:
-        trajs(Config, Opti)
-        print('Parameters trajectory generation done.')
+        else:
 
-        # else:
-        #     # Get the trajectory
-        #     f_in = Config.PATH_TRAJ+'/'+options.outdir.split('.')[0] + \
-        #         '.Bstar_traj' + Config.tasknum+'.txt'
-        #     # print(f_in
-        #     Opti.xpar = np.genfromtxt(f_in, delimiter=',', skip_header=1)
-        #     # print(Opti.xpar.shape
-        Opti.xpar = Opti.Bstar
-        # Reconstruct step (+- 0.5)
-        if(Opti.MSspace == 'trajectory'):
-            # Opti.dx = np.diff(Opti.Bstar, axis=1)
-            Opti.dx = np.diff(Opti.Bnorm, axis=1)
-        elif(Opti.MSspace == 'radial'):
-            # Opti.dx = Opti.Bstar[:, 1::, :] - Opti.Bstar[: ,0 , :][:, None, :]
-            Opti.dx = Opti.Bnorm[:, 1::, :] - Opti.Bnorm[:, 0, :][:, None, :]
-        # print(Opti.Bstar)
-        # print('-----------------------------------------')
-        # print(Opti.Bnorm)
-        # print('-----------------------------------------')
-        # print(Opti.dx)
-        # print('-----------------------------------------')
-        # print(Opti.Bstar.shape)
-        # print(Opti.dx.shape)
-        # print(Opti.dx2.shape)
-        # print('-----------------------------------------')
-        # Opti.dx[Opti.dx != 0] = Opti.dx[Opti.dx != 0] / \
-        #     np.abs(Opti.dx[Opti.dx != 0]) * 0.5
-        # print(Opti.dx)
-        # print('-----------------------------------------')
-        # print(Opti.names)
-        # print('-----------------------------------------')
-        # print(Opti.dx-Opti.dx2)
-        # print('-----------------------------------------')
-        if(np.ptp(Opti.dx) != 1.0 or np.min(Opti.dx) != -0.5 or
-           np.max(Opti.dx) != 0.5):
-            print(np.ptp(Opti.dx), np.min(Opti.dx), np.max(Opti.dx))
-            sys.exit('Error: Bnorm has a problem...')
+            # Normalized step: plus-minus 0.5 of the normalized range of
+            # each parameter
+            Opti.stepN = np.zeros((Opti.nvar), np.float64) + 0.5   
+            
+            # Total number of runs
+            Opti.nruns = Opti.nvar+1
+         
+            # Read parameter trajectories / sets from files
+            print('Get parameters trajectory for this job...')
+            param_get(Opti, Config, options)
 
-        # Total number of runs
-        Opti.nruns = (Opti.nvar+1) * Opti.nr
-
-        # (Config.mode == 'sensi_morris' and Config.MSinit == 0):
-        if(len(Opti.Bstar[:,0,0]) != len(Opti.names)):
-            sys.exit("The definition file and input parameter file ain't " +
-                     "matching!")
-
-
+            
 def runs_init(Config, Opti, Obs, Paras, Site, options):
 
     # -- Directories for runs
@@ -790,6 +773,10 @@ def runs_init(Config, Opti, Obs, Paras, Site, options):
                 #Config.PATH_EXEC = '/scratch/sylvain.kuppel/MCruns.'+Config.outdir+ \
                 Config.PATH_EXEC = Config.PATH_SCRATCH+'/MCruns.'+Config.outdir+ \
                                    '_tmp'+Config.tasknum
+            elif Config.mode == 'sensi_morris':
+                #Config.PATH_EXEC = '/scratch/sylvain.kuppel/MCruns.'+Config.outdir+ \
+                Config.PATH_EXEC = Config.PATH_SCRATCH+'/SAruns.'+Config.outdir+ \
+                                   '_tmp'+Config.tasknum
             else:
                 #Config.PATH_EXEC = '/scratch/sylvain.kuppel/'+Config.outdir
                 Config.PATH_EXEC = Config.PATH_SCRATCH+'/'+Config.outdir
@@ -798,7 +785,7 @@ def runs_init(Config, Opti, Obs, Paras, Site, options):
         # if Config.scratch == 2:
         #     Config.PATH_EXEC = '/nobackup/users/s08sk8/'+options.outdir
     else:
-        if Config.mode == 'calib_MCruns':
+        if Config.mode in ['calib_MCruns','sensi_morris']:
             Config.PATH_EXEC = copy.copy(Config.PATH_OUT)
         else:
             Config.PATH_EXEC = os.path.abspath(os.path.join(Config.PATH_OUT, 'tmp'))
@@ -888,6 +875,11 @@ def runs_init(Config, Opti, Obs, Paras, Site, options):
         else:
             Config.nEns = nv
 
+        # -- Some verbose
+        # print('')
+        # print("Parameter samples file:\n", Config.FILE_PAR)
+        # print('')
+            
     # Maps averaging
     if options.MapAv is not None:
         Config.MapAv = int(options.MapAv)
@@ -1140,13 +1132,14 @@ def files_init(Config, Opti, Paras, Site):
             print('CALIBRATION with EcH2O: \n')
         elif Config.mode == 'forward_runs':
             print('ENSEMBLE RUNS with EcH2O')
-            print('The ensemble param file is:', Config.FILE_PAR)
         elif Config.mode == 'sensi_morris':
             print('MORRIS SENSITIVITY with EcH2O: ')
-            print('- construction of the trajectories')
-            print('- forward runs')
-            print('- storage of outputs and info for posterior analysis : ' +
-                  'elementary effects, etc.')
+            if(Config.SA_init == 1):
+                print('- construction and storage of the parameter trajectories')
+            else:
+                print('- forward runs')
+                print('- storage of outputs and info for posterior analysis : ' +
+                      'elementary effects, etc.')
             print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
             print('')
         print('')
@@ -1166,16 +1159,17 @@ def files_init(Config, Opti, Paras, Site):
             if Site.isTrck == 1:
                 print('The user provided CFGtrck file is:\n' + Config.FILE_CFGtrck)
             if Config.mode == 'calib_MCruns' or \
+               (Config.mode == 'sensi_morris' and Config.SA_init == 0) or \
                (Config.mode == 'forward_runs' and hasattr(Config, 'OMP_it')):
                 print('Final outputs:\n', Config.PATH_OUTmain)
             else:
                 print('Final outputs:\n', Config.PATH_OUT)
-        elif Config.mode == 'calib_MCsampling':
+        elif Config.mode == 'calib_MCsampling' or Config.SA_init == 1:
             print('Calibration samples in :\n', Config.FILE_PAR+'* files')
 
         print('-----------------------------------------')
         # -- How many variables ?
-        print('Total number of parameters :', Opti.nvar)
+        print('Total number of parameters used :', Opti.nvar)
         print('')
 
         if Config.runECH2O == 1:
@@ -1189,23 +1183,7 @@ def files_init(Config, Opti, Paras, Site):
         # EcH2O config file: copy from template and edit
         if Config.runECH2O == 1:
             copy_file(Config.FILE_CFG, Config.FILE_CFGdest)
-
-        # Morris sensitivity: write summary of parameters charactersitics
-        if Config.mode == 'sensi_morris':
-            f_out = Config.PATH_OUT+'/Parameters_char.txt'
-            with open(f_out, 'w') as fw:
-                # fw.write('Sample,'+','.join(Opti.names)+'\n')
-                fw.write('Names,'+','.join(Opti.names)+'\n')
-                fw.write('Min,'+','.join([str(Opti.min[x]) for x in
-                                          range(Opti.nvar)])+'\n')
-                fw.write('Max,'+','.join([str(Opti.max[x]) for x in
-                                          range(Opti.nvar)])+'\n')
-                fw.write('Log,'+','.join([str(Opti.log[x]) for x in
-                                          range(Opti.nvar)])+'\n')
-                fw.write('Step,'+','.join([str(Opti.step[x]) for x in
-                                           range(Opti.nvar)])+'\n')
-                fw.write('StepN,'+','.join([str(Opti.stepN[x]) for x in
-                                            range(Opti.nvar)])+'\n')
+                
         if Config.runECH2O == 1:
             with open(Config.FILE_CFGdest, 'a') as fw:
                 fw.write('\n\n\n#Simulation-specific folder section\n#\n\n')
@@ -1254,6 +1232,7 @@ def files_init(Config, Opti, Paras, Site):
 
             # Keep it as last action in this if !
             # EcH2O executable file: clean up / update old symlink
+            print('copy executable from'+os.path.join(Config.PATH_MAIN, Config.exe),'to', Config.PATH_OUT)
             copy_file(os.path.join(Config.PATH_MAIN, Config.exe),
                       Config.PATH_OUT)
 
@@ -1620,90 +1599,83 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
     if len(glob.glob(f_failpar)) != 0:
         os.system('rm -f '+f_failpar)
 
-    for itraj in range(Opti.nr):
+    print('======================================')
+    print('## Runs along trajectory #', str(Config.tasknum2))
+    print('--------------------------------------')
 
-        print('======================================')
-        print('## Runs along trajectory #', itraj+1)
-        print('--------------------------------------')
+    # There are npara+1 runs for each trajectory
+    for irun in range(Opti.nvar+1):
 
-        # Array of parameters for this trajectory
-        Opti.xpar = np.transpose(Opti.Bstar[:, :, itraj])
+        # runnb = '%02i' % int(irun+1)
+        print('Run '+str(irun+1)+' out of '+str('%02i' % int(Opti.nvar+1)))
 
-        # There are npara+1 runs for each trajectory
-        for irun in range(Opti.nvar+1):
+        # Create / clean up the run outputs directory
+        if len(glob.glob(Config.PATH_EXEC)) == 0:
+            os.system('mkdir '+Config.PATH_EXEC)
+        #else:
+        #    os.system('rm -f '+Config.PATH_EXEC+'/*')
 
-            # runnb = '%02i' % int(irun+1)
-            print('Run '+str(irun+1)+' out of '+str('%02i' % int(Opti.nvar+1)))
+        # print
+        # print('|- Creating parameter maps / table for this run...'
 
-            # Create / clean up the run outputs directory
-            if len(glob.glob(Config.PATH_EXEC)) == 0:
-                os.system('mkdir '+Config.PATH_EXEC)
-            else:
-                os.system('rm -f '+Config.PATH_EXEC+'/*')
+        # Create the inputs for ECH2O
+        sim_inputs(Config, Opti, Paras, Site, Config.PATH_SPA, it=irun)
 
-            # print
-            # print('|- Creating parameter maps / table for this run...'
+        # Run ECH2O
+        os.chdir(Config.PATH_OUT)
+        print('|| running ECH2O...')
+        start = time.time()
+        os.system(Config.cmde_ech2o+' '+Config.cfg2_ech2o+' > ' +
+                  Config.PATH_EXEC+'/ech2o.log')
+        print('run time:', time.time() - start,
+              'seconds (limit at ', Config.tlimit, ')')
 
-            # Create the inputs for ECH2O
-            sim_inputs(Config, Opti, Paras, Site, Config.PATH_SPA, it=irun)
+        # Check if it ran properly
+        os.chdir(Config.PATH_EXEC)
 
-            # Run ECH2O
-            os.chdir(Config.PATH_OUT)
-            print('|| running ECH2O...')
-            start = time.time()
-            os.system(Config.cmde_ech2o+' '+Config.cfg2_ech2o+' > ' +
-                      Config.PATH_EXEC+'/ech2o.log')
-            print('run time:', time.time() - start,
-                  'seconds (limit at ', Config.tlimit, ')')
+        # Store_simulations for elementary effects calculations at the end
+        store_sim(Obs, Opti, Config, Site, irun) #_tot)
 
-            # Check if it ran properly
-            os.chdir(Config.PATH_EXEC)
+        # if runOK(Obs, Opti, Config) == 1:
+        # Group outputs
+        # outputs.store_sim(Obs, Opti, Config, Site, irun)
+        # os.system('rm -f *.tab')
 
-            # Store_simulations for elementary effects calculations at the end
-            store_sim(Obs, Opti, Config, Site, irun, itraj) #_tot)
+        if runOK(Obs, Opti, Config, mode='silent') == 0:
+            # else:  # Not running properly? Report
 
-            # if runOK(Obs, Opti, Config) == 1:
-                # Group outputs
-                # outputs.store_sim(Obs, Opti, Config, Site, irun)
-                # os.system('rm -f *.tab')
+            f_failpar = Config.PATH_OUTmain+'/Parameters_fail.task'+Config.tasknum+'.txt'
+            if len(glob.glob(f_failpar)) == 0:
+                with open(f_failpar, 'w') as f_in:
+                    f_in.write('Trajectory/RadPoint,Sample,'+','.join(Opti.names)+'\n')
+            with open(f_failpar, 'a') as f_in:
+                f_in.write(str(irun+1)+','+','.join([str(x) for x in Opti.x])+'\n')
+            # If it is the very first iteration, record it for later storage
+            if irun == 0:
+                Opti.begfail = 1
 
-            if runOK(Obs, Opti, Config, mode='silent') == 0:
-                # else:  # Not running properly? Report
+            os.system('mv '+Config.PATH_EXEC+'/ech2o.log '+Config.PATH_OUT +
+                      '/ech2o.run'+str(irun+1)+'.log')
 
-                if len(glob.glob(f_failpar)) == 0:
-                    with open(f_failpar, 'w') as f_in:
-                        f_in.write('Trajectory/RadPoint,Sample,'+','.join(Opti.names)+'\n')
-                with open(f_failpar, 'a') as f_in:
-                    f_in.write(str(itraj+1)+','+str(irun+1)+','+','.join([str(x) for x in
-                                                                          Opti.x])+'\n')
-                # If it is the very first iteration, record it for later storage
-                if irun == 0:
-                    Opti.begfail = 1
 
-                os.system('mv '+Config.PATH_EXEC+'/ech2o.log '+Config.PATH_OUT +
-                    '/ech2o_traj'+str(itraj+1)+'_run'+str(irun+1)+'.log')
+        # Intermediate clean up
+        os.system('rm -f '+Config.PATH_EXEC+'/*.tab')
+        os.system('rm -f '+Config.PATH_EXEC+'/Basin*.txt')
 
-            # Intermediate clean up
-            os.system('rm -f '+Config.PATH_EXEC+'/*.tab')
-            os.system('rm -f '+Config.PATH_EXEC+'/Basin*.txt')
+        # irun_tot += 1
 
-            # irun_tot += 1
+    # print(Obs.obs)
+    # Only for debugging ------------------------------------------------------
+    # for oname in Obs.names:
+    #     if Obs.obs[oname]['type'] == 'Ts' or Obs.obs[oname]['type'] == 'Total':
+    #         Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
+    # ----------------------------------------------------------------------------
+    
+    # Calculate and output the elementary effects
+    ee(Config, Obs, Opti)
 
-        # print(Obs.obs)
-        # Only for debugging ------------------------------------------------------
-        # for oname in Obs.names:
-        #     if Obs.obs[oname]['type'] == 'Ts' or Obs.obs[oname]['type'] == 'Total':
-        #         Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
-        # ----------------------------------------------------------------------------
-
-        # Calculate and output the elementary effects
-        ee(Config, Obs, Opti, itraj)
-
-        # Clean up after trajectory/radial point
-        os.system('rm -f '+Config.PATH_EXEC+'/*')
-        # for oname in Obs.names:
-        #     os.system('rm -f '+Obs.obs[oname]['sim_hist'])
-
+    # Clean up after trajectory/radial point
+    os.system('rm -f '+Config.PATH_EXEC+'/*')
     os.system('rm -fr '+Config.PATH_EXEC)
                     
 
@@ -1875,7 +1847,9 @@ def param_get(Opti, Config, options):
         # Sanity check
         tmp = list(pd.read_csv(Config.FILE_PAR, header=None).loc[:, 0])
         if tmp != Opti.names:
+            print('== Dictionary from the definition file:')
             print(Opti.names)
+            print('== Dictionary from file-stored parameter sets:')
             print(tmp)
             sys.exit("The definition file and input parameter file ain't " +
                      "matching!")
@@ -1887,6 +1861,24 @@ def param_get(Opti, Config, options):
             Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',
                                       unpack=True)[1::][None,
                                                         Config.OMP_it-1, :]
+
+    # -- Sensitivity analysis: read directly the params from "best params"
+    #    SA_init = 0 from where param_get is called
+    elif Config.mode == 'sensi_morris':
+
+        # Sanity check
+        tmp = list(pd.read_csv(Config.FILE_PAR, header=None).loc[:, 0])
+        if tmp != Opti.names:
+            print('== Dictionary from the definition file:')
+            print(Opti.names)
+            print('== Dictionary from file-stored parameter sets:')
+            print(tmp)
+            sys.exit("The definition file and input parameter file ain't " +
+                     "matching!")
+
+        Opti.xpar = np.genfromtxt(Config.FILE_PAR, delimiter=',',unpack=True)[1::]
+
+
 # ----------------------------------------------------------------------------
 # -- Write parameters values file
 
@@ -2171,7 +2163,7 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
 def read_sim(Config, Obs, oname, it=0):
     # -- Read a given simulation output (time series only)
 
-    print(oname)
+    #print(oname)
 
     # Time series ---------------------------------------------------
     if Obs.obs[oname]['type'] == 'Ts' or Obs.obs[oname]['type'] == 'Total':
@@ -2254,7 +2246,7 @@ def read_sim(Config, Obs, oname, it=0):
     return list(sim)
 
 
-def store_sim(Obs, Opti, Config, Site, it, it2 = -1):
+def store_sim(Obs, Opti, Config, Site, it):
     # -- Store in files for later use
 
     mode = 'verbose'
@@ -2267,7 +2259,7 @@ def store_sim(Obs, Opti, Config, Site, it, it2 = -1):
             
             # Historic time series file names
             if Config.mode == 'sensi_morris':
-                Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_traj'+str(it2)+'.tab'
+                Obs.obs[oname]['sim_hist'] = Config.PATH_OUTmain+'/'+oname+'_traj'+str(Config.tasknum2)+'.tab'
             else:
                 Obs.obs[oname]['sim_hist'] = Config.PATH_OUT+'/'+oname+'_all.tab'
 
@@ -2908,7 +2900,7 @@ def store_GOF(Obs, Opti, Config, Site, it):
 
                 # Another sanity check: any data/sim left after nan screening?
                 if s.__len__() == 0 or o.__len__() == 0:
-                    print('Warning: nothing to compare to after trimming!')
+                    print('Warning: nothing to compare to after trimming for '+oname+'!')
                     # Add nan
                     for gof in Opti.GOFs:
                         if ic == 0:
@@ -3002,7 +2994,7 @@ def MC_sample(Opti, Config):
     # Opti.xtot = np.arange(1,Opti.nsamptot+1)
 
     # Latin Hypercube sampling
-    if Config.sampling in ['LHS', 'LHS_m', 'LHS_r']:
+    if Config.sampling in ['LHS', 'LHS_m', 'LHS_r', 'LHS_c']:
 
         print('...using a latin hypercube sampling...')
 
@@ -3026,6 +3018,13 @@ def MC_sample(Opti, Config):
             # First, get the hypercube samples, ranging from 0 to 1
             mat = np.transpose(pyDOE.lhs(Opti.nvar, samples=Opti.nsamptot,
                                          criterion='corr'))
+
+        # LHS with additional criterion: maixmim distane between samples
+        elif Config.sampling == 'LHS_c':
+            print('...with center criterion')
+            # First, get the hypercube samples, ranging from 0 to 1
+            mat = np.transpose(pyDOE.lhs(Opti.nvar, samples=Opti.nsamptot,
+                                         criterion='center'))
 
         print('...LHS matrix generated...')
 
@@ -3196,23 +3195,55 @@ def trajs(Config, Opti):
                 Opti.Bnorm[iv, :, :]*(Opti.max[iv]-Opti.min[iv]) + Opti.min[iv]
             Opti.step[iv] = 0.5 * (Opti.max[iv]*Opti.min[iv])
 
-# ----------------------------------------------------------------------------
-# -- Outputs of the parameter trajectory / radial points
+    # # Reconstruct step (+- 0.5)
+    # if(Opti.MSspace == 'trajectory'):
+    #     Opti.dx = np.diff(Opti.Bstar, axis=1)
+    #     #Opti.dx = np.diff(Opti.Bnorm, axis=1)
+    # elif(Opti.MSspace == 'radial'):
+    #     Opti.dx = Opti.Bstar[:, 1::, :] - Opti.Bstar[: ,0 , :][:, None, :]
+    #     #Opti.dx = Opti.Bnorm[:, 1::, :] - Opti.Bnorm[:, 0, :][:, None, :]            
+    # Opti.dx[Opti.dx > 0] = 0.5
+    # Opti.dx[Opti.dx < 0] = -0.5
 
-
-def write_Btraj(Config, Obs, Opti, itraj):
-
-    # Write Bstar for each trajectory / radial points
+    # if(np.ptp(Opti.dx) != 1.0 or np.min(Opti.dx) != -0.5 or
+    #    np.max(Opti.dx) != 0.5):
+    #     print(np.ptp(Opti.dx), np.min(Opti.dx), np.max(Opti.dx))
+    #     sys.exit('Error: Bnorm has a problem...')
+        
+    # Outputs of the parameter trajectory / radial points
+    #print(Opti.Bstar.shape)
+    print('Writing in '+str(Opti.nr)+' trajectory files...('+str(Opti.nvar+1)+' sets each)')
+    
+    #Bstart2 = pd.DataFrame(Opti.Bstar)
+    #print(Opti.Bstar2)
     for ir in range(Opti.nr):
         trajnb = str(ir+1)  # '%02i' % int(ir+1)
         # print trajnb
-        with open(Config.FILE_TRAJ+'.Bstar_traj'+trajnb+'.txt', 'wb') as fw:
-            csv_writer = csv.writer(fw)
-            csv_writer.writerow(Opti.names)
-            for irun in range(Opti.nvar+1):
-                csv_writer.writerow(Opti.Bstar[:, irun, ir])
-        exit
 
+        ## Write normalized values [0, 1] of sampling interval
+        with open(Config.FILE_PAR+trajnb+'_norm.txt', 'w') as fw:
+            for j in range(Opti.nvar):
+                tmp = [a for a in Opti.Bnorm[j, :, ir]]
+                #print(tmp)
+                fw.write(Opti.names[j]+','+','.join([str(a) for a in tmp])+'\n')
+
+
+        ## Write actual values within the sampling interval
+        with open(Config.FILE_PAR+trajnb+'_values.txt', 'w') as fw:
+            for j in range(Opti.nvar):
+                tmp = [a for a in Opti.Bstar[j, :, ir]]
+                #print(tmp)
+                fw.write(Opti.names[j]+','+','.join([str(a) for a in tmp])+'\n')
+
+    # Write on file giving parameters range, log...(for later plots)
+    f_out = Config.FILE_PAR+'_attributes.txt'
+    with open(f_out, 'w') as fw:
+        fw.write('Names,Min,Max,StepN,Log\n')
+        for i in range(Opti.nvar):
+            fw.write(','.join([Opti.names[i],str(Opti.min[i]),str(Opti.max[i]),
+                               str(Opti.step[i]),str(Opti.log[i])])+'\n')
+
+    print('')
 
 # ----------------------------------------------------------------------------
 # -- Calculation of elementary effects for Morris Sensitivity Analysis
@@ -3227,22 +3258,23 @@ def write_Btraj(Config, Obs, Opti, itraj):
 # one trajcory / set of radial points (and not over all runs *nr), hence itraj
 # does not matter
 
-def ee(Config, Obs, Opti, itraj):
+def ee(Config, Obs, Opti):
 
     firstObs = 0
     numObs = 0
     outObs = []#['Parameter']
 
-    trajnb = str(itraj+1)
-
     for oname in Obs.names:
 
         # Time series or snapshot maps
-
+        # print(oname)
+        
         # Read file        
         f_in = Obs.obs[oname]['sim_hist']
         df_sim = pd.read_csv(f_in).set_index('Sample')#.iloc[itraj*(Opti.nvar+1)::, ]
 
+        #print(df_sim)
+        
         # Diff between sims
         if Opti.MSspace == 'trajectory':
             df_diff = df_sim.diff().iloc[1::, ]
@@ -3322,8 +3354,8 @@ def ee(Config, Obs, Opti, itraj):
     RMSE_ee_tot.columns = outObs
 
     if(Opti.MSspace == 'trajectory'):
-        bias_ee_tot.to_csv(Config.PATH_OUT+'/EE.Traj'+trajnb+'.bias.txt')
-        RMSE_ee_tot.to_csv(Config.PATH_OUT+'/EE.Traj'+trajnb+'.RMSE.txt')
+        bias_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.bias.txt')
+        RMSE_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.RMSE.txt')
         # with open(Config.FILE_EE+'.EE.Traj'+str(itraj+1) +
         #           '.bias.txt', 'w') as f_out:
         #     f_out.write('Parameter'+','+','.join([outObs[j] for j in
@@ -3343,8 +3375,8 @@ def ee(Config, Obs, Opti, itraj):
         #                               range(numObs)])+'\n')
 
     if(Opti.MSspace == 'radial'):
-        bias_ee_tot.to_csv(Config.PATH_OUT+'/EE.RadP'+trajnb+'.bias.txt')
-        RMSE_ee_tot.to_csv(Config.PATH_OUT+'/EE.RadP'+trajnb+'.RMSE.txt')
+        bias_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.bias.txt')
+        RMSE_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.RMSE.txt')
         # with open(Config.FILE_EE+'.EE.RadP'+str(itraj+1) +
         #           '.bias.txt', 'w') as f_out:
         #     f_out.write('Parameter'+','+','.join([outObs[j] for j in

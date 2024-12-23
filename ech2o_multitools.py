@@ -77,9 +77,15 @@ parser.add_option("--scratch", dest="scratch", metavar="scratch",
 # Sampling method
 parser.add_option("--sampling", dest="sampling", metavar="sampling",
                   help="Sampling method: LHS (uniform), LHS_r (min corr), " +
-                  "LHS_m (max distance)")
+                  "LHS_m (max distance), LHS_c (center)")
 
-# -- If mode != 'calib_MCsampling' (i.e., EcH2O is actually run)
+# -- If mode == 'sensi_morris'
+# Sampling of trajectory runs ?
+parser.add_option("--SA_init", dest="SA_init", metavar="SA_init",
+                  help="Initialization of sensitivity analysis: 1 (parameter/trajectory generation and storage), "+
+                  "0 (read trajectories and run)")
+
+# -- If mode = 'calib_MCruns', 'forward_runs' or 'sensi_morris'+'SA_init=1' (i.e., EcH2O is actually run)
 # Name of the ECH2O config tracking file (if mode!='calib_MCsampling', and
 # tracking activated in simulation)
 parser.add_option("--cfgTrck", dest="cfgTrck", metavar="cfgTrck",
@@ -126,7 +132,7 @@ parser.add_option("--OMP_it", dest="OMP_it", metavar="OMP_it",
 if Config.runECH2O == 1:
     # Runs' properties etc.
     func.runs_init(Config, Opti, Obs, Paras, Site, options)
-    # Initialize observation names
+    # Initialize observation names (only effective for calibration modes)
     # (and read datasets if in DREAM calibration mode)
     func.obs_init(Config, Opti, Obs)
 
@@ -176,7 +182,7 @@ elif Config.mode == 'forward_runs':
     # Ensemble "forward" runs
     func.forward_runs(Config, Opti, Obs, Paras, Site, options)
 
-elif Config.mode == 'sensi_morris':
+elif Config.mode == 'sensi_morris' and Config.SA_init == 0 :
     # Simulations when varying the parameters, Morris's one-at-a-time
     func.morris_runs(Config, Opti, Obs, Paras, Site)
 
