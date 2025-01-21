@@ -8,6 +8,7 @@ License: BSD-3
 
 """
 import numpy as np
+import pandas as pd
 #import scipy
 #import scipy.stats
 
@@ -26,15 +27,20 @@ def corr(x1, x2):
     corr : float
 
     """
-    x1 = np.asanyarray(x1)
-    x2 = np.asanyarray(x2)
+    # x1 = np.asanyarray(x1)
+    # x2 = np.asanyarray(x2)
 
-    # Remove nan
-    tmp = x1*x2
-    x1 = np.asanyarray([x1[i] for i in range(len(x1)) if np.isnan(tmp[i])==False])
-    x2 = np.asanyarray([x2[i] for i in range(len(x2)) if np.isnan(tmp[i])==False])
+    # # Remove nan
+    # tmp = x1*x2
+    # x1 = np.asanyarray([x1[i] for i in range(len(x1)) if np.isnan(tmp[i])==False])
+    # x2 = np.asanyarray([x2[i] for i in range(len(x2)) if np.isnan(tmp[i])==False])
 
-    return np.corrcoef(x1,x2)[0,1]
+    # return np.corrcoef(x1,x2)[0,1]
+
+    x1 = pd.Series(x1)
+    x2 = pd.Series(x2)
+
+    return x1.corr(x2)
 
 def rstd(mod, obs):
     """Ratio of standard deviations of mod and obs, ignoring nan
@@ -855,28 +861,39 @@ def kling_gupta(mod, obs, axis=0, s=(1., 1., 1.), method='2009'):
     Journal of Hydrology, Volumes 424-425, 6 March 2012, Pages 264-277,
     DOI:10.1016/j.jhydrol.2012.01.011.
     """
-    mod = np.asanyarray(mod)
-    obs = np.asanyarray(obs)
+    # mod = np.asanyarray(mod)
+    # obs = np.asanyarray(obs)
 
-    # Remove nan
-    tmp = mod*obs
-    mod = np.asanyarray([mod[i] for i in range(len(mod)) if np.isnan(tmp[i])==False])
-    obs = np.asanyarray([obs[i] for i in range(len(obs)) if np.isnan(tmp[i])==False])
+    # # Remove nan
+    # tmp = mod*obs
+    # mod = np.asanyarray([mod[i] for i in range(len(mod)) if np.isnan(tmp[i])==False])
+    # obs = np.asanyarray([obs[i] for i in range(len(obs)) if np.isnan(tmp[i])==False])
+
+    mod = pd.Series(mod)
+    obs = pd.Series(obs)
 
     # Mean values
-    mean_mod = np.mean(mod, axis=axis)
-    mean_obs = np.mean(obs, axis=axis)
+    # mean_mod = np.mean(mod, axis=axis)
+    # mean_obs = np.mean(obs, axis=axis)
+    mean_mod = mod.mean()
+    mean_obs = obs.mean()
 
     # Standard deviations
-    sigma_mod = np.std(mod, axis=axis)
-    sigma_obs = np.std(obs, axis=axis)
-
+    # sigma_mod = np.std(mod, axis=axis)
+    # sigma_obs = np.std(obs, axis=axis)
+    sigma_mod = mod.std()
+    sigma_obs = obs.std()
+    
     # Pearson product-moment correlation coefficient
-    r = np.corrcoef(mod, obs)[0, 1]  # needs to support axis!
-
+    # r = np.corrcoef(mod, obs)[0, 1]  # needs to support axis!
+    r = mod.corr(obs)
+    
     # beta is the ratio between the mean of the simulated values to the mean of
     # observations
-    beta = mean_mod / mean_obs
+    if(mean_obs != 0):
+        beta = mean_mod / mean_obs
+    else:
+        beta = 0
 
     # Variability ratio depending on 'method'
     if method == '2012':
@@ -885,11 +902,14 @@ def kling_gupta(mod, obs, axis=0, s=(1., 1., 1.), method='2009'):
         # [dimensionless]
         # cv_obs is the coefficient of variation of the observations
         # [dimensionless]
-        cv_mod = sigma_mod / mean_mod
-        cv_obs = sigma_obs / mean_obs
+        # cv_mod = sigma_mod / mean_mod
+        # cv_obs = sigma_obs / mean_obs
         
         # gamma is the variability ratio, which is used instead of alpha (See Ref2)
-        gamma = cv_mod / cv_obs
+        if(sigma_obs != 0 and mean_mod != 0):
+            gamma = sigma_mod * mean_obs / (sigma_obs*mean_mod)
+        else:
+            gamma = 0
 
         vr = gamma
 
@@ -897,7 +917,10 @@ def kling_gupta(mod, obs, axis=0, s=(1., 1., 1.), method='2009'):
 
         # alpha is a measure of relative variability between modeled and observed
         # values (See Ref1)
-        alpha = sigma_mod / sigma_obs
+        if(sigma_obs != 0):
+            alpha = sigma_mod / sigma_obs
+        else:
+            alpha = 0
 
         vr = alpha
 

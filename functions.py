@@ -957,6 +957,7 @@ def obs_init(Config, Opti, Obs):
         Opti.obs2 = {}  # in case there's a second model-data fit window given
         Opti.calib2 = {}  # in case there's a second model-data fit window given
         Opti.iscalib2 = False
+        Obs.nobs2 = 0
 
         # Use derivate-based GOFs ?
         Opti.gof_d1 = False
@@ -1018,6 +1019,7 @@ def obs_init(Config, Opti, Obs):
                         Opti.obs2[oname] = tmp2.dropna(how='any')
                         Opti.calib2[oname] = True
                         Opti.iscalib2 = True
+                        Obs.nobs2 += 1
                     else:
                         Opti.calib2[oname] = False
                 else:
@@ -2981,7 +2983,7 @@ def store_GOF(Obs, Opti, Config, Site, it):
             if Opti.iscalib2 is True:
                 with open(Opti.GOFfiles2[gof], 'a') as f_out:
                     f_out.write(str(it+1)+',' +
-                                ','.join(list(np.repeat('nan', Obs.nobs)))+'\n')
+                                ','.join(list(np.repeat('nan', Obs.nobs2)))+'\n')
 
 
 # ==================================================================================
