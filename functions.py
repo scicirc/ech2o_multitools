@@ -336,7 +336,7 @@ def param_init(Config, Opti, Paras, Site, options):
             nr = 1
             Opti.names = Opti.names + [par]
             Paras.comp[par] = 0
-            Paras.ref[par]['map'] = 1
+            Paras.ref[par]['map'] = 0
 
         elif Paras.ref[par]['map1'] != 0:
 
