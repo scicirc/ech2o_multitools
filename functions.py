@@ -1597,7 +1597,7 @@ def morris_runs(Config, Opti, Obs, Paras, Site):
     # irun_tot = 0
 
     # Initial clean up
-    f_failpar = Config.PATH_OUT+'/Parameters_fail.txt'
+    f_failpar = Config.PATH_OUTmain+'/Parameters_fail.task'+Config.tasknum+'.txt'    
     if len(glob.glob(f_failpar)) != 0:
         os.system('rm -f '+f_failpar)
 
