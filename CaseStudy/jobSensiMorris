@@ -7,7 +7,7 @@
 
 # Partition
 #SBATCH -w n401
-#SBATCH -p get
+# SBATCH -p any
 # SBATCH -p omp_parall
 # Communicating
 # SBATCH -A U_RIVERLY
@@ -20,9 +20,18 @@
 # -not used- SBATCH --ntasks-per-socket=1
 # -not used/needed- SBATCH --sockets-per-node=2
 # -not used- SBATCH --cores-per-socket=12
+
 # For OpenMP:
+# NUmber of nodes and MPI task per nodes
+# SBATCH --nodes=1
+#SBATCH --ntasks=1
+# SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
-# SBATCH --mem-per-cpu=1GB
+# SBATCH --mem-per-cpu=1GB           # Memory per processor
+
+# Job array
+#SBATCH --array=1-20
+
 
 # Wall clock limit:
 # SBATCH --time=48:00:00
@@ -45,27 +54,12 @@ conda activate pcraster39
 
 cd /home/kups/runs/ech2o/MuleHole/
 
-#python3 -i ech2o_multitools.py --file=def_morris_90m_nospin.py  --cfg=config_90m_nospin_Ts  --cfgTrck=configTrck_Ts --outdir=Morris_90m_nospin
-#python3 -i ech2o_multitools.py --file=def_morris_90m_nospin.py  --cfg=config_90m_nospin_Ts  --cfgTrck=configTrck_Ts --outdir=Morris_90m_nospin_short
+# If SA_init = 1, i.e. generating parameters values for trajectories/radial points in a given directory (Sensitivity_ParameterSets in this example)
 
-#python3 -i ech2o_multitools.py --file=def_morris_90m_spin12Y.py  --cfg=config_90m_spin12Y_Ts  --cfgTrck=configTrck_spin12Y_Ts --outdir=Morris_90m_spin12Y --ncpu=$SLURM_CPUS_PER_TASK
-#python3 -i ech2o_multitools.py --file=def_morris_90m_28Y.py  --cfg=config_90m_28Y_Ts  --cfgTrck=configTrck_28Y_Ts --outdir=Morris_90m_28Y --ncpu=$SLURM_CPUS_PER_TASK
+python -i ech2o_multitools.py --file=def_SensiMorris.py  --SA_init=1 --outdir=Morris1_P5
 
-#python -u ech2o_multitools.py --file=def_morris_90m_1997-2019_Ts.py  --cfg=config_90m_1997-2019_Ts_morris  --cfgTrck=configTrck_1997-2019_Ts_morris --outdir=Morris_90m_1997-2019_rs3 --ncpu=12
+# If SA_init = 0, i.e. running the model along trajectory/radial points
 
-#python -u ech2o_multitools.py --file=def_morris_90m_1997-2019.py  --cfg=config_90m_1997-2019_morris_rs3 --cfgTrck=configTrck_1997-2019_morris --outdir=Morris_90m_1997-2019_rs3 --ncpu=12 --scratch=0
-#python -u ech2o_multitools.py --file=def_morris_90m_1997-2019.py  --cfg=config_90m_1997-2019_morris_rs3 --cfgTrck=configTrck_1997-2019_morris --outdir=Morris_90m_1997-2019_rs3 --ncpu=$SLURM_CPUS_PER_TASK --scratch=1
-#python -u ech2o_multitools.py --file=def_morris_90m_1997-2019.py  --cfg=config_90m_1997-2019_morris_rs2 --cfgTrck=configTrck_1997-2019_morris --outdir=Morris_90m_1997-2019_rs2 --ncpu=$SLURM_CPUS_PER_TASK --scratch=1
-
-#python3 -i ech2o_multitools.py --file=def_morris_test.py  --cfg=config_90m_1997-2019_Ts_morris  --cfgTrck=configTrck_1997-2019_Ts_morris --outdir=Morris_test --ncpu=1
-
-#python3 -u ech2o_multitools.py --file=def_morris_P5_1997-2019_Ts.py  --cfg=config_P5_1997-2019_Ts  --cfgTrck=configTrck_1997-2019_Ts --outdir=Morris_P5_1997-2019_fRWU_rs3 --ncpu=1 --scratch=1
-#python3 -i ech2o_multitools.py --file=def_morris_P5_1997-2019_Ts.py  --cfg=config_P5_1997-2019_Ts_rs2  --cfgTrck=configTrck_1997-2019_Ts --outdir=Morris_P5_1997-2019_fRWU_rs2 --ncpu=1 --scratch=1
-
-#python -u ech2o_multitools.py --file=def_morris_P5_1997-2023.py  --cfg=config_P5_1997-2023_morris      --cfgTrck=configTrck_1997-2023_morris --outdir=Morris_P5_1997-2023_rs3 --ncpu=1 --scratch=1
-#python -u ech2o_multitools.py --file=def_morris_P5_1997-2023.py  --cfg=config_P5_1997-2023_morris_rs2  --cfgTrck=configTrck_1997-2023_morris --outdir=Morris_P5_1997-2023_rs2 --ncpu=1 --scratch=1
-#python -u ech2o_multitools.py --file=def_morris_P5_1997-2023_hydroVH.py  --cfg=config_P5_1997-2023_morris      --cfgTrck=configTrck_1997-2023_morris --outdir=Morris_P5_1997-2023_rs3_hydroVH --ncpu=1 --scratch=1
-python -i ech2o_multitools.py --file=def_morris_P5_1997-2023.py  --SA_init=1 --outdir=Morris1_P5 
-python -i ech2o_multitools.py --file=def_morris_P5_1997-2023.py  --SA_init=0 --cfg=config_P5_1997-2023_morris --cfgTrck=configTrck_1997-2023_morris --ncpu=1 --outdir=Morris1_P5 --task=Morris1_P5.1 #--scratch=1
-#python -u ech2o_multitools.py --file=def_morris_P5_1997-2023_hydroVH.py  --cfg=config_P5_1997-2023_morris_rs2  --cfgTrck=configTrck_1997-2023_morris --outdir=Morris_P5_1997-2023_rs2_hydroVH --ncpu=1 --scratch=1
+#python -i ech2o_multitools.py --file=def_SensiMorris.py  --SA_init=0 --cfg=config_P5_1997-2023_morris --cfgTrck=configTrck_1997-2023_morris --ncpu=1 --outdir=Morris1_P5 --task=Morris1_P5.1 #--scratch=1
+#python -i ech2o_multitools.py --file=def_SensiMorris.py  --SA_init=0 --cfg=config_P5_2003-2023_morris --cfgTrck=configTrck_2003-2023_morris --ncpu=1 --outdir=Morris2_P5 --task=Morris2_P5.$SLURM_ARRAY_TASK_ID --scratch=1
 

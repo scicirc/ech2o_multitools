@@ -1,0 +1,4 @@
+Names,Min,Max,StepN,Log
+Gs_max_ATT,0.005,0.03,7.5e-05,0
+KhorizL1,1e-07,0.01,2.5,1
+PorosL1,0.3,0.5,0.075,0

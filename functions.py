@@ -87,6 +87,12 @@ def config_init(options):
         # Number of trajectories -> even number determined form ncpu
         if not hasattr(Opti, 'nr'):
             Opti.nr = 10
+            
+        # Elementary effect from mean absolute error by default
+        if not hasattr(Opti, 'EEs'):
+            Opti.EEs = ['mae']
+        elif type(Opti.EEs) != list:
+            Opti.EEs = [Opti.EEs]
 
     # -- Output directory
     # Base name
@@ -1305,6 +1311,15 @@ def files_init(Config, Opti, Paras, Site):
                 Site.f_initSWC2 = line.split('=')[1].strip()
             if 'Soil_moisture_3' in line:
                 Site.f_initSWC3 = line.split('=')[1].strip()
+            if 'Simul_tstep' in line:
+                Site.tstep =  int(line.split('=')[1].split('#')[0].strip())
+
+        for line in datafile:
+            if 'ReportMap_interval' in line:
+                Site.Map_interval =  int(int(line.split('=')[1].split('#')[0].strip()) / Site.tstep)
+            if 'ReportMap_starttime' in line:
+                Site.Map_start =  int(int(line.split('=')[1].split('#')[0].strip()) / Site.tstep)
+                
         if not any(s in Site.__dict__.keys() for s in
                    ['poros_mode', 'f_poros',
                     'f_initSWC1', 'f_initSWC2', 'f_initSWC3']):
@@ -1313,8 +1328,10 @@ def files_init(Config, Opti, Paras, Site):
         if Site.poros_mode == 1:
             # Exponential: profile coeff and depths file names are needed
             for line in datafile:
-                if 'Porosity_Profile_coeff =' in line:
+                #print(line)
+                if 'Porosity_Profile_Coeff =' in line:
                     Site.f_kporos = line.split('=')[1].strip()
+                    #print(Site.f_kporos)
                 if 'Depth_soil_layer_1 =' in line:
                     Site.f_dL1 = line.split('=')[1].strip()
                 if 'Depth_soil_layer_2 =' in line:
@@ -1559,6 +1576,11 @@ def forward_runs(Config, Opti, Obs, Paras, Site, options):
               'seconds (limit at', Config.tlimit, ')')
         # Check if it ran properly
         os.chdir(Config.PATH_EXEC)
+        if runOK(Obs, Opti, Config, mode='silent') == 0:
+            # else:  # Not running properly? Report
+            os.system('mv '+Config.PATH_EXEC+'/ech2o.log '+Config.PATH_OUT +
+                      '/ech2o.run'+str(it+1)+'.log')
+
         # Group outputs
         store_sim(Obs, Opti, Config, Site, it)
 
@@ -1574,12 +1596,12 @@ def forward_runs(Config, Opti, Obs, Paras, Site, options):
                       Config.PATH_OUT + '/ech2o_run'+str(it+1)+'.log')
 
         # Intermediate clean up
-        os.system('rm -f '+Config.PATH_EXEC+'/*.tab')
-        os.system('rm -f '+Config.PATH_EXEC+'/Basin*.txt')
+        #os.system('rm -f '+Config.PATH_EXEC+'/*.tab')
+        #os.system('rm -f '+Config.PATH_EXEC+'/Basin*.txt')
 
     # Clean up
-    os.system('rm -f '+Config.PATH_EXEC+'/*')
-    os.system('rm -fr '+Config.PATH_EXEC)
+    #os.system('rm -f '+Config.PATH_EXEC+'/*')
+    #os.system('rm -fr '+Config.PATH_EXEC)
 
 
 def morris_runs(Config, Opti, Obs, Paras, Site):
@@ -2500,14 +2522,19 @@ def store_sim(Obs, Opti, Config, Site, it):
             lensuf = 8 - len(Obs.obs[oname]['sim_file'])
 
             MapNames = []
+            itAll = []
             itOK = []
             itNotOK = []
 
-            for it2 in range(1, Obs.lsim+1):
+            # for it2 in range(1, Obs.lsim+1):
+            #     # Only save files beyond the spinup/transient period (if any)
+            #     if it2 >= Obs.saveBmap and \
+            #        it2 < Obs.saveBmap+Obs.saveLmap and it2 > Site.Map_start :
+            #print(Site.Map_start)
+            #print(Site.Map_interval)
+            #print(Obs.saveBmap+Obs.saveLmap)
 
-                # Only save files beyond the spinup/transient period (if any)
-                if it2 >= Obs.saveBmap and \
-                   it2 < Obs.saveBmap+Obs.saveLmap:
+            for it2 in range(Site.Map_start, Obs.saveBmap+Obs.saveLmap, Site.Map_interval):
 
                     # The basic format of maps outputs is XXXXXXXX.xxx
                     # where xxx is the iteration number below 1000.
@@ -2552,60 +2579,82 @@ def store_sim(Obs, Opti, Config, Site, it):
                         f_m = Config.PATH_EXEC+'/' +\
                             Obs.obs[oname]['sim_file'] + suf
 
+                    # Template timesteps
+                    itAll += [it2]
+                    MapNames += [f_m]
+                    
                     if len(glob.glob(f_m)) == 0:
                         itNotOK += [it2]
                     else:
-                        MapNames += [f_m]
                         itOK += [it2]
                         # print(f_m)
 
             # Time values for netCDF output
-            print(len(Obs.simt))
+            # print(len(Obs.simt))
+            #print(itAll)
+            #print(MapNames)
+            #print(itOK)
             var_t = np.array([(Obs.simtmap[x-Obs.saveBmap] -
-                               datetime(1901, 1, 1, 0, 0)).days for x in itOK])
+                               datetime(1901, 1, 1, 0, 0)).days for x in itAll])
 
-            if(len(itOK) == 0):
-                print("Nothing to be read from the "+oname+" maps...")
-                print("it could be due to an incorrect template map name, or" +
-                      "a saveBmap value beyond the last simulation timestep?")
-                continue
+            # if(len(itOK) == 0):
+
+            #     print("Nothing to be read from the "+oname+" maps...")
+            #     print("it could be due to an incorrect template map name, or" +
+            #           "a saveBmap value beyond the last simulation timestep?")
+            #     continue
 
             if(len(itNotOK) > 0 and firstMapTs == 1):
                 firstMapTs = 0
                 if(len(itOK) > 0):
                     print("Warning: some of the demanded "+oname +
-                          " maps are missing") #, before t=", itOK[0])
-                    print("(that's normal if maps output does not start " +
-                          "at t=saveBmap or \nif map interval>86400 "+
-                          "in EcH2O config file)")
+                          " maps are missing: the run probably crashed") #, before t=", itOK[0])
+                    # print("(that's normal if maps output does not start " +
+                    #       "at t=saveBmap or \nif map interval>86400 "+
+                    #       "in EcH2O config file)")
                 else:
                     print("Warning: all of the demanded "+oname +
                           " maps are missing!")
 
             # Second now that we have what we need...
-            for it2 in range(len(itOK)):
+            it3 = 0
+            for it2 in itAll:
                 # Read map at first time step of interest, convert to array
                 # using a missing value,
                 # and add an extra 3rd dimension (empty) for later appending
-                if(it2 == 0):
-                    try:
-                        var_val = pcr.pcr2numpy(
-                            pcr.readmap(MapNames[it2]),
-                            MV)[None, ...]*Obs.obs[oname]['sim_conv']
-                    except RuntimeError:
-                        print('Warning: RuntimeError - could not read',MapNames[it2])
-                # Read subsequent map, same procedure and then append
-                else:
-                    try:
-                        var_val = np.append(var_val,
-                                            pcr.pcr2numpy(pcr.readmap(MapNames[it2]),
-                                                          MV)[None, ...], axis=0)
-                    except RuntimeError:
-                        print('Warning: RuntimeError - could not read',MapNames[it2])
-                # Clean up
-                os.system('rm -f '+MapNames[it2])
+                if(it2 in itOK):
+                    #print(str(it2)+': reading '+MapNames[it3])
+                    if(it3 == 0):
+                        try:
+                            var_val = pcr.pcr2numpy(
+                                pcr.readmap(MapNames[it3]),
+                                MV)[None, ...]*Obs.obs[oname]['sim_conv']
+                        except RuntimeError:
+                            print('Warning: RuntimeError - could not read',MapNames[it3])
+                            # Read subsequent map, same procedure and then append
+                    else:
+                        try:
+                            var_val = np.append(var_val,
+                                                pcr.pcr2numpy(pcr.readmap(MapNames[it3]),
+                                                              MV)[None, ...], axis=0)
+                        except RuntimeError:
+                            print('Warning: RuntimeError - could not read',MapNames[it3])
+                            
+                    # Clean up
+                    os.system('rm -f '+MapNames[it3])
 
-            # Write output NCDF file
+                else:
+                    # Missing timestep --> NA
+                    print(str(it2)+': missing time step...')
+                    if(it3 == 0):
+                        var_val = pcr.pcr2numpy(Config.cloneMap, MV)[None, ...]*np.nan
+                    else:
+                        var_val = np.append(var_val,
+                                            pcr.pcr2numpy(Config.cloneMap, MV)[None, ...]*np.nan,
+                                            axis=0)
+                it3 += 1
+
+            # In all cases - Write output NCDF file (even it is to put NA in there)
             ncFile = Config.PATH_OUT+'/'+oname+'_all.nc'
             # print(ncFile)
             # -open nc dataset
@@ -3257,19 +3306,21 @@ def trajs(Config, Opti):
 # (in theory just uncomment previous code, but testing would be necessary)
 
 # NEW: it's used with summary time series/vectorized maps which are specific for
-# one trajcory / set of radial points (and not over all runs *nr), hence itraj
-# does not matter
+# one trajectory / set of radial points (and not over all runs *nr), since each
+# traj/radial is run indenpdently (in task array),
+# with sim_hist = *+'traj'+str(Config.tasknum2)* (see function store_sim())
 
 def ee(Config, Obs, Opti):
 
     firstObs = 0
     numObs = 0
     outObs = []#['Parameter']
+    sca = []
 
     for oname in Obs.names:
 
         # Time series or snapshot maps
-        # print(oname)
+        print(oname)
         
         # Read file        
         f_in = Obs.obs[oname]['sim_hist']
@@ -3284,37 +3335,101 @@ def ee(Config, Obs, Opti):
             df_diff = df_sim.iloc[1::]-df_sim.iloc[0]
 
         # print(df_diff.shape)
-        # Normalization factor: 80%-spread of "reference" simulations
-        qt90 = np.quantile(df_sim.iloc[0], 0.9)
-        qt10 = np.quantile(df_sim.iloc[0], 0.1)
+        # Normalization factor: 80%-spread across all simulations from
+        # that trajectory/radial points
+        qt90 = pd.melt(df_sim)['value'].quantile(0.9)
+        qt10 = pd.melt(df_sim)['value'].quantile(0.1)
         ynorm = qt90-qt10
         if ynorm == 0:
             if qt90 != 0:
                 ynorm = qt90
             else:
                 ynorm = 1
-            
-        bias = df_diff.mean(axis=1) / ynorm
-        # print(bias.shape)
-        # print(Opti.stepN.shape)
-        # Get RMSE, normalized by 80% spread of the (origin) time series
-        # qt90 = df_sim.set_index('Sample').iloc[0].quantile(0.9)
-        # qt10 = df_sim.set_index('Sample').iloc[0].quantile(0.1)
-        # qt90 = df_sim.set_index('Sample').quantile(0.9, axis=1)
-        # qt10 = df_sim.set_index('Sample').quantile(0.1, axis=1)
-        RMSE = np.sqrt((df_diff**2).mean(axis=1)) / ynorm
-        # Get corresponding (normalized) elementary effect
-        bias_ee = bias / Opti.stepN
-        RMSE_ee = RMSE / Opti.stepN
+                
+        # weighting factor: mean value for each time step
+        w = df_sim.mean()
+        # scaling factor : average absolute value
+        sca += [abs(df_sim).mean().mean()]
 
-        # Associate the corresponding parameter being tested
-        # (the order if the basic parameter order)
-        bias_ee.index = Opti.names
-        RMSE_ee.index = Opti.names
-        
-        # sim = np.genfromtxt(f_in, delimiter=',', skip_header=1,
-        #                     unpack=True)[1:Config.trimL+1, :]
-        
+        if 'bias' in Opti.EEs :
+            # Get bias, normalized by 80% spread of the time series
+            bias_ee = df_diff.mean(axis=1) / Opti.stepN
+            bias_ee_n = bias_ee / ynorm
+            #print(bias_ee)
+            #print(bias_ee_n)
+            # print(bias.shape)
+            # print(Opti.stepN.shape)
+            # Associate the corresponding parameter being tested
+            # (the order if the basic parameter order)
+            bias_ee.index = Opti.names
+            bias_ee_n.index = Opti.names
+            # Build the overall data frame
+            if(firstObs == 0):
+                bias_ee_tot = pd.DataFrame(bias_ee) #.assign(oname=bias_ee)
+                bias_ee_n_tot = pd.DataFrame(bias_ee_n) #.assign(oname=RMSE_ee)
+            else:
+                bias_ee_tot[str(numObs)] = bias_ee
+                bias_ee_n_tot[str(numObs)] = bias_ee_n
+
+        if 'rmse' in Opti.EEs :        
+            # Get RMSE
+            rmse_ee = np.sqrt((df_diff**2).mean(axis=1)) / Opti.stepN
+            # normalized by 80% spread of the time series
+            rmse_ee_n = rmse_ee / ynorm
+            #print(rmse_ee)
+            #print(rmse_ee_n)
+            # Associate the corresponding parameter being tested
+            # (the order if the basic parameter order)
+            rmse_ee.index = Opti.names
+            rmse_ee_n.index = Opti.names
+            # Build the overall data frame
+            if(firstObs == 0):
+                rmse_ee_tot = pd.DataFrame(rmse_ee) #.assign(oname=bias_ee)
+                rmse_ee_n_tot = pd.DataFrame(rmse_ee_n) #.assign(oname=RMSE_ee)
+            else:
+                rmse_ee_tot[str(numObs)] = rmse_ee
+                rmse_ee_n_tot[str(numObs)] = rmse_ee_n
+
+        if 'mae' in Opti.EEs :        
+            # Get mean aboslute error, normalized by 80% spread of the time series
+            mae_ee = abs(df_diff).mean(axis=1) / Opti.stepN
+            # normalized by 80% spread of the time series
+            mae_ee_n = mae_ee / ynorm
+            #            print(mae_ee)
+            # Associate the corresponding parameter being tested
+            # (the order if the basic parameter order)
+            mae_ee.index = Opti.names
+            mae_ee_n.index = Opti.names
+            # Build the overall data frame
+            if(firstObs == 0):
+                mae_ee_tot = pd.DataFrame(mae_ee)
+                mae_ee_n_tot = pd.DataFrame(mae_ee_n)
+            else:
+                mae_ee_tot[str(numObs)] = mae_ee
+                mae_ee_n_tot[str(numObs)] = mae_ee_n
+
+        if 'dstd' in Opti.EEs :        
+            # Get change in standard deviation, normalized by 80% spread of the time series
+            tmp = df_sim.std(axis=1)
+            if Opti.MSspace == 'trajectory':
+                dstd_ee = tmp.diff().iloc[1::, ]/Opti.stepN
+            if Opti.MSspace == 'radial':
+                dstd_ee = (tmp.iloc[1::]-tmp.iloc[0])/Opti.stepN
+            dstd_ee_n = dstd_ee / ynorm
+            #print(dstd_ee)
+            #print(dstd_ee_n)
+            # Associate the corresponding parameter being tested
+            # (the order if the basic parameter order)
+            dstd_ee.index = Opti.names
+            dstd_ee_n.index = Opti.names
+            # Build the overall data frame
+            if(firstObs == 0):
+                dstd_ee_tot = pd.DataFrame(dstd_ee) #.assign(oname=bias_ee)
+                dstd_ee_n_tot = pd.DataFrame(dstd_ee_n) #.assign(oname=RMSE_ee)
+            else:
+                dstd_ee_tot[str(numObs)] = dstd_ee
+                dstd_ee_n_tot[str(numObs)] = dstd_ee_n
+
         # # Take into account accumulated fluxes
 
         # # Diff between sims
@@ -3332,18 +3447,6 @@ def ee(Config, Obs, Opti):
         # # bias_ee = bias / Opti.BnormstepN
         # # RMSE_ee = RMSE / Opti.stepN
         
-        # Build the overall data frame
-        if(firstObs == 0):
-            # bias_ee_tot = bias_ee[..., None]  # Creates a (..,1) dimension
-            # RMSE_ee_tot = RMSE_ee[..., None]  # Creates a (..,1) dimension
-            bias_ee_tot = pd.DataFrame(bias_ee) #.assign(oname=bias_ee)
-            RMSE_ee_tot = pd.DataFrame(RMSE_ee) #.assign(oname=RMSE_ee)
-        else:
-            # bias_ee_tot = np.append(bias_ee_tot, bias_ee[..., None], 1)
-            # RMSE_ee_tot = np.append(RMSE_ee_tot, RMSE_ee[..., None], 1)
-            bias_ee_tot[str(numObs)] = bias_ee
-            RMSE_ee_tot[str(numObs)] = RMSE_ee
-
         # Update
         firstObs = 1
         # Increment number of obs actually evaluated
@@ -3352,50 +3455,52 @@ def ee(Config, Obs, Opti):
         outObs = outObs + [oname]
 
     # Write outputs -----------------------------------------------------------
-    bias_ee_tot.columns = outObs
-    RMSE_ee_tot.columns = outObs
-
+    sca = pd.DataFrame(sca)
+    sca.index = outObs
     if(Opti.MSspace == 'trajectory'):
-        bias_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.bias.txt')
-        RMSE_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.RMSE.txt')
-        # with open(Config.FILE_EE+'.EE.Traj'+str(itraj+1) +
-        #           '.bias.txt', 'w') as f_out:
-        #     f_out.write('Parameter'+','+','.join([outObs[j] for j in
-        #                                           range(numObs)])+'\n')
-        #     for i in range(Opti.nvar):
-        #         f_out.write(Opti.names[i]+',' +
-        #                     ','.join([str(bias_ee_tot[i, j]) for j in
-        #                               range(numObs)])+'\n')
-
-        # with open(Config.FILE_EE+'.EE.Traj'+str(itraj+1) +
-        #           '.RMSE.txt', 'w') as f_out:
-        #     f_out.write('Parameter'+','+','.join([outObs[j] for j in
-        #                                           range(numObs)])+'\n')
-        #     for i in range(Opti.nvar):
-        #         f_out.write(Opti.names[i]+',' +
-        #                     ','.join([str(RMSE_ee_tot[i, j]) for j in
-        #                               range(numObs)])+'\n')
-
+        sca.to_csv(Config.PATH_OUTmain+'/mae.outputs.Traj'+Config.tasknum2+'.txt')
     if(Opti.MSspace == 'radial'):
-        bias_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.bias.txt')
-        RMSE_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.RMSE.txt')
-        # with open(Config.FILE_EE+'.EE.RadP'+str(itraj+1) +
-        #           '.bias.txt', 'w') as f_out:
-        #     f_out.write('Parameter'+','+','.join([outObs[j] for j in
-        #                                           range(numObs)])+'\n')
-        #     for i in range(Opti.nvar):
-        #         f_out.write(Opti.names[i]+',' +
-        #                     ','.join([str(bias_ee_tot[i, j]) for j in
-        #                               range(numObs)])+'\n')
+        sca.to_csv(Config.PATH_OUTmain+'/mae.outputs.RadP'+Config.tasknum2+'.txt')
+    
+    if 'bias' in Opti.EEs:
+        bias_ee_tot.columns = outObs
+        bias_ee_n_tot.columns = outObs
+        if(Opti.MSspace == 'trajectory'):
+            bias_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.bias.txt')
+            bias_ee_n_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.bias_norm.txt')
+        if(Opti.MSspace == 'radial'):
+            bias_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.bias.txt')
+            bias_ee_n_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.bias_norm.txt')
+        
+    if 'mae' in Opti.EEs:
+        mae_ee_tot.columns = outObs
+        mae_ee_n_tot.columns = outObs
+        if(Opti.MSspace == 'trajectory'):
+            mae_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.mae.txt')
+            mae_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.mae_norm.txt')
+        if(Opti.MSspace == 'radial'):
+            mae_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.mae.txt')
+            mae_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.mae_norm.txt')
+    
+    if 'rmse' in Opti.EEs:
+        rmse_ee_tot.columns = outObs
+        rmse_ee_n_tot.columns = outObs
+        if(Opti.MSspace == 'trajectory'):
+            rmse_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.rmse.txt')
+            rmse_ee_n_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.rmse_norm.txt')
+        if(Opti.MSspace == 'radial'):
+            rmse_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.rmse.txt')
+            rmse_ee_n_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.rmse_norm.txt')
 
-        # with open(Config.FILE_EE+'.EE.RadP'+str(itraj+1) +
-        #           '.RMSE.txt', 'w') as f_out:
-        #     f_out.write('Parameter'+','+','.join([outObs[j] for j in
-        #                                           range(numObs)])+'\n')
-        #     for i in range(Opti.nvar):
-        #         f_out.write(Opti.names[i]+',' +
-        #                     ','.join([str(RMSE_ee_tot[i, j]) for j in
-        #                               range(numObs)])+'\n')
+    if 'dstd' in Opti.EEs:
+        dstd_ee_tot.columns = outObs
+        dstd_ee_n_tot.columns = outObs
+        if(Opti.MSspace == 'trajectory'):
+            dstd_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.dstd.txt')
+            dstd_ee_n_tot.to_csv(Config.PATH_OUTmain+'/EE.Traj'+Config.tasknum2+'.dstd_norm.txt')
+        if(Opti.MSspace == 'radial'):
+            dstd_ee_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.dstd.txt')
+            dstd_ee_n_tot.to_csv(Config.PATH_OUTmain+'/EE.RadP'+Config.tasknum2+'.dstd_norm.txt')
 
 # ==================================================================================
 

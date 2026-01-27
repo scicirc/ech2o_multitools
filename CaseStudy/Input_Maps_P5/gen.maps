@@ -1,0 +1,181 @@
+#!/bin/bash
+
+# -----------------------------------------------------------------------
+# =================== Geometry / Hydrodynamics props. ===================
+
+res=$(awk '{ if($1 == "CELLSIZE" ) print $2 }' dem.asc)
+let srf=$res*$res
+echo \#\#\# Cell size \#\#\#
+echo $srf
+echo
+
+echo
+echo \#\#\# Basic site geometry \#\#\#
+echo
+
+#echo \#\#\# Convert DEM from .asc to .map
+#asc2map -a --clone base.map dem.asc DEM.map
+# !! using the corrected dem, see prep_VectCell.R
+asc2map -a --clone base.map dem_1pix.asc DEM.map
+#asc2map -a --clone base.map dem_9pix.asc dem_9pix.map
+
+#echo \#\#\# Unit map
+pcrcalc 'unit.map = DEM.map/DEM.map'
+
+#echo \#\#\# Create slope map from 9 pixel map, then remove border
+#pcrcalc 'slope.map = slope(dem_9pix.map)'
+#pcrcalc 'slope.map = if(unit.map eq 1 then slope.map else unit.map)'
+pcrcalc 'slope.map = 47e-3*unit.map' # from slope calculation on ALOS30m
+#pcrcalc 'slope.map = 0*unit.map' 
+# slope at 0 so that only leakage drains out
+# no problem for surface as slope is not used
+
+#echo \#\#\# Delineate channel network
+pcrcalc 'ldd.map = lddcreate(DEM.map, 1e9,1e9,1e9,1e9)'
+
+#echo \#\#\# Topography index
+pcrcalc 'accuflux.map = accuflux(ldd.map,1)'
+
+echo \#\#\# Soil depth
+pcrcalc 'soildepth.map = 443e-1*unit.map'
+
+echo \#\#\# Depth of first two soil hydraulic layers
+echo \(third is deduced from the total soil depth\)
+pcrcalc 'soildepth.L1.map = 3e-1*unit.map'
+pcrcalc 'soildepth.L2.map = 20*unit.map'
+pcrcalc 'soildepth.L3.map = soildepth.map-soildepth.L1.map-soildepth.L2.map'
+
+echo \#\#\# Effective hydraulic conductivity
+pcrcalc 'Khsat.map = 5e-6*unit.map'
+pcrcalc 'Khsat.L2.map = 1e-6*unit.map'
+pcrcalc 'Khsat.L3.map = 1e-5*unit.map'
+cp -p Khsat.map Khsat.L1.map
+
+echo \#\#\# Deep drainage : Leakance parameter
+pcrcalc 'leakance.map = 1*unit.map'
+
+echo \#\#\# Porosity
+pcrcalc 'poros.map = 4e-1*unit.map'
+pcrcalc 'poros.L2.map = 25e-2*unit.map'
+pcrcalc 'poros.L3.map = 1e-1*unit.map'
+cp -p poros.map poros.L1.map
+
+echo \#\#\# Porosity
+pcrcalc 'psi_fc.L1.map = 336e-2*unit.map'
+pcrcalc 'psi_fc.L2.map = 336e-2*unit.map'
+pcrcalc 'psi_fc.L3.map = 336e-2*unit.map'
+
+echo \#\#\# V-to-H hydraulic conductivity ratio
+pcrcalc 'KvKh.map = unit.map*1'
+pcrcalc 'KvKh.L2.map = unit.map*1'
+pcrcalc 'KvKh.L3.map = unit.map*1'
+
+echo \#\#\# Soil air entry pressure
+pcrcalc 'psi_ae.map = unit.map*22e-2'
+pcrcalc 'psi_ae.L2.map = unit.map*5e-1'
+pcrcalc 'psi_ae.L3.map = unit.map*5e-1'
+
+echo \#\#\# Brooks and Corey lambda
+pcrcalc 'BClambda.map = unit.map*49e-1'
+pcrcalc 'BClambda.L2.map = unit.map*8'
+pcrcalc 'BClambda.L3.map = unit.map*8'
+
+echo \#\#\# Residual soil moisture
+pcrcalc 'theta_r.map = unit.map*5e-2'
+pcrcalc 'theta_r.L2.map = unit.map*5e-2'
+pcrcalc 'theta_r.L3.map = unit.map*5e-2'
+pcrcalc 'theta_r.map = min(2e-1*poros.map,theta_r.map)'
+pcrcalc 'theta_r.L2.map = min(2e-1*poros.L2.map,theta_r.L2.map)'
+pcrcalc 'theta_r.L3.map = min(2e-1*poros.L3.map,theta_r.L3.map)'
+
+echo \#\#\# Preview of field capacity
+pcrcalc 'fieldcap.L1.map = ((psi_ae.map/336e-2)**(1/BClambda.map))*(poros.map-theta_r.map)+theta_r.map'
+pcrcalc 'fieldcap.L2.map = ((psi_ae.L2.map/336e-2)**(1/BClambda.L2.map))*(poros.L2.map-theta_r.L2.map)+theta_r.L2.map'
+pcrcalc 'fieldcap.L3.map = ((psi_ae.L3.map/336e-2)**(1/BClambda.L3.map))*(poros.L3.map-theta_r.L3.map)+theta_r.L3.map'
+
+echo \#\#\# Initial soil moisture \in the three layers
+pcrcalc 'Init_SWC.L1.map = 8e-1*fieldcap.L1.map'
+pcrcalc 'Init_SWC.L2.map = 8e-1*fieldcap.L2.map'
+pcrcalc 'Init_SWC.L3.map = 12e-1*fieldcap.L3.map'
+
+echo \#\#\# Channel width
+pcrcalc 'chanwidth.map = 0*unit.map'
+pcrcalc 'chanmask.map=if(chanwidth.map > 0 then unit.map else 0)'
+
+echo \#\#\# Channel\'s Manning coefficient
+pcrcalc 'chanmanningn.map = chanmask.map * 10'
+# Artifically high to keep Courant number<=1
+
+echo \#\#\# GW to channel seepage parameter
+pcrcalc 'chanparam.map = chanmask.map * 0'
+pcrcalc 'chanparam.L1.map = chanmask.map * 0'
+pcrcalc 'chanparam.L2.map = chanmask.map * 0'
+pcrcalc 'chanparam.L3.map = chanmask.map * 0'
+
+echo 
+echo \#\#\# Location of time series point \#\#\#
+pcrcalc 'Tsmask.map = unit.map'
+#col2map --clone base.map tsmask.txt Tsmask.map
+#col2map --clone base.map probes_Outlet.txt Tsmask_Outlet.map
+
+echo \#\#\# Albedo
+pcrcalc 'albedo.soil.map = unit.map * 3e-1'
+#asc2map -a --clone base.map albedo.asc albedo.map
+
+echo \#\#\# Emissivity
+pcrcalc 'emissivity.map = unit.map * 98e-2'
+
+echo \#\#\# Soil heat capacity
+pcrcalc 'soilheatcap.map = unit.map * 2205000'
+
+echo \#\#\# Soil thermal conductivity
+pcrcalc 'soilthermalK.map = unit.map * 2e-1'
+
+echo \#\#\# Soil depth with negligible heat exchange
+pcrcalc 'dampdepth.map = unit.map * 2'
+
+echo \#\#\# Temperature at damping depth
+pcrcalc 'temp_damp.map = unit.map * 10'
+
+echo \#\#\# Snowmelt coefficient
+pcrcalc 'snowmeltCoeff.map = unit.map * 41e-9'
+
+echo \#\#\# Terrain rugosity
+pcrcalc 'randrough.map = unit.map * 2e-1'
+
+echo \#\#\# Other soil parameters
+pcrcalc 'Wc.map = unit.map * 7e-1'
+pcrcalc 'Wp.map = unit.map * 9'
+
+echo \#\#\# Snow water equivalent
+pcrcalc 'Init_SWE.map = unit.map * 0'
+
+echo \#\#\# Initial soil temperature
+pcrcalc 'Init_SoilTemp.map = unit.map * 20'
+
+echo \#\#\# Initial soil temperature
+pcrcalc 'Init_Streamflow.map = unit.map * 0'
+
+echo \#\#\# Initial chloride concentrations
+pcrcalc 'cCl.L1.map = unit.map * 150'
+pcrcalc 'cCl.L2.map = unit.map * 500'
+pcrcalc 'cCl.L3.map = unit.map * 550'
+pcrcalc 'cCl.surface.map = unit.map * 70'
+pcrcalc 'cCl.snowpack.map = unit.map * 70'
+
+echo \#\#\# Initial ages
+pcrcalc 'Age.L1.map = unit.map * 30'
+pcrcalc 'Age.L2.map = unit.map * 2555'
+pcrcalc 'Age.L3.map = unit.map * 8030'
+pcrcalc 'Age.surface.map = unit.map * 0'
+pcrcalc 'Age.snowpack.map = unit.map * 0'
+
+
+# -----------------------------------------------------------------------
+# ============================= Vegetation ==============================
+
+echo 
+echo \#\#\# Vegetation \#\#\#
+echo
+echo \#\#\# Patches
+pcrcalc 'patches.map = unit.map'

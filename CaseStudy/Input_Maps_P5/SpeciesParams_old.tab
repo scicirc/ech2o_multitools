@@ -1,0 +1,4 @@
+1	40																																						
+1	0.47	0.015	3.83E-06	50	26	43	5	0.1	0.1	0.25	6e-7	10	0.0019	200	40	153	0.012	0.065	0.25	0.4	250000	100	5	3E-8	6E-8	0.2	1	0.2	1	5.8E-09	0.0003	0.1	0.95	0.5	1245	0.3	2	0	0
+numSpecs	NumParams																																						
+ID	NPP/GPP	Gs_max	CnpQEff	MaxAge	Topt	Tmax	Tmin	AllocLeaf_a	AllocLeaf_b	AllocStem_a	AllocStem_b	Gs_light	Gs_vpd	LWP_low	LWP_high	WiltPnt	SLA	SRA	Crown/Stem	TrShp	WoodDens	Fhdmax	Fhdmin	TurnovL	TurnovL_MWS	TurnovL_WSc	TurnovL_MTS	TurnovL_TSc	ColdStress_c	TurnovR	CWS_max	Albedo	Emissivity	KBeers	WUE_cnp	Kroot	vegtype	TurnovL_DGr	TurnovL_DGrT
