@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # *************************************************
 #
-# Functions for ech2o_multitools.py
+# Functions for main.py
 # -------
 # Author: S. Kuppel
 # Created on 04/2020

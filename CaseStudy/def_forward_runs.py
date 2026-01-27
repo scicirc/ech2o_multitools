@@ -19,7 +19,7 @@ class Config:
     # if no name is provided, the default path will be where
     # the script is launched
     PATH_MAIN = os.getcwd()+'/'
-    # Script mode (see ech2o_multitools.py for details)
+    # Script mode (see main.py for details)
     mode = 'forward_runs'
     # EcH2O exectuable name
     exe = 'ech2o_iso'

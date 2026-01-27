@@ -1,5 +1,5 @@
 #!/bin/bash
 
-python3 ech2o_multitools.py --file=def_DREAMcalib_seq.py --cfg=config_example_DREAMcalib --outdir=Output_DREAM_seq
+python3 main.py --file=def_DREAMcalib_seq.py --cfg=config_example_DREAMcalib --outdir=Output_DREAM_seq
 
-#mpirun -c 21 python3 ech2o_multitools.py --file=def_DREAMcalib_mpi.py --cfg=config_example_DREAMcalib --outdir=Output_DREAM_mpi
+#mpirun -c 21 python3 main.py --file=def_DREAMcalib_mpi.py --cfg=config_example_DREAMcalib --outdir=Output_DREAM_mpi

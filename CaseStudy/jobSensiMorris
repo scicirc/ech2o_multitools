@@ -1,65 +1,12 @@
-#!/bin/sh
-
-# Names of job, outputs....
-#SBATCH --job-name=MorrisEcH2O
-#SBATCH -o jobs_out/MorrisEcH2O_%j.out # STDOUT
-#SBATCH -e jobs_out/MorrisEcH2O_%j.err # STDERR
-
-# Partition
-#SBATCH -w n401
-# SBATCH -p any
-# SBATCH -p omp_parall
-# Communicating
-# SBATCH -A U_RIVERLY
-#SBATCH --mail-type=END
-#SBATCH --mail-user=sylvain.kuppel@ird.fr
-# NUmber of nodes and MPI task per nodes
-# SBATCH --nodes=1
-#SBATCH --ntasks=1
-# SBATCH --ntasks-per-node=1
-# -not used- SBATCH --ntasks-per-socket=1
-# -not used/needed- SBATCH --sockets-per-node=2
-# -not used- SBATCH --cores-per-socket=12
-
-# For OpenMP:
-# NUmber of nodes and MPI task per nodes
-# SBATCH --nodes=1
-#SBATCH --ntasks=1
-# SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=1
-# SBATCH --mem-per-cpu=1GB           # Memory per processor
-
-# Job array
-#SBATCH --array=1-20
-
-
-# Wall clock limit:
-# SBATCH --time=48:00:00
-# SBATCH --mem=10000
-
-#SBATCH --export=ALL
-
-echo ${SLURM_JOB_NODELIST}
-#cd ${SLURM_SUBMIT_DIR}
-echo ${SLURM_SUBMIT_DIR}
-
-# For pinning threads correctly:
-export OMP_PLACES=threads
-#export OMP_PROC_BIND=spread
-
-# Using conda for pcraster
-source /home/sila/miniconda3/etc/profile.d/conda.sh
-conda deactivate
-conda activate pcraster39
-
-cd /home/kups/runs/ech2o/MuleHole/
+#!/bin/bash
 
 # If SA_init = 1, i.e. generating parameters values for trajectories/radial points in a given directory (Sensitivity_ParameterSets in this example)
 
-python -i ech2o_multitools.py --file=def_SensiMorris.py  --SA_init=1 --outdir=Morris1_P5
+python -i main.py --file=def_SensiMorris.py  --SA_init=1 --outdir=Morris1_P5
 
 # If SA_init = 0, i.e. running the model along trajectory/radial points
 
-#python -i ech2o_multitools.py --file=def_SensiMorris.py  --SA_init=0 --cfg=config_P5_1997-2023_morris --cfgTrck=configTrck_1997-2023_morris --ncpu=1 --outdir=Morris1_P5 --task=Morris1_P5.1 #--scratch=1
-#python -i ech2o_multitools.py --file=def_SensiMorris.py  --SA_init=0 --cfg=config_P5_2003-2023_morris --cfgTrck=configTrck_2003-2023_morris --ncpu=1 --outdir=Morris2_P5 --task=Morris2_P5.$SLURM_ARRAY_TASK_ID --scratch=1
-
+#python -i main.py --file=def_SensiMorris.py  --SA_init=0 --cfg=config_example_sensi --cfgTrck=configTrck_example_sensi --ncpu=1 --outdir=Morris1_P5 --task=Morris1_P5.1 #--scratch=1
+#python -i main.py --file=def_SensiMorris.py  --SA_init=0 --cfg=config_example_sensi --cfgTrck=configTrck_example_sensi --ncpu=1 --outdir=Morris1_P5 --task=Morris1_P5.2 #--scratch=1
+#python -i main.py --file=def_SensiMorris.py  --SA_init=0 --cfg=config_example_sensi --cfgTrck=configTrck_example_sensi --ncpu=1 --outdir=Morris1_P5 --task=Morris1_P5.3 #--scratch=1
+#python -i main.py --file=def_SensiMorris.py  --SA_init=0 --cfg=config_example_sensi --cfgTrck=configTrck_example_sensi --ncpu=1 --outdir=Morris1_P5 --task=Morris1_P5.4 #--scratch=1

@@ -1,4 +1,4 @@
 #!/bin/bash
 
-python3 -i ech2o_multitools.py --file=def_forward_runs.py --cfg=config_example_fruns --cfgTrck=configTrck_example_fruns --outdir=Output_EnsembleRuns --inEns=TestSet --nEns=3 
+python3 -i main.py --file=def_forward_runs.py --cfg=config_example_fruns --cfgTrck=configTrck_example_fruns --outdir=Output_EnsembleRuns --inEns=TestSet --nEns=3 
 
