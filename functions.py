@@ -1286,12 +1286,12 @@ def files_init(Config, Opti, Paras, Site):
         # -- For initial soil moisture maps generation at each run of EcH2O,
         # get the value of keyword in config file (porosity profile type and
         # name of maps)
-        if not hasattr(Site, 'frac_SWC1'):
-            Site.frac_SWC1 = 0.9
-        if not hasattr(Site, 'frac_SWC2'):
-            Site.frac_SWC2 = 0.9
-        if not hasattr(Site, 'frac_SWC3'):
-            Site.frac_SWC3 = 0.9
+        # if not hasattr(Site, 'frac_SWC1'):
+        #     Site.frac_SWC1 = 0.9
+        # if not hasattr(Site, 'frac_SWC2'):
+        #     Site.frac_SWC2 = 0.9
+        # if not hasattr(Site, 'frac_SWC3'):
+        #     Site.frac_SWC3 = 0.9
         # print('initial conditions 1')
         # print(Config.FILE_CFGdest)
         with open(Config.FILE_CFGdest, 'r') as f:
@@ -1302,9 +1302,20 @@ def files_init(Config, Opti, Paras, Site):
             # Check which porosity profile mode is on in config file
             if 'Porosity_profile =' in line:
                 Site.poros_mode = int(line.split('=')[1].strip())
+            # Check if retention curve parameters are layer-dependent
+            if 'Pedotransfer_Parameters_profile =' in line:
+                Site.PTF_mode = int(line.split('=')[1].strip())
             # Files names needed in any case
             if 'Porosity =' in line:
                 Site.f_poros = line.split('=')[1].strip()
+            if 'Porosity_Profile_Coeff =' in line:
+                Site.f_kporos = line.split('=')[1].strip()
+            if 'Residual_soil_moisture =' in line:
+                Site.f_thetar = line.split('=')[1].strip()
+            if 'Air_entry_pressure =' in line:
+                Site.f_psiae = line.split('=')[1].strip()
+            if 'Brooks_Corey_lambda =' in line:
+                Site.f_bclambda = line.split('=')[1].strip()
             if 'Soil_moisture_1' in line:
                 Site.f_initSWC1 = line.split('=')[1].strip()
             if 'Soil_moisture_2' in line:
@@ -1313,45 +1324,67 @@ def files_init(Config, Opti, Paras, Site):
                 Site.f_initSWC3 = line.split('=')[1].strip()
             if 'Simul_tstep' in line:
                 Site.tstep =  int(line.split('=')[1].split('#')[0].strip())
-
-        for line in datafile:
+            if 'Depth_soil_layer_1 =' in line:
+                Site.f_dL1 = line.split('=')[1].strip()
+            if 'Depth_soil_layer_2 =' in line:
+                Site.f_dL2 = line.split('=')[1].strip()
+            if 'Soil_depth =' in line:
+                Site.f_dTot = line.split('=')[1].strip()
+            # Could be useful too
             if 'ReportMap_interval' in line:
                 Site.Map_interval =  int(int(line.split('=')[1].split('#')[0].strip()) / Site.tstep)
             if 'ReportMap_starttime' in line:
                 Site.Map_start =  int(int(line.split('=')[1].split('#')[0].strip()) / Site.tstep)
+            # Not checked below because it's not in all ech2o-iso versions (so far)
+            if 'Field_Capacity_Tension_Layer1 =' in line:
+                Site.f_psiFC1 = line.split('=')[1].strip()
+            if 'Field_Capacity_Tension_Layer2 =' in line:
+                Site.f_psiFC2 = line.split('=')[1].strip()
+            if 'Field_Capacity_Tension_Layer3 =' in line:
+                Site.f_psiFC3 = line.split('=')[1].strip()
+
                 
-        if not any(s in Site.__dict__.keys() for s in
-                   ['poros_mode', 'f_poros',
-                    'f_initSWC1', 'f_initSWC2', 'f_initSWC3']):
-            sys.exit('Error: file names for poros and init SWC not found')
+        if not all(s in Site.__dict__.keys() for s in
+                   ['poros_mode', 'PTF_mode','f_poros', 'f_thetar', 'f_psiae',
+                    'f_bclambda', 'f_initSWC1', 'f_initSWC2', 'f_initSWC3']):
+            sys.exit('Error: some/all file names/information for poros, geometry, retention curve, init SWC and timesteps not found in config.ini - Check keywords in functions.py?')
 
-        if Site.poros_mode == 1:
-            # Exponential: profile coeff and depths file names are needed
+        # Residual moistures if not uniform
+        if Site.poros_mode != 0:
             for line in datafile:
-                #print(line)
-                if 'Porosity_Profile_Coeff =' in line:
-                    Site.f_kporos = line.split('=')[1].strip()
-                    #print(Site.f_kporos)
-                if 'Depth_soil_layer_1 =' in line:
-                    Site.f_dL1 = line.split('=')[1].strip()
-                if 'Depth_soil_layer_2 =' in line:
-                    Site.f_dL2 = line.split('=')[1].strip()
-                if 'Soil_depth =' in line:
-                    Site.f_dTot = line.split('=')[1].strip()
-            if not any(s in Site.__dict__.keys() for s in
-                       ['f_kporos', 'f_dL1', 'f_dL2', 'f_dTot']):
-                sys.exit('Error: file names for poros profile and depths not found')
+                if 'Residual_soil_moisture_Layer2 =' in line:
+                    Site.f_thetarL2 = line.split('=')[1].strip()
+                if 'Residual_soil_moisture_Layer3 =' in line:
+                    Site.f_thetarL3 = line.split('=')[1].strip()
+            if not all(s in Site.__dict__.keys() for s in
+                   ['f_thetarL2','f_thetarL3']):
+                sys.exit('Error: file name for residual mositure in L2 and L3 not found')
 
-        elif Site.poros_mode == 2:
+        if Site.poros_mode == 2:
             # Porosity map given for each layer
             for line in datafile:
                 if 'Porosity_Layer2 =' in line:
                     Site.f_porosL2 = line.split('=')[1].strip()
                 if 'Porosity_Layer3 =' in line:
                     Site.f_porosL3 = line.split('=')[1].strip()
-            if not any(s in Site.__dict__.keys() for s in
+            if not all(s in Site.__dict__.keys() for s in
                        ['f_porosL2', 'f_porosL3']):
                 sys.exit('Error: files names for L2 & L3 poros not found')
+
+        if Site.PTF_mode == 1:
+            # Rentention curve parameter (Brooks-Corey) for each layer
+            for line in datafile:
+                if 'Air_entry_pressure_Layer2 =' in line:
+                    Site.f_psiaeL2 = line.split('=')[1].split('#')[0].strip()
+                if 'Air_entry_pressure_Layer3 =' in line:
+                    Site.f_psiaeL3 = line.split('=')[1].split('#')[0].strip()
+                if 'Brooks_Corey_lambda_Layer2 =' in line:
+                    Site.f_bclambdaL2 = line.split('=')[1].strip()
+                if 'Brooks_Corey_lambda_Layer3 =' in line:
+                    Site.f_bclambdaL3 = line.split('=')[1].strip()
+            if not all(s in Site.__dict__.keys() for s in
+                       ['f_psiaeL2', 'f_bclambdaL2','f_psiaeL3', 'f_bclambdaL3']):
+                sys.exit('Error: files names for L2 & L3 brooks-corey params not found')
 
         # -- Vegetation inputs file: reference dictionary
         Opti.vref = {}
@@ -1566,6 +1599,7 @@ def forward_runs(Config, Opti, Obs, Paras, Site, options):
 
         # Create the inputs for ECH2O
         sim_inputs(Config, Opti, Paras, Site, Config.PATH_SPA, it=it)
+        
         # Run ECH2O
         os.chdir(Config.PATH_OUT)
         print('|| running ECH2O...', end='\r')
@@ -2140,44 +2174,190 @@ def sim_inputs(Config, Opti, Paras, Site, path_spa, it=0, mode='no_spotpy',
     tmp = pcr.pcr2numpy(poros, np.nan)
     Site.npix = len(list(tmp[~np.isnan(tmp)]))
 
-    # Depending on porosity profile mode, different ways to each layer's porosity
-    if Site.poros_mode == 0:
-        # Constant profile
-        porosL1 = poros
-        porosL2 = poros
-        porosL3 = poros
-    elif Site.poros_mode == 1:
-        # Exponential: profile coeff and depths are needed
-        kporos = pcr.readmap(path_spa+'/' + Site.f_kporos)
+    # Finally, prescribe initial soil moisture depending on user's choice
+    # Read various maps, even if not all may be used
+    if hasattr(Site, 'WTD1_init') or hasattr(Site, 'WTD2_init') or \
+       hasattr(Site, 'WTD3_init') :
         dL1 = pcr.readmap(path_spa+'/' + Site.f_dL1)
         dL2 = pcr.readmap(path_spa+'/' + Site.f_dL2)
         dTot = pcr.readmap(path_spa+'/' + Site.f_dTot)
-        # Layer-integrated values from profile
-        porosL1 = kporos*poros*(1-pcr.exp(-dL1/kporos))/dL1
-        porosL2 = kporos*poros*(pcr.exp(-dL1/kporos) -
-                                pcr.exp(-(dL1+dL2)/kporos))/dL2
-        porosL3 = kporos*poros*(pcr.exp(-(dL1+dL2)/kporos) -
-                                pcr.exp(-dTot/kporos))/(dTot-dL1-dL2)
-    elif Site.poros_mode == 2:
-        # Porosity map given for each layer
-        porosL1 = poros
-        porosL2 = pcr.readmap(path_spa+'/' + Site.f_porosL2)
-        porosL3 = pcr.readmap(path_spa+'/' + Site.f_porosL3)
+        print(pcr.cellvalue(dL1,2,2)[0],pcr.cellvalue(dL2,2,2)[0],
+              pcr.cellvalue(dTot,2,2)[0])
+ 
+    if Site.poros_mode == 1:
+        kporos = pcr.readmap(path_spa+'/' + Site.f_kporos)
 
-    # Finally, prescribe initial soil moisture depending on user's choice
+    # Layer 1
     if hasattr(Site, 'SWC1init'):
         pcr.report(Site.SWC1init*Site.bmaps['unit'], path_spa+'/'+Site.f_initSWC1)
-    else:
+        
+    elif hasattr(Site, 'frac_SWC1'):
+        # Here we need the total porosity
+        if Site.poros_mode == 0 or Site.poros_mode == 2:
+            # Constant profile or porosity map given for each layer (same for L1)
+            porosL1 = poros
+        elif Site.poros_mode == 1:
+            # Layer-integrated values from exponential profile
+            porosL1 = kporos*poros*(1-pcr.exp(-dL1/kporos))/dL1
         pcr.report(porosL1*Site.frac_SWC1, path_spa+'/'+Site.f_initSWC1)
+        
+    elif hasattr(Site, 'WTD1_init'):
+        # Recalculate water content from water table depth
+        psiae = pcr.readmap(path_spa+'/' + Site.f_psiae)
+        bclambda = pcr.readmap(path_spa+'/' + Site.f_bclambda)
+        thr = pcr.readmap(path_spa+'/' + Site.f_thetar)
+        if Site.poros_mode == 0 or Site.poros_mode == 2:
+            # Constant profile or porosity map given for each layer (same for L1)
+            porosL1 = poros
+        elif Site.poros_mode == 1:
+            # Layer-integrated values from profile
+            porosL1 = kporos*poros*(1-pcr.exp(-dL1/kporos))/dL1
+        # recalculate therar using ech2o-iso criteria
+        thr = pcr.ifthenelse(thr <= 0.5*porosL1, thr, 0.5*porosL1)
+        if hasattr(Site, 'f_psiFC1'):
+            psiFC1 = pcr.readmap(path_spa+'/' + Site.f_psiFC1)
+            thfc = ((psiae/psiFC1)**(1/bclambda))*(porosL1-thr)+thr
+        else:
+            thfc = ((psiae/3.36)**(1/bclambda))*(porosL1-thr)+thr
+        # Finally calculate water content from porosL1 (if WTD1 = 0)
+        # to minimum field capacity (if WTD1 = dL1)
+        # (for now poros exp profile case not accurately considered)
+        WTD = pcr.ifthenelse(Site.WTD1_init*Site.bmaps['unit'] < dL1,
+                         Site.WTD1_init*Site.bmaps['unit'], dL1)
+        pcr.report(porosL1 + WTD*(thfc-porosL1)/dL1,
+                   path_spa+'/'+Site.f_initSWC1)
+        print(pcr.cellvalue(porosL1,2,2)[0], pcr.cellvalue(thr,2,2)[0],pcr.cellvalue(thfc,2,2)[0],
+              pcr.cellvalue(WTD,2,2)[0],pcr.cellvalue(porosL1 + WTD*(thfc-porosL1)/dL1,2,2)[0])
+    else:
+        sys.exit("Uncorrect option for initializing L1's content")
 
+    # Layer 2
     if hasattr(Site, 'SWC2init'):
         pcr.report(Site.SWC2init*Site.bmaps['unit'], path_spa+'/'+Site.f_initSWC2)
+        
+    elif hasattr(Site, 'frac_SWC2'):
+        # Here we need the total porosity
+        # Depending on porosity profile mode, different ways to each layer's porosity
+        if Site.poros_mode == 0:
+            # Constant profile
+            porosL2 = poros
+        elif Site.poros_mode == 1:
+            # Layer-integrated values from profile
+            porosL2 = kporos*poros*(pcr.exp(-dL1/kporos) -
+                                    pcr.exp(-(dL1+dL2)/kporos))/dL2
+        elif Site.poros_mode == 2:
+            # Porosity map given for each layer
+            porosL2 = pcr.readmap(path_spa+'/' + Site.f_porosL2)
+        pcr.report(porosL2*Site.frac_SWC2, path_spa+'/'+Site.f_initSWC2)
+        
+    elif hasattr(Site, 'WTD2_init'):
+        # Recalculate water content from water table depth
+        # Depending on porosity profile mode, different ways to each layer's porosity
+        if Site.poros_mode == 0:
+            # Constant profile
+            porosL2 = poros
+            thrL2 = pcr.readmap(path_spa+'/' + Site.f_thetar)
+        elif Site.poros_mode == 1:
+            # Layer-integrated values from profile
+            porosL2 = kporos*poros*(pcr.exp(-dL1/kporos) -
+                                    pcr.exp(-(dL1+dL2)/kporos))/dL2
+            thrL2 = pcr.readmap(path_spa+'/' + Site.f_thetarL2)
+        elif Site.poros_mode == 2:
+            # Porosity map given for each layer
+            porosL2 = pcr.readmap(path_spa+'/' + Site.f_porosL2)
+            thrL2 = pcr.readmap(path_spa+'/' + Site.f_thetarL2)
+        # Retention curve parameters
+        if(Site.PTF_mode == 0):
+            psiaeL2 = pcr.readmap(path_spa+'/' + Site.f_psiae)
+            bclambdaL2 = pcr.readmap(path_spa+'/' + Site.f_bclambda)
+        elif(Site.PTF_mode == 1):
+            psiaeL2 = pcr.readmap(path_spa+'/' + Site.f_psiaeL2)
+            bclambdaL2 = pcr.readmap(path_spa+'/' + Site.f_bclambdaL2)
+        # recalculate therar using ech2o-iso criteria
+        thrL2 = pcr.ifthenelse(thrL2 <= 0.5*porosL2, thrL2, 0.5*porosL2)
+        if hasattr(Site, 'f_psiFC2'):
+            psiFC2 = pcr.readmap(path_spa+'/' + Site.f_psiFC2)
+            thfcL2 = ((psiaeL2/psiFC2)**(1/bclambdaL2))*(porosL2-thrL2)+thrL2
+        else:
+            thfcL2 = ((psiaeL2/3.36)**(1/bclambdaL2))*(porosL2-thrL2)+thrL2
+        # Finally calculate water content from porosL1 (if WTD1 = 0)
+        # to minimum field capacity (if WTD1 = dL1)
+        # (for now poros exp profile case not accurately considered)
+        WTD = pcr.ifthenelse(Site.WTD2_init*Site.bmaps['unit'] < dL1+dL2,
+                         Site.WTD2_init*Site.bmaps['unit'], dL1+dL2)
+        pcr.report(porosL2 + (WTD-dL1)*(thfcL2-porosL2)/dL2,
+                   path_spa+'/'+Site.f_initSWC2)
+
+        print(pcr.cellvalue(porosL2,2,2)[0],pcr.cellvalue(thrL2,2,2)[0],pcr.cellvalue(thfcL2,2,2)[0],
+              pcr.cellvalue(WTD,2,2)[0],pcr.cellvalue(porosL2 + (WTD-dL1)*(thfcL2-porosL2)/dL2,2,2)[0])
+
     else:
-        pcr.report(porosL2*Site.frac_SWC2, path_spa+'/'+Site.f_initSWC1)
+        sys.exit("Uncorrect option for initializing L2's content")
+
+
+    # Layer 3
     if hasattr(Site, 'SWC3init'):
         pcr.report(Site.SWC3init*Site.bmaps['unit'], path_spa+'/'+Site.f_initSWC3)
+    elif hasattr(Site, 'frac_SWC3'):
+        # Here we need the total porosity
+        # Depending on porosity profile mode, different ways to each layer's porosity
+        if Site.poros_mode == 0:
+            # Constant profile
+            porosL3 = poros
+        elif Site.poros_mode == 1:
+            # Layer-integrated values from profile
+            porosL3 = kporos*poros*(pcr.exp(-(dL1+dL2)/kporos) -
+                                    pcr.exp(-dTot/kporos))/(dTot-dL1-dL2)
+        elif Site.poros_mode == 2:
+            # Porosity map given for each layer
+            porosL3 = pcr.readmap(path_spa+'/' + Site.f_porosL3)
+        pcr.report(porosL3*Site.frac_SWC3, path_spa+'/'+Site.f_initSWC3)
+        
+    elif hasattr(Site, 'WTD3_init'):
+        # Recalculate water content from water table depth
+        # Depending on porosity profile mode, different ways to each layer's porosity
+        if Site.poros_mode == 0:
+            # Constant profile
+            porosL3 = poros
+            thrL3 = pcr.readmap(path_spa+'/' + Site.f_thetar)
+        elif Site.poros_mode == 1:
+            # Layer-integrated values from profile
+            porosL3 = kporos*poros*(pcr.exp(-(dL1+dL2)/kporos) -
+                                    pcr.exp(-dTot/kporos))/(dTot-dL1-dL2)
+            thrL3 = pcr.readmap(path_spa+'/' + Site.f_thetarL3)
+        elif Site.poros_mode == 2:
+            # Porosity map given for each layer
+            porosL3 = pcr.readmap(path_spa+'/' + Site.f_porosL3)
+            thrL3 = pcr.readmap(path_spa+'/' + Site.f_thetarL3)
+        # Retention curve parameters
+        if(Site.PTF_mode == 0):
+            psiaeL3 = pcr.readmap(path_spa+'/' + Site.f_psiae)
+            bclambdaL3 = pcr.readmap(path_spa+'/' + Site.f_bclambda)
+        elif(Site.PTF_mode == 1):
+            psiaeL3 = pcr.readmap(path_spa+'/' + Site.f_psiaeL3)
+            bclambdaL3 = pcr.readmap(path_spa+'/' + Site.f_bclambdaL3)
+        # recalculate therar using ech3o-iso criteria
+        thrL3 = pcr.ifthenelse(thrL3 <= 0.5*porosL3, thrL3, 0.5*porosL3)
+        if hasattr(Site, 'f_psiFC3'):
+            psiFC3 = pcr.readmap(path_spa+'/' + Site.f_psiFC3)
+            thfcL3 = ((psiaeL3/psiFC3)**(1/bclambdaL3))*(porosL3-thrL3)+thrL3
+        else:
+            thfcL3 = ((psiaeL3/3.36)**(1/bclambdaL3))*(porosL3-thrL3)+thrL3
+        # Finally calculate water content from porosL3 (if WTD3 = dL1+dL2)
+        # to minimum = field capacity (if WTD3 = dTot)
+        # (for now poros exp profile case not accurately considered)
+        WTD = pcr.ifthenelse(Site.WTD3_init*Site.bmaps['unit'] < dTot,
+                             Site.WTD3_init*Site.bmaps['unit'], dTot)
+
+        pcr.report(porosL3 + (WTD-dL1-dL2)*(thfcL3-porosL3)/(dTot-dL1-dL2),
+                   path_spa+'/'+Site.f_initSWC3)
+
+        print(pcr.cellvalue(porosL3,2,2)[0],pcr.cellvalue(thrL3,2,2)[0],pcr.cellvalue(thfcL3,2,2)[0],
+              pcr.cellvalue(WTD,2,2)[0],pcr.cellvalue(porosL3 + (WTD-dL1-dL2)*(thfcL3-porosL3)/(dTot-dL1-dL2),2,2)[0])
+            
+
     else:
-        pcr.report(porosL3*Site.frac_SWC3, path_spa + '/' + Site.f_initSWC3)
+        sys.exit("Uncorrect option for initializing L3's content")
 
 
 # ==================================================================================
